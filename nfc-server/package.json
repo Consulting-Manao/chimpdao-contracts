@@ -1,0 +1,14 @@
+{
+  "name": "nfc-server",
+  "version": "1.0.0",
+  "description": "WebSocket server for Infineon NFC chip communication via USB reader",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "nfc-pcsc": "^0.8.0",
+    "ws": "^8.18.3"
+  }
+}

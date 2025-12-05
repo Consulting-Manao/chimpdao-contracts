@@ -1,0 +1,53 @@
+### Development environment configuration
+[development.network]
+rpc-url = "http://localhost:8000/rpc"
+network-passphrase = "Standalone Network ; February 2017"
+run-locally = true # automatically start the local network container, if not already running
+
+[[development.accounts]]
+name = "me" # Required. Keys for this account will be saved to `./.stellar/identity`
+default = true # Optional. Whether to use this account as the `--source` for commands that need one.
+
+[development.contracts.stellar_merch_shop]
+client = true
+
+
+constructor_args = """
+--admin me --name paltashirt --symbol smps --uri example.com
+"""
+
+### Staging environment configuration
+[staging.network]
+rpc-url = "https://soroban-testnet.stellar.org"
+network-passphrase = "Test SDF Network ; September 2015"
+
+[[staging.accounts]]
+name = "testnet-user"
+default = true
+
+[staging.contracts]
+# soroban-atomic-swap-contract = { id = "C123..." }
+# soroban-auth-contract = { id = "C234..." }
+# soroban-errors-contract = { id = "C345..." }
+# soroban-hello-world-contract = { id = "C456..." }
+# soroban-increment-contract = { id = "C567..." }
+# soroban-token-contract = { id = "C678..." }
+# eurc = { id = "C789..." }
+
+### Production environment configuration
+[production.network]
+rpc-url = "https://our-custom-rpc-provider.cool"
+network-passphrase = "Public Global Stellar Network ; September 2015"
+
+[[production.accounts]]
+name = "official-team-account"
+default = true
+
+[production.contracts]
+# soroban-atomic-swap-contract = { id = "C987..." }
+# soroban-auth-contract = { id = "C876..." }
+# soroban-errors-contract = { id = "C765..." }
+# soroban-hello-world-contract = { id = "C654..." }
+# soroban-increment-contract = { id = "C543..." }
+# soroban-token-contract = { id = "C432..." }
+# eurc = { id = "C321..." }
