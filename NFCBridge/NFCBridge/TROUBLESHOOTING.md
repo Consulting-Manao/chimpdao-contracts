@@ -125,5 +125,5 @@ If issues persist:
 
 - **Foreground Requirement**: NFC operations require app to be in foreground (iOS Core NFC limitation)
 - **Background Termination**: iOS may terminate app if inactive for extended period
-- **Recovery ID**: Currently hardcoded to 1; may need dynamic determination based on testing
+- **Recovery ID**: Hardcoded to 1 (key index 1, recovery ID 1)
 - **WebSocket Protocol**: Simplified implementation; may need enhancement for production use

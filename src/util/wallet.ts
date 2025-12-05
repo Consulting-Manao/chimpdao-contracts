@@ -56,28 +56,38 @@ export const disconnectWallet = async () => {
 function getHorizonHost(mode: string) {
   switch (mode) {
     case "LOCAL":
+    case "STANDALONE":
       return "http://localhost:8000";
     case "FUTURENET":
       return "https://horizon-futurenet.stellar.org";
     case "TESTNET":
       return "https://horizon-testnet.stellar.org";
     case "PUBLIC":
+    case "MAINNET":
       return "https://horizon.stellar.org";
     default:
       throw new Error(`Unknown Stellar network: ${mode}`);
   }
 }
 
-const horizon = new Horizon.Server(getHorizonHost(stellarNetwork), {
-  allowHttp: stellarNetwork === "LOCAL",
-});
-
 const formatter = new Intl.NumberFormat();
 
 export type MappedBalances = Record<string, Horizon.HorizonApi.BalanceLine>;
 
-export const fetchBalances = async (address: string) => {
+/**
+ * Fetch balances for an address on a specific network
+ * @param address - The Stellar address to fetch balances for
+ * @param network - Optional network name (e.g., "TESTNET", "PUBLIC", "LOCAL"). Uses app's configured network if not provided.
+ */
+export const fetchBalances = async (address: string, network?: string) => {
   try {
+    // Use wallet's network if provided, otherwise fall back to app's configured network
+    const networkToUse = (network || stellarNetwork).toUpperCase();
+    const horizonUrl = getHorizonHost(networkToUse);
+    const horizon = new Horizon.Server(horizonUrl, {
+      allowHttp: networkToUse === "LOCAL" || networkToUse === "STANDALONE",
+    });
+    
     const { balances } = await horizon.accounts().accountId(address).call();
     const mapped = balances.reduce((acc, b) => {
       b.balance = formatter.format(Number(b.balance));

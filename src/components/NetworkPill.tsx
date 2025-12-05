@@ -32,6 +32,9 @@ const NetworkPill: React.FC = () => {
     color = "#FF3B30";
   }
 
+  // Show wallet network if connected, otherwise show app network
+  const displayNetwork = address ? walletNetwork : appNetwork;
+
   return (
     <div
       style={{
@@ -49,7 +52,7 @@ const NetworkPill: React.FC = () => {
       title={title}
     >
       <Icon.Circle color={color} />
-      {appNetwork}
+      {displayNetwork}
     </div>
   );
 };

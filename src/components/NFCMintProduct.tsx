@@ -10,15 +10,15 @@ import { useWallet } from "../hooks/useWallet";
 import { useNFC } from "../hooks/useNFC";
 import { Box } from "./layout/Box";
 import { bytesToHex, createSEP53Message, fetchCurrentLedger, determineRecoveryId } from "../util/crypto";
-import { networkPassphrase, horizonUrl } from "../contracts/util";
-import stellarMerchShop from "../contracts/stellar_merch_shop";
+import { getNetworkPassphrase, getHorizonUrl } from "../contracts/util";
+import { getContractClient } from "../contracts/stellar_merch_shop";
 import { NFCServerNotRunningError, ChipNotPresentError, APDUCommandFailedError, RecoveryIdError } from "../util/nfcClient";
 
 type MintStep = 'idle' | 'reading' | 'signing' | 'recovering' | 'calling' | 'confirming';
 
 export const NFCMintProduct = () => {
-  const { address, updateBalances, signTransaction } = useWallet();
-  const { connected, chipPresent, signing, signWithChip, mode, modeName, readChip } = useNFC();
+  const { address, updateBalances, signTransaction, network: walletNetwork, networkPassphrase: walletPassphrase } = useWallet();
+  const { connected, chipPresent, signing, signWithChip, readChip } = useNFC();
   const [minting, setMinting] = useState(false);
   const [mintStep, setMintStep] = useState<MintStep>('idle');
   const [result, setResult] = useState<{
@@ -28,6 +28,7 @@ export const NFCMintProduct = () => {
     error?: string;
   }>();
 
+
   if (!address) {
     return (
       <Text as="p" size="md">
@@ -36,11 +37,11 @@ export const NFCMintProduct = () => {
     );
   }
 
-  if (!connected && mode === 'websocket') {
+  if (!connected) {
     return (
       <Box gap="sm">
         <Text as="p" size="md">
-          NFC server not running (Desktop mode)
+          NFC server not running
         </Text>
         <Text as="p" size="sm" style={{ color: "#666" }}>
           Start the NFC server in a separate terminal:
@@ -54,28 +55,7 @@ export const NFCMintProduct = () => {
     );
   }
 
-  if (mode === 'none') {
-    return (
-      <Box gap="sm">
-        <Text as="p" size="md">
-          NFC not available on this device
-        </Text>
-        <Text as="p" size="sm" style={{ color: "#666" }}>
-          {/iPhone|iPad|iPod/.test(navigator.userAgent) ? (
-            <>
-              Please install and start the iOS Bridge app to use this feature.
-            </>
-          ) : (
-            <>
-              Please connect a USB NFC reader and start the NFC server to use this feature.
-            </>
-          )}
-        </Text>
-      </Box>
-    );
-  }
-
-  if (!chipPresent && mode === 'websocket') {
+  if (!chipPresent) {
     return (
       <Box gap="sm">
         <Text as="p" size="md">
@@ -117,32 +97,37 @@ export const NFCMintProduct = () => {
       setMintStep('reading');
       const chipPublicKey = await readChip();
       
-      // 2. Get current ledger for SEP-53 expiry
+      // 2. Get network-specific settings
+      const networkPassphraseToUse = getNetworkPassphrase(walletNetwork, walletPassphrase);
+      const horizonUrlToUse = getHorizonUrl(walletNetwork);
+      
+      // 3. Fetch current ledger using wallet's network Horizon URL
       let currentLedger: number;
       try {
-        currentLedger = await fetchCurrentLedger(horizonUrl);
+        currentLedger = await fetchCurrentLedger(horizonUrlToUse);
       } catch {
         // Fallback to reasonable default if Horizon API fails
         currentLedger = 1000000;
       }
       const validUntilLedger = currentLedger + 100;
       
-      // 3. Create SEP-53 compliant auth message
-      const contractId = stellarMerchShop.options.contractId;
+      // 4. Get contract client for the wallet's network (with correct RPC, Horizon, and passphrase)
+      const contractClient = getContractClient(walletNetwork, walletPassphrase);
+      const contractId = contractClient.options.contractId;
       const { message, messageHash } = await createSEP53Message(
         contractId,
         'mint',
         [address],
         validUntilLedger,
-        networkPassphrase
+        networkPassphraseToUse
       );
 
-      // 4. NFC chip signs the hash
+      // 5. NFC chip signs the hash
       setMintStep('signing');
       const signatureResult = await signWithChip(messageHash);
       const { signatureBytes, recoveryId: providedRecoveryId } = signatureResult;
 
-      // 5. Determine recovery ID
+      // 6. Determine recovery ID
       // If server provided recovery ID and it's valid, use it; otherwise try all possibilities
       setMintStep('recovering');
       let recoveryId: number;
@@ -165,22 +150,44 @@ export const NFCMintProduct = () => {
         recoveryId = await determineRecoveryId(messageHash, signatureBytes, chipPublicKey);
       }
       
-      // 6. Call contract with ORIGINAL message
+      // 7. Build and submit transaction using contract client with wallet kit
       setMintStep('calling');
-      const tx = await stellarMerchShop.mint(
+      
+      // Debug logging
+      console.log('Minting with:', {
+        to: address,
+        messageLength: message.length,
+        signatureLength: signatureBytes.length,
+        recoveryId,
+        contractId: contractId,
+        publicKey: address
+      });
+      
+      // Build transaction using contract client with wallet's public key
+      // The contract client needs the publicKey to build the transaction with the correct source account
+      const tx = await contractClient.mint(
         {
           to: address,
           message: Buffer.from(message),
           signature: Buffer.from(signatureBytes),
           recovery_id: recoveryId,
-        }
+        },
+        {
+          publicKey: address, // Required: use the connected wallet's public key
+        } as any // Type assertion needed because AssembledTransactionOptions requires full ClientOptions
       );
       
+      // Sign and send using wallet kit
+      // Use force: true because this will be a write operation in the future
       setMintStep('confirming');
-      const txResponse = await tx.signAndSend({ signTransaction });
+      const txResponse = await tx.signAndSend({ signTransaction, force: true });
       
+      // Get result from the transaction response
+      // The contract's mint function returns the recovered public key (token ID)
       const recoveredPublicKey = txResponse.result;
       const tokenIdHex = bytesToHex(new Uint8Array(recoveredPublicKey));
+      
+      console.log('Mint successful! Token ID:', tokenIdHex);
       
       setResult({
         success: true,
@@ -190,6 +197,13 @@ export const NFCMintProduct = () => {
       
       await updateBalances();
     } catch (err) {
+      // Enhanced error logging
+      console.error('Minting error:', err);
+      if (err instanceof Error) {
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
+      }
+      
       let errorMessage = "Unknown error";
       let actionableGuidance = "";
       
@@ -277,19 +291,10 @@ export const NFCMintProduct = () => {
         </Box>
       ) : (
         <Box gap="sm" direction="column">
-          <Text as="p" size="md" weight="semi-bold">
-            Mint NFT from NFC Chip
-          </Text>
-          <Text as="p" size="sm" style={{ color: "#666" }}>
-            This will create an NFT linked to your physical product. The chip's public key becomes the unique token ID.
-          </Text>
-          <Text as="p" size="sm" style={{ color: "#666", marginTop: "8px" }}>
-            Using {modeName} • SEP-53 Auth
-          </Text>
 
           <Button
             type="submit"
-            disabled={(mode === 'websocket' && !chipPresent) || minting || signing}
+            disabled={!chipPresent || minting || signing}
             isLoading={minting || signing}
             style={{ marginTop: "12px" }}
             variant="primary"

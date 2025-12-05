@@ -112,13 +112,12 @@ This template provides a ready-to-use frontend application with example smart co
 
 ## NFC Integration
 
-This project includes NFC chip integration for minting NFTs linked to physical products using Infineon SECORA Blockchain NFC chips.
+This project includes desktop-only NFC chip integration for admin operations (chip initialization and management) using Infineon SECORA Blockchain NFC chips. For mobile minting, see the standalone iOS app in `NFCBridge/`.
 
 **Features:**
-- Dual-mode support: Desktop (WebSocket) and Android (Web NFC)
+- Desktop USB reader support (WebSocket)
 - SEP-53 compliant contract authentication
 - Hardware-secured signatures via secp256k1
-- Automatic platform detection
 
 **Quick Start:**
 - See [README_NFC.md](README_NFC.md) for complete setup and usage guide
@@ -126,7 +125,7 @@ This project includes NFC chip integration for minting NFTs linked to physical p
 
 **Running with NFC:**
 ```bash
-# Start NFC server (Desktop mode) + dev server
+# Start NFC server (Desktop) + dev server
 npm run dev:with-nfc
 
 # Or start separately

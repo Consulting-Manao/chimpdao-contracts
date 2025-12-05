@@ -2,11 +2,11 @@
 [development.network]
 rpc-url = "http://localhost:8000/rpc"
 network-passphrase = "Standalone Network ; February 2017"
-run-locally = true # automatically start the local network container, if not already running
+run-locally = true
 
 [[development.accounts]]
-name = "me" # Required. Keys for this account will be saved to `./.stellar/identity`
-default = true # Optional. Whether to use this account as the `--source` for commands that need one.
+name = "me"
+default = true
 
 [development.contracts.stellar_merch_shop]
 client = true
@@ -27,12 +27,6 @@ default = true
 
 [staging.contracts]
 # soroban-atomic-swap-contract = { id = "C123..." }
-# soroban-auth-contract = { id = "C234..." }
-# soroban-errors-contract = { id = "C345..." }
-# soroban-hello-world-contract = { id = "C456..." }
-# soroban-increment-contract = { id = "C567..." }
-# soroban-token-contract = { id = "C678..." }
-# eurc = { id = "C789..." }
 
 ### Production environment configuration
 [production.network]

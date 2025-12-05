@@ -67,8 +67,7 @@ class APDUHandler {
             return nil
         }
         
-        // SECORA chips typically use recovery ID 1
-        // This may need to be determined dynamically based on testing
+        // Recovery ID 1 (hardcoded for Infineon SECORA chips)
         let recoveryId = 1
         
         return (r: r, s: s, recoveryId: recoveryId)
@@ -92,7 +91,7 @@ class APDUHandler {
         offset += 1
         
         // Skip total length
-        let seqLength = der[offset]
+        _ = der[offset] // seqLength - not used, just advancing offset
         offset += 1
         
         // 0x02: INTEGER (r)

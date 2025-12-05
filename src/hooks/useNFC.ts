@@ -6,16 +6,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { nfcClient, type NFCStatus } from '../util/nfcClient';
 import type { SorobanSignature } from '../util/crypto';
-import type { NFCMode } from '../util/nfcPlatform';
-import { detectNFCMode, getPlatformName } from '../util/nfcPlatform';
 
 export interface UseNFCReturn {
   // Connection state
   connected: boolean;
   chipPresent: boolean;
   readerName: string | null;
-  mode: NFCMode;
-  modeName: string;
   
   // Operation state
   reading: boolean;
@@ -37,7 +33,6 @@ export interface UseNFCReturn {
 
 export function useNFC(): UseNFCReturn {
   const [connected, setConnected] = useState(false);
-  const [mode, setMode] = useState<NFCMode>('none');
   const [status, setStatus] = useState<NFCStatus>({
     readerConnected: false,
     chipPresent: false,
@@ -49,12 +44,6 @@ export function useNFC(): UseNFCReturn {
   const [chipPublicKey, setChipPublicKey] = useState<string | null>(null);
   
   const connectingRef = useRef(false);
-
-  // Detect mode on mount
-  useEffect(() => {
-    const detectedMode = detectNFCMode();
-    setMode(detectedMode);
-  }, []);
 
   // Auto-connect on mount
   useEffect(() => {
@@ -187,8 +176,6 @@ export function useNFC(): UseNFCReturn {
     connected,
     chipPresent: status.chipPresent,
     readerName: status.readerName,
-    mode,
-    modeName: getPlatformName(mode),
     reading,
     signing,
     error,

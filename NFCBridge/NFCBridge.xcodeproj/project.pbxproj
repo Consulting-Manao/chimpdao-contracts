@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		275968842EE320F5003717D9 /* stellarsdk in Frameworks */ = {isa = PBXBuildFile; productRef = 275968832EE320F5003717D9 /* stellarsdk */; };
 		278172192EE2EEDF00181C6C /* CoreNFC.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 278172182EE2EEDF00181C6C /* CoreNFC.framework */; };
 /* End PBXBuildFile section */
 
@@ -29,6 +30,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				278172192EE2EEDF00181C6C /* CoreNFC.framework in Frameworks */,
+				275968842EE320F5003717D9 /* stellarsdk in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -79,6 +81,7 @@
 			);
 			name = NFCBridge;
 			packageProductDependencies = (
+				275968832EE320F5003717D9 /* stellarsdk */,
 			);
 			productName = NFCBridge;
 			productReference = 27B6C9892EE2E2B400D1377C /* NFCBridge.app */;
@@ -108,6 +111,9 @@
 			);
 			mainGroup = 27B6C9802EE2E2B400D1377C;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				275968822EE320F4003717D9 /* XCRemoteSwiftPackageReference "stellar-ios-mac-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 27B6C98A2EE2E2B400D1377C /* Products */;
 			projectDirPath = "";
@@ -253,6 +259,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NFCBridge/NFCBridge.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -289,6 +296,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = NFCBridge/NFCBridge.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -342,6 +350,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		275968822EE320F4003717D9 /* XCRemoteSwiftPackageReference "stellar-ios-mac-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Soneso/stellar-ios-mac-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.2.8;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		275968832EE320F5003717D9 /* stellarsdk */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 275968822EE320F4003717D9 /* XCRemoteSwiftPackageReference "stellar-ios-mac-sdk" */;
+			productName = stellarsdk;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 27B6C9812EE2E2B400D1377C /* Project object */;
 }

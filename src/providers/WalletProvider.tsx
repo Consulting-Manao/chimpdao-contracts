@@ -63,12 +63,21 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   const [networkPassphrase, setNetworkPassphrase] = useState<string>();
   const [isPending, startTransition] = useTransition();
   const popupLock = useRef(false);
+  const lastNetworkRef = useRef<string | undefined>(undefined);
+  const networkForBalancesRef = useRef<string | undefined>(undefined);
+  const addressRef = useRef<string | undefined>(undefined);
+  const networkRef = useRef<string | undefined>(undefined);
+  const lastSetNetworkRef = useRef<string | undefined>(undefined);
 
   const nullify = () => {
     setAddress(undefined);
     setNetwork(undefined);
     setNetworkPassphrase(undefined);
     setBalances({});
+    addressRef.current = undefined;
+    networkRef.current = undefined;
+    networkForBalancesRef.current = undefined;
+    lastSetNetworkRef.current = undefined;
     storage.setItem("walletId", "");
     storage.setItem("walletAddress", "");
     storage.setItem("walletNetwork", "");
@@ -76,21 +85,55 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const updateBalances = useCallback(async () => {
-    if (!address) {
+    const currentAddress = addressRef.current;
+    const currentNetwork = networkRef.current;
+    
+    if (!currentAddress) {
       setBalances({});
+      networkForBalancesRef.current = undefined;
       return;
     }
 
-    const newBalances = await fetchBalances(address);
+    // Use wallet's network for fetching balances - normalize for consistency
+    const normalizedNetwork = currentNetwork ? currentNetwork.toUpperCase() : currentNetwork;
+    
+    // Only fetch if network actually changed (check both normalized network and address)
+    const networkKey = `${currentAddress}:${normalizedNetwork}`;
+    const lastKey = networkForBalancesRef.current;
+    
+    if (networkKey === lastKey) {
+      return; // Network and address haven't changed, skip fetch
+    }
+    
+    networkForBalancesRef.current = networkKey;
+    const newBalances = await fetchBalances(currentAddress, normalizedNetwork);
     setBalances((prev) => {
       if (deepEqual(newBalances, prev)) return prev;
       return newBalances;
     });
-  }, [address]);
+  }, []); // Stable callback - uses refs instead of dependencies
 
+  // Update refs when address or network change, then trigger balance update
   useEffect(() => {
-    void updateBalances();
-  }, [updateBalances]);
+    // Normalize network for comparison and storage in ref
+    const normalizedNetwork = network ? network.toUpperCase() : network;
+    
+    // Check if values actually changed
+    const addressChanged = address !== addressRef.current;
+    const networkChanged = normalizedNetwork !== networkRef.current;
+    
+    if (addressChanged || networkChanged) {
+      addressRef.current = address;
+      networkRef.current = normalizedNetwork;
+      // Only update balances if we have an address
+      if (address) {
+        void updateBalances();
+      } else {
+        setBalances({});
+        networkForBalancesRef.current = undefined;
+      }
+    }
+  }, [address, network, updateBalances]);
 
   const updateCurrentWalletState = async () => {
     // There is no way, with StellarWalletsKit, to check if the wallet is
@@ -107,8 +150,14 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       walletNetwork !== null &&
       passphrase !== null
     ) {
+      // Normalize network value when loading from storage to keep it consistent
+      const normalizedStoredNetwork = walletNetwork.toUpperCase();
       setAddress(walletAddr);
-      setNetwork(walletNetwork);
+      setNetwork(normalizedStoredNetwork);
+      addressRef.current = walletAddr;
+      networkRef.current = normalizedStoredNetwork;
+      lastNetworkRef.current = normalizedStoredNetwork;
+      lastSetNetworkRef.current = normalizedStoredNetwork;
       setNetworkPassphrase(passphrase);
     }
 
@@ -129,15 +178,46 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
         ]);
 
         if (!a.address) storage.setItem("walletId", "");
-        if (
-          a.address !== address ||
-          n.network !== network ||
-          n.networkPassphrase !== networkPassphrase
-        ) {
+        // Normalize network values for comparison to prevent oscillation
+        const normalizedWalletNetwork = (n.network || "").toUpperCase();
+        const normalizedCurrentNetwork = (network || "").toUpperCase();
+        const lastNormalizedNetwork = (lastNetworkRef.current || "").toUpperCase();
+        
+        // Only update if values actually changed (using normalized comparison)
+        // Check against both current state and last seen value to prevent oscillation
+        const addressChanged = a.address !== address;
+        const networkChanged = normalizedWalletNetwork !== "" && 
+                               normalizedWalletNetwork !== normalizedCurrentNetwork && 
+                               normalizedWalletNetwork !== lastNormalizedNetwork;
+        const passphraseChanged = n.networkPassphrase !== networkPassphrase;
+        
+        if (addressChanged || networkChanged || passphraseChanged) {
           storage.setItem("walletAddress", a.address);
-          setAddress(a.address);
-          setNetwork(n.network);
-          setNetworkPassphrase(n.networkPassphrase);
+          if (addressChanged) {
+            setAddress(a.address);
+          }
+          if (n.network) {
+            // Store normalized network value for comparison
+            const normalizedValue = n.network.toUpperCase();
+            
+            // Use functional setState to only update if value actually changed
+            setNetwork((prevNetwork) => {
+              const prevNormalized = (prevNetwork || "").toUpperCase();
+              if (normalizedValue !== prevNormalized) {
+                lastSetNetworkRef.current = normalizedValue;
+                return normalizedValue;
+              }
+              // Return previous value to prevent unnecessary re-render
+              return prevNetwork;
+            });
+            
+            lastNetworkRef.current = normalizedValue;
+          }
+          if (passphraseChanged) setNetworkPassphrase(n.networkPassphrase);
+        } else if (n.network) {
+          // Update ref even if nothing changed, to track what we last saw
+          const normalizedValue = n.network.toUpperCase();
+          lastNetworkRef.current = normalizedValue;
         }
       } catch (e) {
         // If `getNetwork` or `getAddress` throw errors... sign the user out???

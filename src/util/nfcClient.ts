@@ -1,15 +1,15 @@
 /**
- * Unified NFC Client
- * Supports Desktop (WebSocket + USB reader)
- * 
- * Note: Android support will be added via bridge app in the future
+ * NFC Client for Desktop (WebSocket + USB reader)
+ * Desktop-only implementation using WebSocket server
  */
 
 import type { NFCSignature, SorobanSignature } from './crypto';
 import { formatSignatureForSoroban, bytesToHex } from './crypto';
-import { detectNFCMode, type NFCMode } from './nfcPlatform';
 
-const DEFAULT_WS_URL = 'ws://localhost:8080';
+/**
+ * WebSocket URL for NFC server (desktop only)
+ */
+const WEBSOCKET_URL = 'ws://localhost:8080';
 
 export interface NFCStatus {
   readerConnected: boolean;
@@ -91,7 +91,7 @@ class WebSocketNFCClient {
   };
 
   constructor(wsUrl?: string) {
-    this.wsUrl = wsUrl || DEFAULT_WS_URL;
+    this.wsUrl = wsUrl || WEBSOCKET_URL;
   }
 
   /**
@@ -124,13 +124,11 @@ class WebSocketNFCClient {
           }
         };
 
-        this.ws.onerror = () => {
-          console.error('WebSocket error');
-          this.emit({ type: 'error', data: 'WebSocket connection error' });
-          reject(new NFCServerNotRunningError());
+        this.ws.onerror = (event) => {
+          console.error('WebSocket error:', event);
         };
 
-        this.ws.onclose = () => {
+        this.ws.onclose = (event) => {
           this.emit({ type: 'disconnected' });
           this.currentStatus = {
             readerConnected: false,
@@ -138,7 +136,17 @@ class WebSocketNFCClient {
             readerName: null
           };
           
-          // Attempt reconnection
+          // Log close details for debugging
+          console.log('WebSocket closed:', { code: event.code, reason: event.reason, wasClean: event.wasClean });
+          
+          // If connection closed during initial connect attempt and not normal closure, reject
+          if (event.code !== 1000 && event.code !== 1001) {
+            const errorMsg = this.getConnectionErrorMessage(event.code, event.reason);
+            reject(new NFCServerNotRunningError(errorMsg));
+            return;
+          }
+          
+          // Attempt reconnection if not manually disconnected
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
             setTimeout(() => {
@@ -146,6 +154,9 @@ class WebSocketNFCClient {
                 // Reconnection failed, will try again
               });
             }, this.reconnectDelay);
+          } else {
+            const errorMsg = this.getConnectionErrorMessage();
+            reject(new NFCServerNotRunningError(errorMsg));
           }
         };
       } catch (error) {
@@ -299,6 +310,16 @@ class WebSocketNFCClient {
               this.ws.removeEventListener('message', messageHandler);
             }
             
+            // Debug logging
+            console.log('Received signature from server:', {
+              r: message.data.r?.substring(0, 20) + '...',
+              s: message.data.s?.substring(0, 20) + '...',
+              rLength: message.data.r?.length,
+              sLength: message.data.s?.length,
+              recoveryId: message.data.recoveryId,
+              v: message.data.v
+            });
+            
             // Convert to Soroban format
             // If server provided recoveryId, use it; otherwise formatSignatureForSoroban will try to determine it
             const recoveryIdFromServer = message.data.recoveryId as number | undefined;
@@ -308,8 +329,18 @@ class WebSocketNFCClient {
               v: recoveryIdFromServer !== undefined ? recoveryIdFromServer : 0, // v is required by interface
               recoveryId: recoveryIdFromServer
             };
-            const sorobanSig = formatSignatureForSoroban(nfcSig);
-            resolve(sorobanSig);
+            
+            try {
+              const sorobanSig = formatSignatureForSoroban(nfcSig);
+              console.log('Formatted signature for Soroban:', {
+                signatureLength: sorobanSig.signatureBytes.length,
+                recoveryId: sorobanSig.recoveryId
+              });
+              resolve(sorobanSig);
+            } catch (formatError) {
+              console.error('Failed to format signature:', formatError);
+              reject(formatError instanceof Error ? formatError : new Error('Failed to format signature'));
+            }
           } else if (message.type === 'error') {
             this.removeListener(handler);
             if (this.ws) {
@@ -349,6 +380,14 @@ class WebSocketNFCClient {
    */
   removeListener(listener: NFCClientEventListener): void {
     this.listeners.delete(listener);
+  }
+
+  /**
+   * Get user-friendly connection error message (desktop only)
+   */
+  private getConnectionErrorMessage(code?: number, _reason?: string): string {
+    return `NFC server connection failed (code: ${code || 'unknown'}). ` +
+      'Start the NFC server with: bun run nfc-server';
   }
 
   /**
@@ -404,11 +443,9 @@ class WebSocketNFCClient {
 }
 
 /**
- * Unified NFC Client
- * Currently supports WebSocket mode only (Desktop)
+ * NFC Client (Desktop only - WebSocket)
  */
-export class UnifiedNFCClient {
-  private mode: NFCMode = 'none';
+export class NFCClient {
   private wsClient?: WebSocketNFCClient;
   private listeners: Set<NFCClientEventListener> = new Set();
 
@@ -416,16 +453,8 @@ export class UnifiedNFCClient {
    * Connect to NFC interface
    */
   async connect(): Promise<void> {
-    this.mode = detectNFCMode();
-    
-    if (this.mode === 'websocket' || this.mode === 'ios-bridge') {
-      // Both desktop and iOS bridge use WebSocket on localhost:8080
-      this.wsClient = new WebSocketNFCClient();
-      await this.wsClient.connect();
-      // WebSocket client emits its own connected event
-    } else {
-      throw new NFCServerNotRunningError('No NFC support available. WebSocket is required for NFC operations.');
-    }
+    this.wsClient = new WebSocketNFCClient();
+    await this.wsClient.connect();
   }
 
   /**
@@ -447,13 +476,6 @@ export class UnifiedNFCClient {
       return this.wsClient.isConnected();
     }
     return false;
-  }
-
-  /**
-   * Get current mode
-   */
-  getMode(): NFCMode {
-    return this.mode;
   }
 
   /**
@@ -525,6 +547,6 @@ export class UnifiedNFCClient {
   }
 }
 
-// Export singleton instance with unified interface
-export const nfcClient = new UnifiedNFCClient();
+// Export singleton instance
+export const nfcClient = new NFCClient();
 

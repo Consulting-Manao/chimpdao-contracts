@@ -7,7 +7,7 @@ import { Text, Badge } from "@stellar/design-system";
 import { useNFC } from "../hooks/useNFC";
 
 export const NFCStatus = () => {
-  const { connected, chipPresent, readerName, mode, modeName, error } = useNFC();
+  const { connected, chipPresent, readerName, error } = useNFC();
 
   return (
     <div
@@ -21,15 +21,6 @@ export const NFCStatus = () => {
         backgroundColor: "#f9f9f9",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <Text as="span" size="sm" weight="semi-bold">
-          NFC Mode:
-        </Text>
-        <Text as="span" size="sm">
-          {modeName}
-        </Text>
-      </div>
-
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <Text as="span" size="sm" weight="semi-bold">
           Status:
@@ -65,21 +56,9 @@ export const NFCStatus = () => {
         </div>
       )}
 
-      {!connected && mode === 'websocket' && (
+      {!connected && (
         <Text as="p" size="sm" style={{ marginTop: "4px", color: "#666" }}>
           Start NFC server with <code>bun run nfc-server</code>
-        </Text>
-      )}
-      
-      {!connected && mode === 'ios-bridge' && (
-        <Text as="p" size="sm" style={{ marginTop: "4px", color: "#666" }}>
-          Install and start the iOS Bridge app on this device
-        </Text>
-      )}
-
-      {mode === 'none' && (
-        <Text as="p" size="sm" style={{ marginTop: "4px", color: "#666" }}>
-          NFC not supported on this device
         </Text>
       )}
 

@@ -4,12 +4,12 @@ Complete guide for using Infineon SECORA Blockchain NFC chips with Stellar Merch
 
 ## Overview
 
-This application integrates Infineon NFC chips for NFT minting:
+This application integrates Infineon NFC chips for NFT minting on desktop:
 - **Desktop**: USB NFC reader (uTrust 4701F) via WebSocket server
 - **Authentication**: SEP-53 compliant contract auth
 - **Security**: Hardware-secured signatures via secp256k1
 
-**Note**: Android support is planned for a future release via a native bridge app solution.
+**Note**: This is a desktop-only admin tool for chip initialization and management. For mobile minting, use the standalone iOS app (see `NFCBridge/` directory).
 
 ## Quick Start
 
@@ -31,8 +31,7 @@ bun install ws
 cd ..
 
 # Create environment file
-echo "VITE_STELLAR_NETWORK=testnet
-VITE_NFC_SERVER_URL=ws://localhost:8080" > .env
+echo "VITE_STELLAR_NETWORK=testnet" > .env
 ```
 
 ### Running
@@ -62,11 +61,6 @@ Open browser at http://localhost:5173
 Browser ← WebSocket → NFC Server ← blocksec2go → USB Reader ← NFC → Chip
 ```
 
-**Future Android Support**:
-```
-Browser ← WebSocket → Android Bridge App ← Android NFC API (IsoDep) ← Chip
-```
-
 ### Flow
 
 1. **Read Chip**: Get chip's public key (65-byte secp256k1 key)
@@ -74,7 +68,7 @@ Browser ← WebSocket → Android Bridge App ← Android NFC API (IsoDep) ← Ch
 3. **Create Message**: Build SEP-53 auth message
 4. **Hash**: Compute SHA-256 hash of message
 5. **Sign**: Chip signs the 32-byte hash
-6. **Detect Recovery ID**: Server provides recovery ID if available, otherwise try all recovery IDs (0-3) to find the correct one by matching recovered public key
+6. **Detect Recovery ID**: Server provides recovery ID (default: 1 for Infineon chips)
 7. **Contract Call**: Send original message + signature + detected recovery ID to contract
 8. **Verify**: Contract hashes message and recovers public key via `secp256k1_recover`
 9. **Token ID**: Recovered public key becomes the NFT token ID
@@ -127,7 +121,7 @@ message = network_hash + contract_id + function_name + args + ledger_expiry
 - Using `force: true` to test signature recovery
 
 **Public Key Mismatch**
-- Recovery ID is automatically detected: server provides it if available, otherwise tries all possibilities (0-3)
+- Recovery ID defaults to 1 for Infineon chips
 - If mismatch persists, verify chip is Infineon SECORA Blockchain compatible
 - Frontend and contract must hash the same message
 
@@ -140,14 +134,9 @@ Edit `nfc-server/index.js`:
 const PORT = 8080; // Change port here
 ```
 
-And `.env`:
-```
-VITE_NFC_SERVER_URL=ws://localhost:8080
-```
-
 ### Recovery ID
 
-Recovery ID is automatically detected. The NFC server provides it when available (currently hardcoded to 1 for blocksec2go). The frontend validates this by comparing the recovered public key with the chip's known key. If the server-provided recovery ID doesn't match, the frontend tries all possibilities (0-3) to find the correct one. No manual configuration needed.
+Recovery ID is set to 1 by default for Infineon SECORA chips. This is configured in the NFC server and should not need adjustment.
 
 ## Technical Details
 
@@ -169,7 +158,7 @@ fn mint(
 - **From chip**: DER-encoded ECDSA signature
 - **Parsed**: r (32 bytes) + s (32 bytes)
 - **Normalized**: s must be in "low form" (s < curve_order/2)
-- **Recovery ID**: Automatically detected by trying all possibilities (0-3) and matching recovered public key
+- **Recovery ID**: Defaults to 1 for Infineon SECORA chips
 
 ### blocksec2go Commands
 ```bash
@@ -210,9 +199,7 @@ stellar-merch-shop/
 │   ├── hooks/
 │   │   └── useNFC.ts           # NFC state management
 │   ├── util/
-│   │   ├── nfcPlatform.ts      # Platform detection
-│   │   ├── nfcClient.ts        # Unified client (WebSocket)
-│   │   ├── webNFC.ts           # Web NFC client (Android)
+│   │   ├── nfcClient.ts        # WebSocket client (Desktop)
 │   │   └── crypto.ts           # SEP-53 + signature formatting
 │   └── contracts/
 │       └── stellar_merch_shop.ts  # Contract client wrapper
