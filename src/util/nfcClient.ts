@@ -378,8 +378,22 @@ class WebSocketNFCClient {
    */
   async readNDEF(): Promise<string | null> {
     return new Promise((resolve, reject) => {
+      // Auto-connect if not connected
       if (!this.isConnected()) {
-        reject(new Error('Not connected to NFC server'));
+        console.log('readNDEF: Not connected, attempting to connect...');
+        this.connect()
+          .then(() => {
+            // Retry after connection
+            if (!this.currentStatus.chipPresent) {
+              reject(new ChipNotPresentError());
+              return;
+            }
+            // Continue with the read operation
+            this.performReadNDEF(resolve, reject);
+          })
+          .catch((err) => {
+            reject(new Error(`Failed to connect: ${err.message}`));
+          });
         return;
       }
 
@@ -387,54 +401,62 @@ class WebSocketNFCClient {
         reject(new ChipNotPresentError());
         return;
       }
-
-      const handler = (event: NFCClientEvent) => {
-        if (event.type === 'error') {
-          this.removeListener(handler);
-          reject(new Error(event.data as string));
-        }
-      };
-
-      this.addListener(handler);
-
-      // Send read NDEF request
-      this.send({ type: 'read-ndef' });
-
-      // Set up one-time message listener
-      const messageHandler = (event: MessageEvent) => {
-        try {
-          const message = JSON.parse(event.data as string) as WebSocketMessage;
-          if (message.type === 'ndef-read' && message.success) {
-            this.removeListener(handler);
-            if (this.ws) {
-              this.ws.removeEventListener('message', messageHandler);
-            }
-            resolve(message.data?.url || null);
-          } else if (message.type === 'error') {
-            this.removeListener(handler);
-            if (this.ws) {
-              this.ws.removeEventListener('message', messageHandler);
-            }
-            reject(new Error(message.error ?? 'Unknown error'));
-          }
-        } catch {
-          // Ignore parse errors
-        }
-      };
-
-      if (this.ws) {
-        this.ws.addEventListener('message', messageHandler);
-      }
-
-      // Timeout after 10 seconds
-      setTimeout(() => {
-        this.removeListener(handler);
-        if (this.ws) {
-          this.ws.removeEventListener('message', messageHandler);
-        }
-        reject(new Error('Timeout reading NDEF'));
-      }, 10000);
+      
+      this.performReadNDEF(resolve, reject);
     });
+  }
+
+  private performReadNDEF(resolve: (value: string | null) => void, reject: (reason?: unknown) => void) {
+    const handler = (event: NFCClientEvent) => {
+      if (event.type === 'error') {
+        this.removeListener(handler);
+        reject(new Error(event.data as string));
+      }
+    };
+
+    this.addListener(handler);
+
+    // Send read NDEF request
+    this.send({ type: 'read-ndef' });
+
+    // Set up one-time message listener
+    const messageHandler = (event: MessageEvent) => {
+      try {
+        const message = JSON.parse(event.data as string) as WebSocketMessage;
+        console.log('readNDEF: Received message:', message);
+        if (message.type === 'ndef-read' && message.success) {
+          console.log('readNDEF: Success, URL:', message.data?.url);
+          this.removeListener(handler);
+          if (this.ws) {
+            this.ws.removeEventListener('message', messageHandler);
+          }
+          resolve(message.data?.url || null);
+        } else if (message.type === 'error') {
+          console.error('readNDEF: Error received:', message.error);
+          this.removeListener(handler);
+          if (this.ws) {
+            this.ws.removeEventListener('message', messageHandler);
+          }
+          reject(new Error(message.error ?? 'Unknown error'));
+        }
+      } catch (error) {
+        console.error('readNDEF: Parse error:', error);
+        // Ignore parse errors
+      }
+    };
+
+    if (this.ws) {
+      this.ws.addEventListener('message', messageHandler);
+    }
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      this.removeListener(handler);
+      if (this.ws) {
+        this.ws.removeEventListener('message', messageHandler);
+      }
+      reject(new Error('Timeout reading NDEF'));
+    }, 10000);
   }
 
   /**

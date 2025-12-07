@@ -4,7 +4,7 @@
  * Replaces the GuessTheNumber component
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button, Text, Code } from "@stellar/design-system";
 import { useWallet } from "../hooks/useWallet";
 import { useNFC } from "../hooks/useNFC";
@@ -29,6 +29,16 @@ export const NFCMintProduct = () => {
     error?: string;
   }>();
 
+  // Auto-connect to NFC server on component mount
+  useEffect(() => {
+    if (!connected) {
+      console.log('NFCMintProduct: Auto-connecting to NFC server...');
+      connect().catch((err) => {
+        console.warn('NFCMintProduct: Auto-connect failed (server may not be running):', err);
+        // Don't show error - server might not be running yet
+      });
+    }
+  }, [connected, connect]);
 
   if (!address) {
     return (
@@ -58,14 +68,20 @@ export const NFCMintProduct = () => {
   };
 
   const handleReadNDEF = async () => {
+    console.log('handleReadNDEF: Starting...');
     if (!connected) {
+      console.log('handleReadNDEF: Not connected, connecting...');
       await connect();
     }
 
     try {
+      console.log('handleReadNDEF: Calling readNDEF()...');
       const url = await readNDEF();
+      console.log('handleReadNDEF: Got URL:', url);
       setNdefData(url);
+      console.log('handleReadNDEF: Set ndefData to:', url);
     } catch (err) {
+      console.error('handleReadNDEF: Error:', err);
       if (err instanceof ChipNotPresentError) {
         setNdefData(null);
         alert('No NFC chip detected. Please place the chip on the reader.');
@@ -254,8 +270,11 @@ export const NFCMintProduct = () => {
         void handleMint();
       }}
     >
-      {/* Add NDEF Read Button at the top */}
-      <Box gap="sm" direction="column" style={{ marginBottom: "16px" }}>
+      {/* NDEF Read Section */}
+      <Box gap="sm" direction="column" style={{ marginBottom: "24px", padding: "16px", backgroundColor: "#f9f9f9", borderRadius: "8px", border: "1px solid #e0e0e0" }}>
+        <Text as="p" size="md" weight="semi-bold" style={{ marginBottom: "8px" }}>
+          NDEF Data
+        </Text>
         <Button
           type="button"
           variant="secondary"
@@ -266,17 +285,25 @@ export const NFCMintProduct = () => {
         >
           {readingNDEF ? "Reading NDEF..." : "Read NDEF Data"}
         </Button>
+        
         {ndefData !== null && (
-          <Box gap="xs" direction="column" style={{ padding: "12px", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
-            <Text as="p" size="sm" weight="semi-bold">
-              NDEF URL:
+          <Box gap="xs" direction="column" style={{ marginTop: "12px", padding: "12px", backgroundColor: "#fff", borderRadius: "4px", border: "1px solid #ddd" }}>
+            <Text as="p" size="sm" weight="semi-bold" style={{ color: "#333" }}>
+              {ndefData ? "NDEF URL:" : "Status:"}
             </Text>
             {ndefData ? (
-              <Code size="sm" style={{ wordBreak: "break-all", display: "block", padding: "8px", backgroundColor: "#fff" }}>
-                {ndefData}
-              </Code>
+              <Box gap="xs" direction="column">
+                <Code size="sm" style={{ wordBreak: "break-all", display: "block", padding: "8px", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
+                  {ndefData}
+                </Code>
+                <Box as="a" href={ndefData} target="_blank" rel="noopener noreferrer" style={{ marginTop: "8px" }}>
+                  <Button type="button" variant="tertiary" size="sm">
+                    Open URL
+                  </Button>
+                </Box>
+              </Box>
             ) : (
-              <Text as="p" size="xs" style={{ color: "#666" }}>
+              <Text as="p" size="sm" style={{ color: "#666", fontStyle: "italic" }}>
                 No NDEF data found on chip
               </Text>
             )}
