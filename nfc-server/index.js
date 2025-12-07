@@ -1,11 +1,24 @@
 /**
- * NFC Server using blocksec2go CLI
- * Alternative to nfc-pcsc that uses the Python blocksec2go tool you already have working
+ * NFC Server using blocksec2go CLI for APDU operations
+ * and nfc-pcsc for NDEF operations
+ * 
+ * NOTE: This server MUST run with Node.js, not Bun, because @pokusew/pcsclite
+ * is a native Node.js module that is incompatible with Bun's runtime.
  */
+
+// Check if running under Bun and exit with helpful error
+if (typeof Bun !== 'undefined') {
+  console.error('❌ Error: This server must run with Node.js, not Bun.');
+  console.error('   Native modules like @pokusew/pcsclite are not compatible with Bun.');
+  console.error('   Please use: node index.js');
+  console.error('   Or from the root: npm run nfc-server');
+  process.exit(1);
+}
 
 import { WebSocketServer } from 'ws';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { NFC } from 'nfc-pcsc';
 
 const execAsync = promisify(exec);
 const PORT = 8080;
@@ -30,12 +43,49 @@ class NFCServerBlocksec2go {
     this.wss = null;
     this.clients = new Set();
     this.chipPresent = false;
+    this.nfc = null;
+    this.currentReader = null;
+    this.initNFC();
+  }
+
+  /**
+   * Initialize nfc-pcsc for NDEF operations
+   */
+  initNFC() {
+    this.nfc = new NFC();
+    
+    this.nfc.on('reader', (reader) => {
+      console.log(`NFC Reader detected: ${reader.reader.name}`);
+      this.currentReader = reader;
+      
+      reader.on('card', async (card) => {
+        console.log(`Card detected: ${card.type}, UID: ${card.uid}`);
+        // Update chip presence - but also check with blocksec2go for consistency
+        this.chipPresent = true;
+        this.broadcastStatus();
+      });
+      
+      reader.on('card.off', () => {
+        console.log('Card removed');
+        this.chipPresent = false;
+        this.broadcastStatus();
+      });
+      
+      reader.on('error', (err) => {
+        console.error('NFC Reader error:', err);
+      });
+    });
+    
+    this.nfc.on('error', (err) => {
+      console.error('NFC error:', err);
+    });
   }
 
   start() {
     this.wss = new WebSocketServer({ port: PORT });
     console.log(`WebSocket server started on port ${PORT}`);
-    console.log('Using blocksec2go CLI for NFC operations');
+    console.log('Using blocksec2go CLI for APDU operations');
+    console.log('Using nfc-pcsc for NDEF operations');
 
     this.wss.on('connection', (ws) => {
       console.log('Client connected');
@@ -102,6 +152,16 @@ class NFCServerBlocksec2go {
       case 'sign':
         await this.checkChipStatus(); // Ensure chip is present
         await this.signMessage(ws, data.messageDigest);
+        break;
+
+      case 'read-ndef':
+        await this.checkChipStatus(); // Ensure chip is present
+        await this.readNDEF(ws);
+        break;
+
+      case 'write-ndef':
+        await this.checkChipStatus(); // Ensure chip is present
+        await this.writeNDEF(ws, data.url);
         break;
 
       default:
@@ -272,6 +332,228 @@ class NFCServerBlocksec2go {
     });
   }
 
+  /**
+   * Read NDEF data from chip
+   */
+  async readNDEF(ws) {
+    if (!this.currentReader) {
+      this.sendError(ws, 'No NFC reader available. Make sure reader is connected.');
+      return;
+    }
+
+    if (!this.chipPresent) {
+      this.sendError(ws, 'No chip present');
+      return;
+    }
+
+    try {
+      // Read NDEF data starting from block 4 (standard Type 2 tag location)
+      // Read 16 blocks (256 bytes) which should be enough for most NDEF messages
+      const data = await this.currentReader.read(4, 16);
+      
+      // Parse NDEF message
+      const ndefUrl = this.parseNDEFUrl(data);
+      
+      if (ndefUrl) {
+        ws.send(JSON.stringify({
+          type: 'ndef-read',
+          success: true,
+          data: { url: ndefUrl }
+        }));
+      } else {
+        ws.send(JSON.stringify({
+          type: 'ndef-read',
+          success: true,
+          data: { url: null, message: 'No NDEF data found or invalid format' }
+        }));
+      }
+    } catch (error) {
+      console.error('NDEF read error:', error);
+      this.sendError(ws, `Failed to read NDEF: ${error.message}`);
+    }
+  }
+
+  /**
+   * Parse NDEF URL from raw data
+   */
+  parseNDEFUrl(data) {
+    try {
+      // Find NDEF TLV (0x03)
+      let offset = 0;
+      while (offset < data.length - 2) {
+        if (data[offset] === 0x03) {
+          const length = data[offset + 1];
+          if (length === 0) break; // Empty NDEF message
+          
+          const ndefStart = offset + 2;
+          const ndefEnd = ndefStart + length;
+          
+          if (ndefEnd > data.length) break;
+          
+          const ndefData = data.slice(ndefStart, ndefEnd);
+          
+          // Parse NDEF record
+          if (ndefData.length < 5) break;
+          
+          const recordHeader = ndefData[0];
+          const typeLength = ndefData[1];
+          const payloadLength = ndefData[2];
+          const idLength = ndefData[3];
+          
+          if (typeLength !== 1) break; // Not a URL record
+          
+          const typeOffset = 4;
+          const type = ndefData[typeOffset];
+          
+          if (type !== 0x55) break; // Not a URL record (U = 0x55)
+          
+          const payloadOffset = typeOffset + typeLength + idLength;
+          if (payloadOffset + payloadLength > ndefData.length) break;
+          
+          const payload = ndefData.slice(payloadOffset, payloadOffset + payloadLength);
+          
+          // Parse URL prefix
+          const prefix = payload[0];
+          let url = '';
+          
+          // URL prefix codes: https://www.ndef.org/resources/url-prefixes
+          const prefixes = {
+            0x00: '',
+            0x01: 'http://www.',
+            0x02: 'https://www.',
+            0x03: 'http://',
+            0x04: 'https://',
+          };
+          
+          url = (prefixes[prefix] || '') + payload.slice(1).toString('utf-8');
+          
+          return url;
+        }
+        offset++;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('NDEF parse error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Write NDEF URL record to chip
+   */
+  async writeNDEF(ws, url) {
+    if (!this.currentReader) {
+      this.sendError(ws, 'No NFC reader available. Make sure reader is connected.');
+      return;
+    }
+
+    if (!this.chipPresent) {
+      this.sendError(ws, 'No chip present');
+      return;
+    }
+
+    try {
+      // Validate URL
+      if (!url || typeof url !== 'string') {
+        this.sendError(ws, 'Invalid URL');
+        return;
+      }
+
+      // Ensure URL has protocol
+      let urlToWrite = url;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        urlToWrite = 'https://' + url;
+      }
+
+      // Create NDEF message with URL record
+      const ndefMessage = this.createNDEFUrlRecord(urlToWrite);
+
+      // Write NDEF message to chip starting at block 4
+      await this.currentReader.write(ndefMessage, 4);
+
+      ws.send(JSON.stringify({
+        type: 'ndef-written',
+        success: true,
+        data: { url: urlToWrite }
+      }));
+    } catch (error) {
+      console.error('NDEF write error:', error);
+      this.sendError(ws, `Failed to write NDEF: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create NDEF URL record
+   * Format: TLV structure for Type 2 tags (NTAG)
+   */
+  createNDEFUrlRecord(url) {
+    // Determine URL prefix
+    let prefix = 0x04; // https://
+    let urlWithoutPrefix = url;
+    
+    if (url.startsWith('https://www.')) {
+      prefix = 0x02;
+      urlWithoutPrefix = url.substring(12);
+    } else if (url.startsWith('http://www.')) {
+      prefix = 0x01;
+      urlWithoutPrefix = url.substring(11);
+    } else if (url.startsWith('https://')) {
+      prefix = 0x04;
+      urlWithoutPrefix = url.substring(8);
+    } else if (url.startsWith('http://')) {
+      prefix = 0x03;
+      urlWithoutPrefix = url.substring(7);
+    }
+    
+    const urlBytes = Buffer.from(urlWithoutPrefix, 'utf-8');
+    
+    // NDEF Record Header
+    // MB=1 (Message Begin), ME=1 (Message End), CF=0, SR=1 (Short Record), IL=0, TNF=0x01 (Well Known Type)
+    const recordHeader = 0xD1; // 11010001
+    
+    // Type Length (1 byte for "U")
+    const typeLength = 0x01;
+    
+    // Payload Length (1 byte for short record: prefix + URL)
+    const payloadLength = 1 + urlBytes.length;
+    
+    // ID Length (0 for no ID)
+    const idLength = 0x00;
+    
+    // Type (U = 0x55)
+    const type = 0x55;
+    
+    // Build NDEF Record
+    const ndefRecord = Buffer.concat([
+      Buffer.from([recordHeader]),
+      Buffer.from([typeLength]),
+      Buffer.from([payloadLength]),
+      Buffer.from([idLength]),
+      Buffer.from([type]),
+      Buffer.from([prefix]),
+      urlBytes
+    ]);
+    
+    // NDEF Message TLV
+    const ndefMessageLength = ndefRecord.length;
+    const tlvHeader = Buffer.from([0x03, ndefMessageLength]);
+    
+    // Terminator TLV
+    const terminator = Buffer.from([0xFE]);
+    
+    // Complete NDEF message
+    const ndefMessage = Buffer.concat([tlvHeader, ndefRecord, terminator]);
+    
+    // Pad to 16-byte blocks (NTAG requirement)
+    const blockSize = 16;
+    const paddedLength = Math.ceil(ndefMessage.length / blockSize) * blockSize;
+    const padded = Buffer.alloc(paddedLength);
+    ndefMessage.copy(padded);
+    
+    return padded;
+  }
+
   sendError(ws, message) {
     ws.send(JSON.stringify({
       type: 'error',
@@ -283,6 +565,6 @@ class NFCServerBlocksec2go {
 const server = new NFCServerBlocksec2go();
 server.start();
 
-console.log('NFC Server ready (using blocksec2go)');
+console.log('NFC Server ready (using blocksec2go for APDU, nfc-pcsc for NDEF)');
 console.log('Place chip on reader to detect');
 

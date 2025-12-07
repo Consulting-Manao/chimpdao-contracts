@@ -3,91 +3,43 @@
  * Manages connection to NFC server and provides methods for chip interaction
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { nfcClient, type NFCStatus } from '../util/nfcClient';
+import { useState, useEffect, useCallback } from 'react';
+import { nfcClient } from '../util/nfcClient';
 import type { SorobanSignature } from '../util/crypto';
 
 export interface UseNFCReturn {
   // Connection state
   connected: boolean;
-  chipPresent: boolean;
-  readerName: string | null;
   
   // Operation state
-  reading: boolean;
   signing: boolean;
-  
-  // Error state
-  error: string | null;
-  
-  // Last read data
-  chipPublicKey: string | null;
+  readingNDEF: boolean;
+  writingNDEF: boolean;
   
   // Methods
   connect: () => Promise<void>;
-  disconnect: () => void;
   readChip: () => Promise<string>;
   signWithChip: (messageDigest: Uint8Array) => Promise<SorobanSignature>;
-  clearError: () => void;
+  readNDEF: () => Promise<string | null>;
+  writeNDEF: (url: string) => Promise<string>;
 }
 
 export function useNFC(): UseNFCReturn {
   const [connected, setConnected] = useState(false);
-  const [status, setStatus] = useState<NFCStatus>({
-    readerConnected: false,
-    chipPresent: false,
-    readerName: null
-  });
-  const [reading, setReading] = useState(false);
   const [signing, setSigning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [chipPublicKey, setChipPublicKey] = useState<string | null>(null);
-  
-  const connectingRef = useRef(false);
+  const [readingNDEF, setReadingNDEF] = useState(false);
+  const [writingNDEF, setWritingNDEF] = useState(false);
 
-  // Auto-connect on mount
+  // Set up event listeners for connection state
   useEffect(() => {
-    if (!connectingRef.current && !connected) {
-      connectingRef.current = true;
-      nfcClient.connect()
-        .then(() => {
-          setConnected(true);
-          setError(null);
-        })
-        .catch((err) => {
-          const message = err instanceof Error ? err.message : 'Connection failed';
-          setError(`Failed to connect: ${message}`);
-        })
-        .finally(() => {
-          connectingRef.current = false;
-        });
-    }
-
-    // Set up event listeners
     const handleEvent = (event: { type: string; data?: unknown }) => {
       switch (event.type) {
         case 'connected':
           setConnected(true);
-          setError(null);
           break;
 
         case 'disconnected':
           setConnected(false);
-          setStatus({
-            readerConnected: false,
-            chipPresent: false,
-            readerName: null
-          });
-          break;
-
-        case 'status':
-          // Trust the WebSocket status updates from the server
-          // The server knows the actual state of the chip, so update immediately
-          setStatus(event.data as NFCStatus);
-          break;
-
-        case 'error':
-          setError(event.data as string);
           break;
       }
     };
@@ -97,29 +49,12 @@ export function useNFC(): UseNFCReturn {
     return () => {
       nfcClient.removeListener(handleEvent);
     };
-  }, [connected]);
+  }, []);
 
 
   const connect = useCallback(async () => {
-    try {
-      setError(null);
-      await nfcClient.connect();
-      setConnected(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Connection failed';
-      setError(message);
-      throw err;
-    }
-  }, []);
-
-  const disconnect = useCallback(() => {
-    nfcClient.disconnect();
-    setConnected(false);
-    setStatus({
-      readerConnected: false,
-      chipPresent: false,
-      readerName: null
-    });
+    await nfcClient.connect();
+    setConnected(true);
   }, []);
 
   const readChip = useCallback(async (): Promise<string> => {
@@ -127,68 +62,60 @@ export function useNFC(): UseNFCReturn {
       throw new Error('Not connected to NFC server');
     }
 
-    if (!status.chipPresent) {
-      throw new Error('No chip present. Please place chip on reader.');
-    }
-
-    setReading(true);
-    setError(null);
-
-    try {
-      const publicKey = await nfcClient.readPublicKey();
-      setChipPublicKey(publicKey);
-      return publicKey;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to read chip';
-      setError(message);
-      throw err;
-    } finally {
-      setReading(false);
-    }
-  }, [connected, status.chipPresent]);
+    // Let the server handle chip presence checking - it will throw an error if chip not present
+    return await nfcClient.readPublicKey();
+  }, [connected]);
 
   const signWithChip = useCallback(async (messageDigest: Uint8Array): Promise<SorobanSignature> => {
     if (!connected) {
       throw new Error('Not connected to NFC server');
     }
 
-    if (!status.chipPresent) {
-      throw new Error('No chip present. Please place chip on reader.');
-    }
-
     setSigning(true);
-    setError(null);
-
     try {
-      const signature = await nfcClient.signMessage(messageDigest);
-      return signature;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to sign with chip';
-      setError(message);
-      throw err;
+      // Let the server handle chip presence checking - it will throw an error if chip not present
+      return await nfcClient.signMessage(messageDigest);
     } finally {
       setSigning(false);
     }
-  }, [connected, status.chipPresent]);
+  }, [connected]);
 
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
+  const readNDEF = useCallback(async (): Promise<string | null> => {
+    if (!connected) {
+      throw new Error('Not connected to NFC server');
+    }
 
+    setReadingNDEF(true);
+    try {
+      return await nfcClient.readNDEF();
+    } finally {
+      setReadingNDEF(false);
+    }
+  }, [connected]);
+
+  const writeNDEF = useCallback(async (url: string): Promise<string> => {
+    if (!connected) {
+      throw new Error('Not connected to NFC server');
+    }
+
+    setWritingNDEF(true);
+    try {
+      return await nfcClient.writeNDEF(url);
+    } finally {
+      setWritingNDEF(false);
+    }
+  }, [connected]);
 
   return {
     connected,
-    chipPresent: status.chipPresent,
-    readerName: status.readerName,
-    reading,
     signing,
-    error,
-    chipPublicKey,
+    readingNDEF,
+    writingNDEF,
     connect,
-    disconnect,
     readChip,
     signWithChip,
-    clearError
+    readNDEF,
+    writeNDEF
   };
 }
 

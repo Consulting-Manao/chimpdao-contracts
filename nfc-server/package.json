@@ -4,11 +4,17 @@
   "description": "WebSocket server for Infineon NFC chip communication via USB reader",
   "main": "index.js",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "postinstall": "npm rebuild @pokusew/pcsclite",
+    "rebuild": "npm rebuild @pokusew/pcsclite"
   },
   "dependencies": {
     "nfc-pcsc": "^0.8.0",
+    "@pokusew/pcsclite": "^0.6.0",
     "ws": "^8.18.3"
   }
 }

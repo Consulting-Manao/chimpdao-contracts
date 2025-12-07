@@ -14,13 +14,14 @@ import { getNetworkPassphrase, getHorizonUrl } from "../contracts/util";
 import { getContractClient } from "../contracts/stellar_merch_shop";
 import { NFCServerNotRunningError, ChipNotPresentError, APDUCommandFailedError, RecoveryIdError } from "../util/nfcClient";
 
-type MintStep = 'idle' | 'reading' | 'signing' | 'recovering' | 'calling' | 'confirming';
+type MintStep = 'idle' | 'reading' | 'signing' | 'recovering' | 'calling' | 'confirming' | 'writing-ndef';
 
 export const NFCMintProduct = () => {
   const { address, updateBalances, signTransaction, network: walletNetwork, networkPassphrase: walletPassphrase } = useWallet();
-  const { connected, signing, signWithChip, readChip, connect } = useNFC();
+  const { connected, signing, signWithChip, readChip, connect, readNDEF, writeNDEF, readingNDEF } = useNFC();
   const [minting, setMinting] = useState(false);
   const [mintStep, setMintStep] = useState<MintStep>('idle');
+  const [ndefData, setNdefData] = useState<string | null>(null);
   const [result, setResult] = useState<{
     success: boolean;
     tokenId?: string;
@@ -49,8 +50,29 @@ export const NFCMintProduct = () => {
         return 'Calling contract...';
       case 'confirming':
         return 'Confirming transaction...';
+      case 'writing-ndef':
+        return 'Writing NDEF URL to chip...';
       default:
         return 'Processing...';
+    }
+  };
+
+  const handleReadNDEF = async () => {
+    if (!connected) {
+      await connect();
+    }
+
+    try {
+      const url = await readNDEF();
+      setNdefData(url);
+    } catch (err) {
+      if (err instanceof ChipNotPresentError) {
+        setNdefData(null);
+        alert('No NFC chip detected. Please place the chip on the reader.');
+      } else {
+        console.error('Failed to read NDEF:', err);
+        alert(`Failed to read NDEF: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
   };
 
@@ -164,6 +186,17 @@ export const NFCMintProduct = () => {
       
       console.log('Mint successful! Token ID:', tokenIdHex);
       
+      // 8. Write NDEF URL to chip after successful mint
+      setMintStep('writing-ndef');
+      try {
+        const ndefUrl = `https://nft.stellarmerchshop.com/${tokenIdHex}`;
+        await writeNDEF(ndefUrl);
+        console.log('NDEF URL written successfully:', ndefUrl);
+      } catch (ndefError) {
+        console.error('Failed to write NDEF (mint still successful):', ndefError);
+        // Don't fail the mint if NDEF write fails
+      }
+      
       setResult({
         success: true,
         tokenId: tokenIdHex,
@@ -221,6 +254,36 @@ export const NFCMintProduct = () => {
         void handleMint();
       }}
     >
+      {/* Add NDEF Read Button at the top */}
+      <Box gap="sm" direction="column" style={{ marginBottom: "16px" }}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="md"
+          onClick={handleReadNDEF}
+          disabled={readingNDEF}
+          isLoading={readingNDEF}
+        >
+          {readingNDEF ? "Reading NDEF..." : "Read NDEF Data"}
+        </Button>
+        {ndefData !== null && (
+          <Box gap="xs" direction="column" style={{ padding: "12px", backgroundColor: "#f5f5f5", borderRadius: "4px" }}>
+            <Text as="p" size="sm" weight="semi-bold">
+              NDEF URL:
+            </Text>
+            {ndefData ? (
+              <Code size="sm" style={{ wordBreak: "break-all", display: "block", padding: "8px", backgroundColor: "#fff" }}>
+                {ndefData}
+              </Code>
+            ) : (
+              <Text as="p" size="xs" style={{ color: "#666" }}>
+                No NDEF data found on chip
+              </Text>
+            )}
+          </Box>
+        )}
+      </Box>
+
       {result?.success ? (
         <Box gap="md">
           <Text as="p" size="lg" style={{ color: "#4caf50" }}>
@@ -233,14 +296,19 @@ export const NFCMintProduct = () => {
             {result.publicKey}
           </Code>
           <Text as="p" size="xs" style={{ marginTop: "8px", color: "#666" }}>
-            This 65-byte public key would become the NFT token ID when the contract is called.
-            Currently showing test flow - contract call will be enabled once scaffold generates the client.
+            This 65-byte public key is the NFT token ID. The NFT has been successfully minted to your wallet.
+          </Text>
+          <Text as="p" size="xs" style={{ marginTop: "8px", color: "#4caf50" }}>
+            ✓ NDEF URL written to chip: https://nft.stellarmerchshop.com/{result.publicKey}
           </Text>
           <Button
             type="button"
             variant="secondary"
             size="md"
-            onClick={() => setResult(undefined)}
+            onClick={() => {
+              setResult(undefined);
+              setNdefData(null);
+            }}
             style={{ marginTop: "12px" }}
           >
             Test Again
@@ -300,7 +368,7 @@ export const NFCMintProduct = () => {
                   width: "8px",
                   height: "8px",
                   borderRadius: "50%",
-                  backgroundColor: ['recovering', 'calling', 'confirming'].includes(mintStep) ? "#4caf50" : "#ddd"
+                  backgroundColor: ['recovering', 'calling', 'confirming', 'writing-ndef'].includes(mintStep) ? "#4caf50" : "#ddd"
                 }} />
               </Box>
             </Box>

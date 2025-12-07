@@ -69,6 +69,8 @@ interface WebSocketMessage {
     readerConnected?: boolean;
     chipPresent?: boolean;
     readerName?: string | null;
+    url?: string | null;
+    message?: string;
     [key: string]: unknown;
   };
   error?: string;
@@ -372,6 +374,137 @@ class WebSocketNFCClient {
   }
 
   /**
+   * Read NDEF data from NFC chip
+   */
+  async readNDEF(): Promise<string | null> {
+    return new Promise((resolve, reject) => {
+      if (!this.isConnected()) {
+        reject(new Error('Not connected to NFC server'));
+        return;
+      }
+
+      if (!this.currentStatus.chipPresent) {
+        reject(new ChipNotPresentError());
+        return;
+      }
+
+      const handler = (event: NFCClientEvent) => {
+        if (event.type === 'error') {
+          this.removeListener(handler);
+          reject(new Error(event.data as string));
+        }
+      };
+
+      this.addListener(handler);
+
+      // Send read NDEF request
+      this.send({ type: 'read-ndef' });
+
+      // Set up one-time message listener
+      const messageHandler = (event: MessageEvent) => {
+        try {
+          const message = JSON.parse(event.data as string) as WebSocketMessage;
+          if (message.type === 'ndef-read' && message.success) {
+            this.removeListener(handler);
+            if (this.ws) {
+              this.ws.removeEventListener('message', messageHandler);
+            }
+            resolve(message.data?.url || null);
+          } else if (message.type === 'error') {
+            this.removeListener(handler);
+            if (this.ws) {
+              this.ws.removeEventListener('message', messageHandler);
+            }
+            reject(new Error(message.error ?? 'Unknown error'));
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      };
+
+      if (this.ws) {
+        this.ws.addEventListener('message', messageHandler);
+      }
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        this.removeListener(handler);
+        if (this.ws) {
+          this.ws.removeEventListener('message', messageHandler);
+        }
+        reject(new Error('Timeout reading NDEF'));
+      }, 10000);
+    });
+  }
+
+  /**
+   * Write NDEF URL record to NFC chip
+   */
+  async writeNDEF(url: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      if (!this.isConnected()) {
+        reject(new Error('Not connected to NFC server'));
+        return;
+      }
+
+      if (!this.currentStatus.chipPresent) {
+        reject(new ChipNotPresentError());
+        return;
+      }
+
+      const handler = (event: NFCClientEvent) => {
+        if (event.type === 'error') {
+          this.removeListener(handler);
+          reject(new Error(event.data as string));
+        }
+      };
+
+      this.addListener(handler);
+
+      // Send write NDEF request
+      this.send({
+        type: 'write-ndef',
+        data: { url }
+      });
+
+      // Set up one-time message listener
+      const messageHandler = (event: MessageEvent) => {
+        try {
+          const message = JSON.parse(event.data as string) as WebSocketMessage;
+          if (message.type === 'ndef-written' && message.success && message.data?.url) {
+            this.removeListener(handler);
+            if (this.ws) {
+              this.ws.removeEventListener('message', messageHandler);
+            }
+            resolve(message.data.url);
+          } else if (message.type === 'error') {
+            this.removeListener(handler);
+            if (this.ws) {
+              this.ws.removeEventListener('message', messageHandler);
+            }
+            reject(new Error(message.error ?? 'Unknown error'));
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      };
+
+      if (this.ws) {
+        this.ws.addEventListener('message', messageHandler);
+      }
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        this.removeListener(handler);
+        if (this.ws) {
+          this.ws.removeEventListener('message', messageHandler);
+        }
+        reject(new Error('Timeout writing NDEF'));
+      }, 10000);
+    });
+  }
+
+  /**
    * Add event listener
    */
   addListener(listener: NFCClientEventListener): void {
@@ -521,6 +654,26 @@ export class NFCClient {
   async signMessage(messageDigest: Uint8Array): Promise<SorobanSignature> {
     if (this.wsClient) {
       return await this.wsClient.signMessage(messageDigest);
+    }
+    throw new Error('Not connected');
+  }
+
+  /**
+   * Read NDEF data from chip
+   */
+  async readNDEF(): Promise<string | null> {
+    if (this.wsClient) {
+      return await this.wsClient.readNDEF();
+    }
+    throw new Error('Not connected');
+  }
+
+  /**
+   * Write NDEF URL to chip
+   */
+  async writeNDEF(url: string): Promise<string> {
+    if (this.wsClient) {
+      return await this.wsClient.writeNDEF(url);
     }
     throw new Error('Not connected');
   }
