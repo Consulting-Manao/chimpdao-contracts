@@ -27,8 +27,8 @@ pub enum NonFungibleTokenError {
     TokenNotFoundInOwnerList = 208,
     /// Indicates the token does not exist in global list.
     TokenNotFoundInGlobalList = 209,
-    /// Indicates access to unset metadata.
-    UnsetMetadata = 210,
+    /// Indicates the token was already minted.
+    TokenAlreadyMinted = 210,
     /// Indicates the length of the base URI exceeds the maximum allowed.
     BaseUriMaxLenExceeded = 211,
     /// Indicates the royalty amount is higher than 10_000 (100%) basis points.

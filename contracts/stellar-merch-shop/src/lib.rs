@@ -22,18 +22,23 @@ pub trait NFCtoNFTContract {
 
     /// Mint NFT using NFC chip signature.
     ///
+    /// This function verifies that the provided signature was created by an Infineon
+    /// NFC chip by recovering the chip's public key. The recovered public key becomes
+    /// the unique token ID for the NFT.
+    ///
     /// # Arguments
     ///
     /// * `e` - Access to the Soroban environment.
     /// * `to` - Account of the token's owner.
-    /// * `message` - The message that was signed (will be hashed in contract).
-    /// * `signature` - 64-byte ECDSA signature from NFC chip (r + s).
-    /// * `recovery_id` - Recovery ID (0-3) for public key recovery.
+    /// * `message` - The message that was signed without the nonce.
+    /// * `signature` - 64-byte ECDSA signature from NFC chip.
+    /// * `recovery_id` - Recovery ID (1-255) for public key recovery.
+    /// * `nonce` - A nonce to prevent replay attacks.
     ///
     /// # Returns
     ///
     /// The recovered 65-byte public key, which becomes the token ID.
-    fn mint(e: &Env, to: Address, message: Bytes, signature: BytesN<64>, recovery_id: u32) -> BytesN<65>;
+    fn mint(e: &Env, to: Address, message: Bytes, signature: BytesN<64>, recovery_id: u32, nonce: u32) -> BytesN<65>;
 
     /// Returns the number of tokens in `owner`'s account.
     ///
@@ -53,7 +58,7 @@ pub trait NFCtoNFTContract {
     /// # Notes
     ///
     /// If the token does not exist, this function is expected to panic.
-    fn owner_of(e: &Env, token_id: u32) -> Address;
+    fn owner_of(e: &Env, token_id: BytesN<65>) -> Address;
 
     /// Transfers `token_id` token from `from` to `to`.
     ///
@@ -71,8 +76,8 @@ pub trait NFCtoNFTContract {
     /// # Events
     ///
     /// * topics - `["transfer", from: Address, to: Address]`
-    /// * data - `[token_id: u32]`
-    fn transfer(e: &Env, from: Address, to: Address, token_id: u32);
+    /// * data - `[token_id: BytesN<65>]`
+    fn transfer(e: &Env, from: Address, to: Address, token_id: BytesN<65>);
 
     /// Transfers `token_id` token from `from` to `to` by using `spender`s
     /// approval.
@@ -97,8 +102,8 @@ pub trait NFCtoNFTContract {
     /// # Events
     ///
     /// * topics - `["transfer", from: Address, to: Address]`
-    /// * data - `[token_id: u32]`
-    fn transfer_from(e: &Env, spender: Address, from: Address, to: Address, token_id: u32);
+    /// * data - `[token_id: BytesN<65>]`
+    fn transfer_from(e: &Env, spender: Address, from: Address, to: Address, token_id: BytesN<65>);
 
     /// Gives permission to `approved` to transfer `token_id` token to another
     /// account. The approval is cleared when the token is transferred.
@@ -119,8 +124,8 @@ pub trait NFCtoNFTContract {
     /// # Events
     ///
     /// * topics - `["approve", from: Address, to: Address]`
-    /// * data - `[token_id: u32, live_until_ledger: u32]`
-    fn approve(e: &Env, approver: Address, approved: Address, token_id: u32, live_until_ledger: u32);
+    /// * data - `[token_id: BytesN<65>, live_until_ledger: u32]`
+    fn approve(e: &Env, approver: Address, approved: Address, token_id: BytesN<65>, live_until_ledger: u32);
 
     /// Approve or remove `operator` as an operator for the owner.
     ///
@@ -156,7 +161,7 @@ pub trait NFCtoNFTContract {
     /// # Notes
     ///
     /// If the token does not exist, this function is expected to panic.
-    fn get_approved(e: &Env, token_id: u32) -> Option<Address>;
+    fn get_approved(e: &Env, token_id: BytesN<65>) -> Option<Address>;
 
     /// Returns whether the `operator` is allowed to manage all the assets of
     /// `owner`.
@@ -167,6 +172,8 @@ pub trait NFCtoNFTContract {
     /// * `owner` - Account of the token's owner.
     /// * `operator` - Account to be checked.
     fn is_approved_for_all(e: &Env, owner: Address, operator: Address) -> bool;
+
+    fn get_nonce(e: &Env, token_id: BytesN<65>) -> u32;
 
     /// Returns the token collection name.
     ///
@@ -192,5 +199,5 @@ pub trait NFCtoNFTContract {
     /// # Notes
     ///
     /// If the token does not exist, this function is expected to panic.
-    fn token_uri(e: &Env, token_id: u32) -> String;
+    fn token_uri(e: &Env, token_id: BytesN<65>) -> String;
 }

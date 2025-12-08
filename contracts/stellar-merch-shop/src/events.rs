@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, contractevent};
+use soroban_sdk::{Address, contractevent, BytesN};
 
 
 #[contractevent]
@@ -36,5 +36,5 @@ pub struct ApproveForAll {
 pub struct Mint {
     #[topic]
     pub to: Address,
-    pub token_id: u32,
+    pub token_id: BytesN<65>,
 }
