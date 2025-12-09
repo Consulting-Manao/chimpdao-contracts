@@ -214,8 +214,9 @@ class WebSocketNFCClient {
 
   /**
    * Read public key from NFC chip
+   * @param keyId - Optional key ID (1-255). Defaults to 1 if not provided.
    */
-  async readPublicKey(): Promise<string> {
+  async readPublicKey(keyId?: number): Promise<string> {
     return new Promise((resolve, reject) => {
       if (!this.isConnected()) {
         reject(new Error('Not connected to NFC server'));
@@ -224,6 +225,12 @@ class WebSocketNFCClient {
 
       if (!this.currentStatus.chipPresent) {
         reject(new ChipNotPresentError());
+        return;
+      }
+
+      // Validate keyId if provided
+      if (keyId !== undefined && (keyId < 1 || keyId > 255)) {
+        reject(new Error('Invalid key ID (must be 1-255)'));
         return;
       }
 
@@ -236,8 +243,11 @@ class WebSocketNFCClient {
 
       this.addListener(handler);
 
-      // Send request
-      this.send({ type: 'read-pubkey' });
+      // Send request with optional keyId
+      this.send({ 
+        type: 'read-pubkey',
+        data: keyId !== undefined ? { keyId } : undefined
+      });
 
       // Set up one-time message listener
       const messageHandler = (event: MessageEvent) => {
@@ -279,8 +289,10 @@ class WebSocketNFCClient {
   /**
    * Sign message with NFC chip
    * Returns signature in Soroban format (64-byte signature + recovery_id)
+   * @param messageDigest - 32-byte message digest to sign
+   * @param keyId - Optional key ID (1-255). Defaults to 1 if not provided.
    */
-  async signMessage(messageDigest: Uint8Array): Promise<SorobanSignature> {
+  async signMessage(messageDigest: Uint8Array, keyId?: number): Promise<SorobanSignature> {
     return new Promise((resolve, reject) => {
       if (!this.isConnected()) {
         reject(new Error('Not connected to NFC server'));
@@ -297,6 +309,12 @@ class WebSocketNFCClient {
         return;
       }
 
+      // Validate keyId if provided
+      if (keyId !== undefined && (keyId < 1 || keyId > 255)) {
+        reject(new Error('Invalid key ID (must be 1-255)'));
+        return;
+      }
+
       const handler = (event: NFCClientEvent) => {
         if (event.type === 'error') {
           this.removeListener(handler);
@@ -309,10 +327,13 @@ class WebSocketNFCClient {
       // Convert message digest to hex
       const messageDigestHex = bytesToHex(messageDigest);
 
-      // Send sign request
+      // Send sign request with optional keyId
       this.send({
         type: 'sign',
-        data: { messageDigest: messageDigestHex }
+        data: { 
+          messageDigest: messageDigestHex,
+          ...(keyId !== undefined ? { keyId } : {})
+        }
       });
 
       // Set up one-time message listener
@@ -852,10 +873,11 @@ export class NFCClient {
 
   /**
    * Read public key from chip
+   * @param keyId - Optional key ID (1-255). Defaults to 1 if not provided.
    */
-  async readPublicKey(): Promise<string> {
+  async readPublicKey(keyId?: number): Promise<string> {
     if (this.wsClient) {
-      return await this.wsClient.readPublicKey();
+      return await this.wsClient.readPublicKey(keyId);
     }
     throw new Error('Not connected');
   }
@@ -863,9 +885,9 @@ export class NFCClient {
   /**
    * Sign message with chip
    */
-  async signMessage(messageDigest: Uint8Array): Promise<SorobanSignature> {
+  async signMessage(messageDigest: Uint8Array, keyId?: number): Promise<SorobanSignature> {
     if (this.wsClient) {
-      return await this.wsClient.signMessage(messageDigest);
+      return await this.wsClient.signMessage(messageDigest, keyId);
     }
     throw new Error('Not connected');
   }

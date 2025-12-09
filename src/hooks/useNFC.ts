@@ -21,8 +21,8 @@ export interface UseNFCReturn {
   
   // Methods
   connect: () => Promise<void>;
-  readChip: () => Promise<string>;
-  signWithChip: (messageDigest: Uint8Array) => Promise<SorobanSignature>;
+  readChip: (keyId?: number) => Promise<string>;
+  signWithChip: (messageDigest: Uint8Array, keyId?: number) => Promise<SorobanSignature>;
   readNDEF: () => Promise<string | null>;
   writeNDEF: (url: string) => Promise<string>;
   generateKey: () => Promise<KeyInfo>;
@@ -64,16 +64,16 @@ export function useNFC(): UseNFCReturn {
     setConnected(true);
   }, []);
 
-  const readChip = useCallback(async (): Promise<string> => {
+  const readChip = useCallback(async (keyId?: number): Promise<string> => {
     if (!connected) {
       throw new Error('Not connected to NFC server');
     }
 
     // Let the server handle chip presence checking - it will throw an error if chip not present
-    return await nfcClient.readPublicKey();
+    return await nfcClient.readPublicKey(keyId);
   }, [connected]);
 
-  const signWithChip = useCallback(async (messageDigest: Uint8Array): Promise<SorobanSignature> => {
+  const signWithChip = useCallback(async (messageDigest: Uint8Array, keyId?: number): Promise<SorobanSignature> => {
     if (!connected) {
       throw new Error('Not connected to NFC server');
     }
@@ -81,7 +81,7 @@ export function useNFC(): UseNFCReturn {
     setSigning(true);
     try {
       // Let the server handle chip presence checking - it will throw an error if chip not present
-      return await nfcClient.signMessage(messageDigest);
+      return await nfcClient.signMessage(messageDigest, keyId);
     } finally {
       setSigning(false);
     }

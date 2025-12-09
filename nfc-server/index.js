@@ -82,11 +82,11 @@ class NFCServer {
         break;
 
       case 'read-pubkey':
-        await this.readPublicKey(ws);
+        await this.readPublicKey(ws, data?.keyId);
         break;
 
       case 'sign':
-        await this.signMessage(ws, data.messageDigest);
+        await this.signMessage(ws, data.messageDigest, data?.keyId);
         break;
 
       case 'read-ndef':
@@ -94,7 +94,7 @@ class NFCServer {
         break;
 
       case 'write-ndef':
-        await this.writeNDEF(ws, data.url);
+        await this.writeNDEF(ws, data);
         break;
 
       case 'generate-key':
@@ -174,17 +174,23 @@ class NFCServer {
     }
   }
 
-  async readPublicKey(ws) {
+  async readPublicKey(ws, keyId = 1) {
     if (!this.nfcManager.isChipPresent()) {
       this.sendError(ws, 'No chip present');
+      return;
+    }
+
+    // Validate keyId if provided
+    if (keyId !== undefined && (keyId < 1 || keyId > 255)) {
+      this.sendError(ws, 'Invalid key ID (must be 1-255)');
       return;
     }
 
     try {
       await this.nfcManager.waitForCardReady();
       
-      const keyId = 1;
-      const keyInfo = await this.blockchainOps.getKeyInfo(keyId);
+      const keyIdToUse = keyId || 1;
+      const keyInfo = await this.blockchainOps.getKeyInfo(keyIdToUse);
 
         ws.send(JSON.stringify({
           type: 'pubkey',
@@ -201,7 +207,7 @@ class NFCServer {
     }
   }
 
-  async signMessage(ws, messageDigestHex) {
+  async signMessage(ws, messageDigestHex, keyId = 1) {
     if (!this.nfcManager.isChipPresent()) {
       this.sendError(ws, 'No chip present');
       return;
@@ -209,6 +215,12 @@ class NFCServer {
 
       if (!messageDigestHex || messageDigestHex.length !== 64) {
         this.sendError(ws, 'Invalid message digest (must be 32 bytes / 64 hex chars)');
+        return;
+      }
+
+      // Validate keyId if provided
+      if (keyId !== undefined && (keyId < 1 || keyId > 255)) {
+        this.sendError(ws, 'Invalid key ID (must be 1-255)');
         return;
       }
 
@@ -222,8 +234,8 @@ class NFCServer {
           return;
         }
         
-        const keyId = 1;
-        const result = await this.blockchainOps.generateSignature(keyId, messageDigest);
+        const keyIdToUse = keyId || 1;
+        const result = await this.blockchainOps.generateSignature(keyIdToUse, messageDigest);
         
         // Parse DER-encoded signature to extract r and s
         const derHex = result.signature.toString('hex');
@@ -275,11 +287,13 @@ class NFCServer {
     }
   }
 
-  async writeNDEF(ws, url) {
+  async writeNDEF(ws, data) {
     if (!this.nfcManager.getReader()) {
       this.sendError(ws, 'No NFC reader available. Make sure reader is connected.');
       return;
     }
+
+    const { url } = data;
 
     try {
       const urlToWrite = await this.ndefOps.writeNDEF(url);
