@@ -42,22 +42,13 @@ impl NFCtoNFTContract for StellarMerchShop {
 
     fn mint(
         e: &Env,
-        to: Address,
         message: Bytes,
         signature: BytesN<64>,
         recovery_id: u32,
         public_key: BytesN<65>,
         nonce: u32,
     ) -> u64 {
-        let mut builder: Bytes = Bytes::new(&e);
-        builder.append(&message.clone());
-        builder.append(&nonce.clone().to_xdr(&e));
-        let message_hash = e.crypto().sha256(&builder);
-
-        let recovered = e.crypto().secp256k1_recover(&message_hash, &signature, recovery_id);
-        if recovered != public_key {
-            panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
-        }
+        verify_chip_signature(e, message, signature, recovery_id, public_key.clone(), nonce);
 
         let public_key_lookup = NFTStorageKey::TokenIdByPublicKey(public_key.clone());
         if e
@@ -85,18 +76,20 @@ impl NFCtoNFTContract for StellarMerchShop {
         }
 
         e.storage().instance().set(&DataKey::NextTokenId, &(token_id + 1));
-        e.storage().persistent().set(&NFTStorageKey::Owner(token_id), &to);
-        e.storage().persistent().set(&NFTStorageKey::PublicKey(token_id), &public_key);
         e.storage().persistent().set(&public_key_lookup, &token_id);
+        e.storage().persistent().set(&NFTStorageKey::PublicKey(token_id), &public_key);
         e.storage().persistent().set(&NFTStorageKey::ChipNonce(token_id), &nonce);
 
-        events::Mint { to, token_id }.publish(&e);
+        events::Mint { token_id }.publish(&e);
 
         token_id
     }
 
     fn balance(e: &Env, owner: Address) -> u32 {
-        todo!()
+        e.storage()
+            .persistent()
+            .get(&NFTStorageKey::Balance(owner))
+            .unwrap_or(0u32)
     }
 
     fn owner_of(e: &Env, token_id: u64) -> Address {
@@ -105,33 +98,75 @@ impl NFCtoNFTContract for StellarMerchShop {
         .unwrap_or_else(|| panic_with_error!(e, errors::NonFungibleTokenError::NonExistentToken))
     }
 
-    fn transfer(e: &Env, from: Address, to: Address, token_id: u64) {
+    fn claim(
+        e: &Env,
+        claimant: Address,
+        message: Bytes,
+        signature: BytesN<64>,
+        recovery_id: u32,
+        public_key: BytesN<65>,
+        nonce: u32,
+    ) -> u64 {
+        verify_chip_signature(e, message, signature, recovery_id, public_key.clone(), nonce);
+
+        // Look up token_id from public_key
+        let public_key_lookup = NFTStorageKey::TokenIdByPublicKey(public_key.clone());
+        let token_id: u64 = e
+            .storage()
+            .persistent()
+            .get::<NFTStorageKey, u64>(&public_key_lookup)
+            .unwrap_or_else(|| panic_with_error!(e, errors::NonFungibleTokenError::NonExistentToken));
+
+        // Verify token is not already claimed
+        if e.storage().persistent().has(&NFTStorageKey::Owner(token_id)) {
+            panic_with_error!(e, &errors::NonFungibleTokenError::TokenAlreadyMinted);
+        }
+
+        e.storage().persistent().set(&NFTStorageKey::Owner(token_id), &claimant);
+
+        let claimant_balance = Self::balance(e, claimant.clone());
+        e.storage().persistent().set(&NFTStorageKey::Balance(claimant.clone()), &(claimant_balance + 1));
+
+        events::Claim { claimant, token_id }.publish(&e);
+
+        token_id
+    }
+
+    fn transfer(
+        e: &Env,
+        from: Address,
+        to: Address,
+        token_id: u64,
+        message: Bytes,
+        signature: BytesN<64>,
+        recovery_id: u32,
+        public_key: BytesN<65>,
+        nonce: u32,
+    ) {
+        verify_chip_signature(e, message, signature, recovery_id, public_key.clone(), nonce);
+
+        let stored_public_key: BytesN<65> = e.storage()
+            .persistent()
+            .get(&NFTStorageKey::PublicKey(token_id))
+            .unwrap_or_else(|| panic_with_error!(e, errors::NonFungibleTokenError::NonExistentToken));
+
+        if stored_public_key != public_key {
+            panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
+        }
+
         let owner = Self::owner_of(e, token_id);
         if owner != from {
             panic_with_error!(e, &errors::NonFungibleTokenError::IncorrectOwner);
         }
+
         e.storage().persistent().set(&NFTStorageKey::Owner(token_id), &to);
+
+        let from_balance = Self::balance(e, from.clone());
+        e.storage().persistent().set(&NFTStorageKey::Balance(from.clone()), &(from_balance - 1));
+        let to_balance = Self::balance(e, to.clone());
+        e.storage().persistent().set(&NFTStorageKey::Balance(to.clone()), &(to_balance + 1));
+
         events::Transfer { from, to, token_id }.publish(e);
-    }
-
-    fn transfer_from(e: &Env, spender: Address, from: Address, to: Address, token_id: u64) {
-        todo!()
-    }
-
-    fn approve(e: &Env, approver: Address, approved: Address, token_id: u64, live_until_ledger: u32) {
-        todo!()
-    }
-
-    fn approve_for_all(e: &Env, owner: Address, operator: Address, live_until_ledger: u32) {
-        todo!()
-    }
-
-    fn get_approved(e: &Env, token_id: u64) -> Option<Address> {
-        todo!()
-    }
-
-    fn is_approved_for_all(e: &Env, owner: Address, operator: Address) -> bool {
-        todo!()
     }
 
     fn get_nonce(e: &Env, token_id: u64) -> u32 {
@@ -155,8 +190,11 @@ impl NFCtoNFTContract for StellarMerchShop {
     }
 
     fn token_uri(e: &Env, token_id: u64) -> String {
-        // Verify token exists
-        let _owner = Self::owner_of(e, token_id);
+        // Verify token exists by checking if public_key is stored (works for both claimed and unclaimed tokens)
+        let _public_key: BytesN<65> = e.storage()
+            .persistent()
+            .get(&NFTStorageKey::PublicKey(token_id))
+            .unwrap_or_else(|| panic_with_error!(e, errors::NonFungibleTokenError::NonExistentToken));
 
         let base_uri: String = e
             .storage()
@@ -173,4 +211,25 @@ impl NFCtoNFTContract for StellarMerchShop {
         String::from(uri_bytes)
     }
 
+}
+
+/// Common function to verify chip signature
+/// Verifies that the signature was created by the chip with the given public_key
+fn verify_chip_signature(
+    e: &Env,
+    message: Bytes,
+    signature: BytesN<64>,
+    recovery_id: u32,
+    public_key: BytesN<65>,
+    nonce: u32,
+) {
+    let mut builder: Bytes = Bytes::new(&e);
+    builder.append(&message.clone());
+    builder.append(&nonce.clone().to_xdr(&e));
+    let message_hash = e.crypto().sha256(&builder);
+
+    let recovered = e.crypto().secp256k1_recover(&message_hash, &signature, recovery_id);
+    if recovered != public_key {
+        panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
+    }
 }

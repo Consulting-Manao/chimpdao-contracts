@@ -35,6 +35,13 @@ pub struct ApproveForAll {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Mint {
     #[topic]
-    pub to: Address,
+    pub token_id: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Claim {
+    #[topic]
+    pub claimant: Address,
     pub token_id: u64,
 }
