@@ -9,11 +9,8 @@ const Home: React.FC = () => (
         Welcome to the Stellar Merch Shop app!
       </Text>
       <Text as="p" size="md">
-        This app integrates with Infineon NFC chips to mint NFTs linked to physical products.
-        Place your chip on the uTrust 4701F reader and click mint to get started.
-      </Text>
-      <Text as="h2" size="lg">
-        Mint NFT from NFC Chip
+        This app integrates with NFC chips to mint NFTs linked to physical products.
+        Place your chip on the reader to get started.
       </Text>
       <NFCMintProduct />
     </Layout.Inset>

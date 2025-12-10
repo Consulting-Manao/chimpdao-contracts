@@ -24,10 +24,12 @@ export const NFCMintProduct = () => {
   const [mintStep, setMintStep] = useState<MintStep>('idle');
   const [ndefData, setNdefData] = useState<string | null>(null);
   const [selectedKeyId, setSelectedKeyId] = useState<string>("1");
+  const [selectedContractId, setSelectedContractId] = useState<string>("");
   const [result, setResult] = useState<{
     success: boolean;
     tokenId?: string;
     publicKey?: string;
+    contractId?: string;
     ndefWriteSuccess?: boolean;
     error?: string;
   }>();
@@ -40,6 +42,20 @@ export const NFCMintProduct = () => {
       });
     }
   }, [connected, connect]);
+
+  // Sync contract ID with network default when network changes
+  useEffect(() => {
+    if (walletNetwork) {
+      try {
+        const defaultContractId = getContractId(walletNetwork);
+        setSelectedContractId(defaultContractId);
+      } catch (error) {
+        // If contract ID is not configured for this network, leave it empty
+        // User can manually enter it
+        setSelectedContractId("");
+      }
+    }
+  }, [walletNetwork]);
 
   if (!address) {
     return (
@@ -119,12 +135,11 @@ export const NFCMintProduct = () => {
       const nonce = 0;
       
       // 4. Get contract client for the wallet's network (with correct RPC, Horizon, and passphrase)
-      // getContractId always returns a string (throws if not configured)
-      const contractIdValue = getContractId(walletNetwork);
-      if (!contractIdValue) {
-        throw new Error('Contract ID is required but was not configured');
+      // Use the selected contract ID from configuration
+      if (!selectedContractId || selectedContractId.trim() === '') {
+        throw new Error('Contract ID is required. Please enter a contract ID in the Configuration section.');
       }
-      const contractId: string = contractIdValue;
+      const contractId: string = selectedContractId.trim();
       if (!walletPassphrase) {
         throw new Error('Network passphrase is required');
       }
@@ -201,7 +216,7 @@ export const NFCMintProduct = () => {
       setMintStep('writing-ndef');
       let ndefWriteSuccess = false;
       try {
-        const ndefUrl = `https://nft.stellarmerchshop.com/${tokenIdString}`;
+        const ndefUrl = `https://nft.stellarmerchshop.com/${contractId}/${tokenIdString}`;
         await writeNDEF(ndefUrl);
         ndefWriteSuccess = true;
       } catch (ndefError) {
@@ -212,6 +227,7 @@ export const NFCMintProduct = () => {
         success: true,
         tokenId: tokenIdString,
         publicKey: chipPublicKey,
+        contractId: contractId,
         ndefWriteSuccess,
       });
       
@@ -272,10 +288,10 @@ export const NFCMintProduct = () => {
           Configuration
         </Text>
         <Text as="p" size="sm" style={{ color: "#666", marginBottom: "12px" }}>
-          Select the key ID to use for all operations (1-255). This key ID will be used for minting, fetching key information, and generating signatures.
+          Configure the key ID and contract address for minting operations. The contract ID defaults to the network's configured value but can be overridden for different collections.
         </Text>
-        <Box gap="sm" direction="row" style={{ alignItems: "flex-end" }}>
-          <Box gap="xs" direction="column" style={{ flex: 1, maxWidth: "200px" }}>
+        <Box gap="sm" direction="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
+          <Box gap="xs" direction="column" style={{ flex: 1, minWidth: "200px", maxWidth: "250px" }}>
             <Text as="p" size="sm" weight="semi-bold">
               Key ID (1-255)
             </Text>
@@ -287,6 +303,26 @@ export const NFCMintProduct = () => {
               value={selectedKeyId}
               onChange={(e) => setSelectedKeyId(e.target.value)}
               placeholder="1"
+              disabled={minting || signing}
+              fieldSize="md"
+            />
+          </Box>
+          <Box gap="xs" direction="column" style={{ flex: 1, minWidth: "300px" }}>
+            <Text as="p" size="sm" weight="semi-bold">
+              Contract ID
+            </Text>
+            <Input
+              id="config-contract-id-input"
+              type="text"
+              value={selectedContractId}
+              onChange={(e) => setSelectedContractId(e.target.value)}
+              placeholder={(() => {
+                try {
+                  return walletNetwork ? getContractId(walletNetwork) : "Enter contract ID";
+                } catch {
+                  return "Enter contract ID";
+                }
+              })()}
               disabled={minting || signing}
               fieldSize="md"
             />
@@ -365,7 +401,7 @@ export const NFCMintProduct = () => {
           </Text>
           {result.ndefWriteSuccess && (
             <Text as="p" size="xs" style={{ marginTop: "8px", color: "#4caf50" }}>
-              ✓ NDEF URL written to chip: https://nft.stellarmerchshop.com/{result.publicKey}
+              ✓ NDEF URL written to chip: https://nft.stellarmerchshop.com/{result.contractId}/{result.tokenId}
             </Text>
           )}
           {result.ndefWriteSuccess === false && (
