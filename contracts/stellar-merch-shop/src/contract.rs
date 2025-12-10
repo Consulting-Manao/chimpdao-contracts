@@ -14,7 +14,7 @@ pub enum DataKey {
 
 #[contracttype]
 pub enum NFTStorageKey {
-    ChipNonce(u64),
+    ChipNonceByPublicKey(BytesN<65>),
     Owner(u64),
     PublicKey(u64),
     TokenIdByPublicKey(BytesN<65>),
@@ -78,7 +78,6 @@ impl NFCtoNFTContract for StellarMerchShop {
         e.storage().instance().set(&DataKey::NextTokenId, &(token_id + 1));
         e.storage().persistent().set(&public_key_lookup, &token_id);
         e.storage().persistent().set(&NFTStorageKey::PublicKey(token_id), &public_key);
-        e.storage().persistent().set(&NFTStorageKey::ChipNonce(token_id), &nonce);
 
         events::Mint { token_id }.publish(&e);
 
@@ -169,10 +168,12 @@ impl NFCtoNFTContract for StellarMerchShop {
         events::Transfer { from, to, token_id }.publish(e);
     }
 
-    fn get_nonce(e: &Env, token_id: u64) -> u32 {
-        e.storage().persistent()
-        .get(&NFTStorageKey::ChipNonce(token_id))
-        .unwrap_or_else(|| panic_with_error!(e, errors::NonFungibleTokenError::NonExistentToken))
+    fn get_nonce(e: &Env, public_key: BytesN<65>) -> u32 {
+        let nonce_key = NFTStorageKey::ChipNonceByPublicKey(public_key);
+        e.storage()
+            .persistent()
+            .get(&nonce_key)
+            .unwrap_or(0u32)  // Default to 0 if not set (first use)
     }
 
     fn name(e: &Env) -> String {
@@ -215,6 +216,7 @@ impl NFCtoNFTContract for StellarMerchShop {
 
 /// Common function to verify chip signature
 /// Verifies that the signature was created by the chip with the given public_key
+/// Also handles nonce verification and updates the stored nonce for the public_key
 fn verify_chip_signature(
     e: &Env,
     message: Bytes,
@@ -223,13 +225,29 @@ fn verify_chip_signature(
     public_key: BytesN<65>,
     nonce: u32,
 ) {
+    let nonce_key = NFTStorageKey::ChipNonceByPublicKey(public_key.clone());
+    let stored_nonce: u32 = e.storage()
+        .persistent()
+        .get(&nonce_key)
+        .unwrap_or(0u32);
+
+    // Verify nonce is monotonic increasing
+    if nonce <= stored_nonce {
+        panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
+    }
+
+    // Build message hash with nonce
     let mut builder: Bytes = Bytes::new(&e);
     builder.append(&message.clone());
     builder.append(&nonce.clone().to_xdr(&e));
     let message_hash = e.crypto().sha256(&builder);
 
+    // Verify signature recovers to the public_key
     let recovered = e.crypto().secp256k1_recover(&message_hash, &signature, recovery_id);
     if recovered != public_key {
         panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
     }
+    
+    // Update stored nonce for this public_key
+    e.storage().persistent().set(&nonce_key, &nonce);
 }

@@ -21,10 +21,6 @@ class AppData: ObservableObject {
         walletConnection != nil
     }
     
-    // Mint state
-    @Published var minting = false
-    @Published var mintError: String?
-    @Published var lastMintedTokenId: String?
     
     init() {
         // Check for stored wallet

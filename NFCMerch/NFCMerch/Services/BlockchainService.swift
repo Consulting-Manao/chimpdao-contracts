@@ -103,64 +103,6 @@ class BlockchainService {
         return Data(base64Encoded: xdrString) ?? Data()
     }
     
-    func buildMintTransaction(
-        contractId: String,
-        to: String,
-        message: Data,
-        signature: Data,
-        recoveryId: UInt8,
-        tokenId: Data,
-        nonce: UInt32,
-        sourceAccount: String,
-        sourceKeyPair: KeyPair
-    ) async throws -> Data {
-        // Create SCValXDR arguments
-        let toAddress = try SCAddressXDR(accountId: to)
-        
-        let args: [SCValXDR] = [
-            try SCValXDR.address(toAddress),
-            SCValXDR.bytes(message),
-            SCValXDR.bytes(signature),
-            SCValXDR.u32(UInt32(recoveryId)),
-            SCValXDR.bytes(tokenId),
-            SCValXDR.u32(nonce)
-        ]
-        
-        // Create client options
-        let network: Network
-        switch NFCConfig.currentNetwork {
-        case .testnet:
-            network = .testnet
-        case .mainnet:
-            network = .public
-        }
-        
-        let clientOptions = ClientOptions(
-            sourceAccountKeyPair: sourceKeyPair,
-            contractId: contractId,
-            network: network,
-            rpcUrl: NFCConfig.rpcUrl
-        )
-        
-        // Create assembled transaction options (methodOptions must come before method)
-        let assembledOptions = AssembledTransactionOptions(
-            clientOptions: clientOptions,
-            methodOptions: MethodOptions(),
-            method: "mint",
-            arguments: args
-        )
-        
-        // Build the transaction
-        let assembledTx = try await AssembledTransaction.build(options: assembledOptions)
-        
-        // Get the transaction XDR from the raw transaction
-        guard let rawTx = assembledTx.raw,
-              let xdrString = rawTx.xdrEncoded else {
-            throw BlockchainError.transactionFailed
-        }
-        return Data(base64Encoded: xdrString) ?? Data()
-    }
-    
     func buildClaimTransaction(
         contractId: String,
         claimant: String,
@@ -332,6 +274,56 @@ class BlockchainService {
             let contractIdString = contractIdBytes.wrapped.base64EncodedString()
             return contractIdString
         }
+    }
+    
+    func getNonce(contractId: String, publicKey: Data) async throws -> UInt32 {
+        // Call contract's get_nonce function via RPC
+        let rpcUrlString = NFCConfig.rpcUrl
+        let rpcClient = SorobanServer(endpoint: rpcUrlString)
+        
+        // Build the contract call
+        let network: Network
+        switch NFCConfig.currentNetwork {
+        case .testnet:
+            network = .testnet
+        case .mainnet:
+            network = .public
+        }
+        
+        // Create a dummy keypair for the call (we're just reading, not writing)
+        let dummyKeyPair = try KeyPair.generateRandomKeyPair()
+        let clientOptions = ClientOptions(
+            sourceAccountKeyPair: dummyKeyPair,
+            contractId: contractId,
+            network: network,
+            rpcUrl: rpcUrlString
+        )
+        
+        let args: [SCValXDR] = [
+            SCValXDR.bytes(publicKey)
+        ]
+        
+        let assembledOptions = AssembledTransactionOptions(
+            clientOptions: clientOptions,
+            methodOptions: MethodOptions(),
+            method: "get_nonce",
+            arguments: args
+        )
+        
+        // Simulate the call to get the result
+        let assembledTx = try await AssembledTransaction.build(options: assembledOptions)
+        
+        // Simulate the transaction to get the return value
+        let simulateResponse = await rpcClient.simulateTransaction(transaction: assembledTx.raw!)
+        
+        guard case .success(let simulateResult) = simulateResponse,
+              let returnValue = simulateResult.results?.first?.xdr,
+              case .u32(let nonce) = returnValue else {
+            // If no nonce found, return 0 (first use)
+            return 0
+        }
+        
+        return nonce
     }
 }
 

@@ -30,7 +30,7 @@ interface TransferResult {
 
 export const TransferSection = ({ keyId, contractId }: TransferSectionProps) => {
   const { address, updateBalances, signTransaction, network: walletNetwork, networkPassphrase: walletPassphrase } = useWallet();
-  const { connected, connect } = useNFC();
+  const { connected, connect, readChip } = useNFC();
   const { authenticateWithChip } = useChipAuth();
   const { contractClient, isReady } = useContractClient(contractId);
   const [transferring, setTransferring] = useState(false);
@@ -98,9 +98,32 @@ export const TransferSection = ({ keyId, contractId }: TransferSectionProps) => 
       // Get network-specific settings
       const networkPassphraseToUse = getNetworkPassphrase(walletNetwork, walletPassphrase);
       
-      // Get current nonce for the token (we'll need to fetch this from contract)
-      // For now, using 0 - in production, should fetch actual nonce
-      const nonce = 0;
+      // Read chip public key first to get nonce
+      setTransferStep('reading');
+      const chipPublicKeyHex = await readChip(keyIdNum);
+      const { hexToBytes } = await import("../../util/crypto");
+      const chipPublicKeyBytes = hexToBytes(chipPublicKeyHex);
+      
+      // Get current nonce from contract
+      let currentNonce = 0;
+      try {
+        const nonceResult = await contractClient.get_nonce(
+          {
+            public_key: Buffer.from(chipPublicKeyBytes),
+          },
+          {
+            publicKey: address,
+          } as any
+        );
+        currentNonce = (nonceResult.result as number) || 0;
+      } catch (err) {
+        // If get_nonce fails, default to 0
+        console.log('Could not fetch nonce, defaulting to 0:', err);
+        currentNonce = 0;
+      }
+      
+      // Use next nonce (must be greater than stored)
+      const nonce = currentNonce + 1;
 
       // Create SEP-53 message for transfer
       const { message, messageHash } = await createSEP53Message(
@@ -112,7 +135,7 @@ export const TransferSection = ({ keyId, contractId }: TransferSectionProps) => 
       );
 
       // Authenticate with chip
-      setTransferStep('reading');
+      setTransferStep('signing');
       const authResult = await authenticateWithChip(keyIdNum, messageHash);
 
       // Call contract

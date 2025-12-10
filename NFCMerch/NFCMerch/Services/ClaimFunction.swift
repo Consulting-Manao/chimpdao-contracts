@@ -17,7 +17,28 @@ class ClaimFunction {
         
         stepCallback(.reading)
         
-        let nonce: UInt32 = 0
+        // Read chip public key first to get nonce
+        let chipPublicKey = try await readChipPublicKey(nfcService: nfcService)
+        let publicKeyBytes = hexToBytes(chipPublicKey)
+        guard publicKeyBytes.count == 65 else {
+            throw ClaimError.invalidPublicKey
+        }
+        
+        // Get current nonce from contract
+        var currentNonce: UInt32 = 0
+        do {
+            currentNonce = try await blockchainService.getNonce(
+                contractId: contractId,
+                publicKey: Data(publicKeyBytes)
+            )
+        } catch {
+            // If get_nonce fails, default to 0
+            print("Could not fetch nonce, defaulting to 0: \(error)")
+            currentNonce = 0
+        }
+        
+        // Use next nonce (must be greater than stored)
+        let nonce = currentNonce + 1
         
         let sep53Result = try createSEP53Message(
             contractId: contractId,
@@ -28,8 +49,6 @@ class ClaimFunction {
         )
         
         stepCallback(.signing)
-        
-        let chipPublicKey = try await readChipPublicKey(nfcService: nfcService)
         let signatureResult = try await signWithChip(
             nfcService: nfcService,
             messageHash: sep53Result.messageHash
@@ -42,11 +61,6 @@ class ClaimFunction {
             signature: signatureResult.signatureBytes,
             expectedPublicKey: chipPublicKey
         )
-        
-        let publicKeyBytes = hexToBytes(chipPublicKey)
-        guard publicKeyBytes.count == 65 else {
-            throw ClaimError.invalidPublicKey
-        }
         
         stepCallback(.calling)
         

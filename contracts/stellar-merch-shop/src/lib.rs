@@ -108,8 +108,6 @@ pub trait NFCtoNFTContract {
     /// * data - `[token_id: BytesN<65>]`
     fn transfer(e: &Env, from: Address, to: Address, token_id: u64, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32);
 
-    fn get_nonce(e: &Env, token_id: u64) -> u32;
-
     /// Returns the token collection name.
     ///
     /// # Arguments
@@ -135,4 +133,16 @@ pub trait NFCtoNFTContract {
     ///
     /// If the token does not exist, this function is expected to panic.
     fn token_uri(e: &Env, token_id: u64) -> String;
+
+    /// Returns the current nonce for the given `public_key`.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - Access to the Soroban environment.
+    /// * `public_key` - The chip's public key (uncompressed SEC1 format, 65 bytes).
+    ///
+    /// # Returns
+    ///
+    /// The current nonce for this chip's public_key (defaults to 0 if not set).
+    fn get_nonce(e: &Env, public_key: BytesN<65>) -> u32;
 }

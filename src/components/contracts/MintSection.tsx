@@ -90,7 +90,7 @@ export const MintSection = ({ keyId, contractId }: MintSectionProps) => {
 
       // Get network-specific settings
       const networkPassphraseToUse = getNetworkPassphrase(walletNetwork, walletPassphrase);
-      const nonce = 0; // Start of counter for this chip
+      const nonce = 1; // Mint uses nonce = 1
 
       // Create SEP-53 message
       const { message, messageHash } = await createSEP53Message(
