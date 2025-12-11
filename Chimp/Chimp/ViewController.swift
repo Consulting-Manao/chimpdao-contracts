@@ -14,11 +14,15 @@ class ViewController: UIViewController {
     
     var publicKeyLabel: UILabel!
     var scanButton: UIButton!
+    var signButton: UIButton!
     
     var nfc_helper: NFCHelper?
     
     /// Stores the key index selected by the user. Default value is 1
     var selected_keyindex: UInt8  = 0x01
+    
+    /// Operation type: true for signature, false for read
+    var isSignOperation: Bool = false
     
     // MARK: - View controller events
     override func viewDidLoad() {
@@ -34,6 +38,16 @@ class ViewController: UIViewController {
         
         ResetDefaults()
         selected_keyindex = 0x01
+        isSignOperation = false
+        BeginNFCReadSession()
+    }
+    
+    @objc func SignButtonTapped() {
+        print(TAG + ": Sign message button clicked")
+        
+        ResetDefaults()
+        selected_keyindex = 0x01
+        isSignOperation = true
         BeginNFCReadSession()
     }
     
@@ -42,7 +56,7 @@ class ViewController: UIViewController {
     func ConfigureViews(){
         view.backgroundColor = .systemBackground
         
-        // Create button programmatically
+        // Create scan button
         let button = UIButton(type: .system)
         button.setTitle("Scan NFC Chip", for: .normal)
         button.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
@@ -54,7 +68,19 @@ class ViewController: UIViewController {
         view.addSubview(button)
         scanButton = button
         
-        // Create label for public key
+        // Create sign button
+        let signBtn = UIButton(type: .system)
+        signBtn.setTitle("Sign Message", for: .normal)
+        signBtn.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
+        signBtn.backgroundColor = .systemGreen
+        signBtn.setTitleColor(.white, for: .normal)
+        signBtn.layer.cornerRadius = 10
+        signBtn.translatesAutoresizingMaskIntoConstraints = false
+        signBtn.addTarget(self, action: #selector(SignButtonTapped), for: .touchUpInside)
+        view.addSubview(signBtn)
+        signButton = signBtn
+        
+        // Create label for public key/signature
         let label = UILabel()
         label.text = ""
         label.textAlignment = .center
@@ -67,11 +93,16 @@ class ViewController: UIViewController {
         // Layout constraints
         NSLayoutConstraint.activate([
             button.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            button.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -50),
+            button.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -80),
             button.widthAnchor.constraint(equalToConstant: 200),
             button.heightAnchor.constraint(equalToConstant: 50),
             
-            label.topAnchor.constraint(equalTo: button.bottomAnchor, constant: 40),
+            signBtn.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            signBtn.topAnchor.constraint(equalTo: button.bottomAnchor, constant: 20),
+            signBtn.widthAnchor.constraint(equalToConstant: 200),
+            signBtn.heightAnchor.constraint(equalToConstant: 50),
+            
+            label.topAnchor.constraint(equalTo: signBtn.bottomAnchor, constant: 40),
             label.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             label.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20)
         ])
@@ -134,14 +165,33 @@ class ViewController: UIViewController {
         }
     }
     
-    /// Exchanges Blockchain commands to read the public key from the tag
+    /// Exchanges Blockchain commands to read the public key or generate signature from the tag
     /// - Parameters:
     ///   - tag: ISO7816 tag handle for communication with the tag
     ///   - session: NFCTagReaderSession handle for communication with the tag
     func SendBlockchainCommand(tag: NFCISO7816Tag, session: NFCTagReaderSession)
     {
         let command_handler: BlockchainCommandHandler = BlockchainCommandHandler(tag_iso7816: tag, reader_session: session)
-        command_handler.ActionGetKey(key_index: selected_keyindex, completion_handler: OnCommandCompleted)
+        
+        if isSignOperation {
+            // Test hash from command-line example: 53d79d1d1cdcb175a480d34dddf359d3bf9f441d35d5e86b8a3ea78afba9491b
+            let testHashHex = "53d79d1d1cdcb175a480d34dddf359d3bf9f441d35d5e86b8a3ea78afba9491b"
+            guard let messageDigest = Data(hexString: testHashHex) else {
+                print(TAG + ": Error: Failed to parse test hash")
+                DispatchQueue.main.async {
+                    self.publicKeyLabel.text = "Error: Invalid test hash"
+                }
+                session.invalidate(errorMessage: "Invalid test hash")
+                return
+            }
+            
+            print(TAG + ": Starting signature generation")
+            print(TAG + ": Key index: \(selected_keyindex)")
+            print(TAG + ": Message digest (hex): \(testHashHex)")
+            command_handler.ActionGenerateSignature(key_index: selected_keyindex, message_digest: messageDigest, completion_handler: OnSignCommandCompleted)
+        } else {
+            command_handler.ActionGetKey(key_index: selected_keyindex, completion_handler: OnCommandCompleted)
+        }
     }
     
     /// Handles the action completed event for BlockchainCommandHandler. This processes the result of the APDU exchanges.
@@ -191,10 +241,86 @@ class ViewController: UIViewController {
              session.invalidate(errorMessage: "Failed to read tag. ")
         }
     }
+    
+    /// Handles the signature generation completed event for BlockchainCommandHandler
+    /// - Parameters:
+    ///   - success: Indicates whether the signature generation is completed successfully
+    ///   - response: APDU response of GenerateSignature command without SW
+    ///   - session: NFCTagReaderSession handle for invalidating the session
+    func OnSignCommandCompleted(success: Bool, response: Data?, error: String?, session: NFCTagReaderSession) -> Void {
+        
+        var result: Bool = false
+        var error_msg: String = ""
+        if(error != nil) {
+            error_msg = error!
+        }
+        
+        if(success && (response != nil)){
+            print(TAG + ": Signature response from card: " + (response?.hexEncodedString() ?? ""))
+            
+            // Response format: 4 bytes global counter + 4 bytes key counter + DER signature
+            if response!.count >= 8 {
+                let globalCounter = response!.subdata(in: 0..<4)
+                let keyCounter = response!.subdata(in: 4..<8)
+                let derSignature = response!.subdata(in: 8..<response!.count)
+                
+                let globalCounterHex = globalCounter.hexEncodedString()
+                let keyCounterHex = keyCounter.hexEncodedString()
+                let derSignatureHex = derSignature.hexEncodedString()
+                
+                print(TAG + ": ========== SIGNATURE GENERATION RESULT ==========")
+                print(TAG + ": Global counter (hex): \(globalCounterHex)")
+                print(TAG + ": Key counter (hex): \(keyCounterHex)")
+                print(TAG + ": DER signature (hex): \(derSignatureHex)")
+                print(TAG + ": DER signature length: \(derSignature.count) bytes")
+                print(TAG + ": Full response (hex): \(response!.hexEncodedString())")
+                print(TAG + ": ================================================")
+                
+                result = true
+                // Display the result
+                DispatchQueue.main.async {
+                    self.publicKeyLabel.text = "Signature Generated:\n\nGlobal Counter: \(globalCounterHex)\nKey Counter: \(keyCounterHex)\nDER Signature: \(derSignatureHex)"
+                }
+                print(TAG + ": Success: Signature displayed")
+            } else {
+                error_msg = "Invalid response length: \(response!.count) bytes (expected at least 8)"
+                print(TAG + ": Invalid response length: \(response!.count)")
+            }
+        }
+
+        if(result)
+        {
+            // Success
+            session.alertMessage = "Signature generated successfully"
+            session.invalidate()
+        } else {
+            DispatchQueue.main.async {
+                self.publicKeyLabel.text = "Failed to generate signature. " + error_msg
+            }
+            session.invalidate(errorMessage: "Failed to generate signature. ")
+        }
+    }
 }
 
 extension Data {
     func hexEncodedString() -> String {
         return map { String(format: "%02x", $0) }.joined()
+    }
+    
+    init?(hexString: String) {
+        let len = hexString.count / 2
+        var data = Data(capacity: len)
+        var i = hexString.startIndex
+        for _ in 0..<len {
+            let j = hexString.index(i, offsetBy: 2)
+            let bytes = hexString[i..<j]
+            if var num = UInt8(bytes, radix: 16) {
+                data.append(&num, count: 1)
+            } else {
+                return nil
+            }
+            i = j
+        }
+        self = data
     }
 }

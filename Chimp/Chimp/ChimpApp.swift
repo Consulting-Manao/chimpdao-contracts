@@ -1,10 +1,3 @@
-//
-//  ChimpApp.swift
-//  Chimp
-//
-//  Created by Pamphile Roy on 11.12.25.
-//
-
 import SwiftUI
 
 @main

@@ -42,6 +42,7 @@ class BlockchainCommandHandler: CommandHandler {
     /// Action completion handler, which is called when the command excahges are completed
     var OnActionCompleted: ((Bool, Data?, String?, NFCTagReaderSession) -> ())?
     var key_index: UInt8 = 0x01
+    var message_digest: Data?
     
     /// Triggers the APDU exchanges to get the public-key from the card
     /// - Parameters:
@@ -153,6 +154,103 @@ class BlockchainCommandHandler: CommandHandler {
             } else {
                 OnActionCompleted?(false, nil, "GENERATE_KEY SW: " + response.GetSWHex(), reader_session)
             }
+        }
+    }
+    
+    // MARK: - Command handler - GENERATE_SIGNATURE
+    /// Triggers the APDU exchanges to generate a signature from the card
+    /// - Parameters:
+    ///   - key_index: Key index to use for signing. Must be >0.
+    ///   - message_digest: 32-byte message digest to sign
+    ///   - completion_handler: Handler method to be called when the action is completed
+    func ActionGenerateSignature(key_index: UInt8, message_digest: Data, completion_handler: @escaping (Bool, Data?,String?,NFCTagReaderSession) -> Void) {
+        self.key_index = key_index
+        self.message_digest = message_digest
+        self.OnActionCompleted = completion_handler
+        
+        // Validate message digest is exactly 32 bytes
+        if message_digest.count != 32 {
+            print(TAG + ": Error: Message digest must be exactly 32 bytes, got \(message_digest.count)")
+            OnActionCompleted?(false, nil, "Invalid message digest length: \(message_digest.count) bytes", reader_session)
+            return
+        }
+        
+        print(TAG + ": ActionGenerateSignature - key_index: \(key_index), message_digest: \(message_digest.hexEncodedString())")
+        SelectApplicationForSignature()
+    }
+    
+    /// Sends the SELECT_APPLICATION command for signature generation
+    private func SelectApplicationForSignature() {
+        print(TAG + ": Transmit: SELECT_APPLICATION (for signature)")
+        let apdu = APDUCommand(command: APDU_SELECT)
+        Transmit(command: apdu, on_response_event: OnSelectApplicationForSignatureCompleted)
+    }
+    
+    /// Handles the response of the SELECT_APPLICATION command for signature. When successful, sends GENERATE_SIGNATURE
+    /// - Parameter response: Response of SELECT_APPLICATION
+    private func OnSelectApplicationForSignatureCompleted(response: APDUResponse) {
+        if(!response.IsSuccessSW()) {
+            print(TAG + ": Response: SELECT_APPLICATION Failed: " + response.GetSWHex())
+            OnActionCompleted?(false, nil, "SELECT_APP SW: " + response.GetSWHex(), reader_session)
+            return
+        }
+        print(TAG + ": Response: SELECT_APPLICATION Success")
+        
+        // Application selected, generate signature
+        GenerateSignature()
+    }
+    
+    /// Frames the GENERATE_SIGNATURE command with the key index and message digest
+    /// - Returns: GENERATE_SIGNATURE command
+    private func GenerateSignatureCommand() -> Data {
+        // APDU format: [0x00, 0x18, key_index, 0x00, 0x20] + message_digest (32 bytes) + [0x00]
+        var command = Data()
+        command.append(0x00)  // CLA
+        command.append(0x18)  // INS (GENERATE_SIGNATURE)
+        command.append(key_index)  // P1 (key index)
+        command.append(0x00)  // P2
+        command.append(0x20)  // Lc (32 bytes)
+        command.append(message_digest!)  // Message digest (32 bytes)
+        command.append(0x00)  // Le
+        
+        return command
+    }
+    
+    /// Sends the GENERATE_SIGNATURE command to the card
+    private func GenerateSignature() {
+        let command = GenerateSignatureCommand()
+        print(TAG + ": Transmit: GENERATE_SIGNATURE")
+        print(TAG + ": Command (hex): " + command.hexEncodedString())
+        let apdu = APDUCommand(command: command)
+        Transmit(command: apdu, on_response_event: OnGenerateSignatureCompleted)
+    }
+    
+    /// Handles the response of the GENERATE_SIGNATURE command
+    /// - Parameter response: Response of GENERATE_SIGNATURE
+    private func OnGenerateSignatureCompleted(response: APDUResponse) {
+        if(response.IsSuccessSW()) {
+            print(TAG + ": Response: GENERATE_SIGNATURE Success")
+            print(TAG + ": Response (hex): " + (response.data?.hexEncodedString() ?? "nil"))
+            
+            // Response format: 4 bytes global counter + 4 bytes key counter + DER signature
+            if let data = response.data {
+                if data.count >= 8 {
+                    let globalCounter = data.subdata(in: 0..<4)
+                    let keyCounter = data.subdata(in: 4..<8)
+                    let derSignature = data.subdata(in: 8..<data.count)
+                    
+                    print(TAG + ": Global counter (hex): " + globalCounter.hexEncodedString())
+                    print(TAG + ": Key counter (hex): " + keyCounter.hexEncodedString())
+                    print(TAG + ": DER signature (hex): " + derSignature.hexEncodedString())
+                    print(TAG + ": DER signature length: \(derSignature.count) bytes")
+                }
+            }
+            
+            // Complete the action with full response
+            OnActionCompleted?(true, response.data, nil, reader_session)
+        } else {
+            print(TAG + ": Response: GENERATE_SIGNATURE Failed: " + response.GetSWHex())
+            OnActionCompleted?(false, nil, "GENERATE_SIGNATURE SW: " + response.GetSWHex(), reader_session)
         }
     }
 }
