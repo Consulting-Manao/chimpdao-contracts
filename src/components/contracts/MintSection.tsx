@@ -3,7 +3,7 @@
  * Handles NFT minting with NFC chip authentication
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button, Text, Code } from "@stellar/design-system";
 import { Box } from "../layout/Box";
 import { ChipProgressIndicator } from "../ChipProgressIndicator";
@@ -16,7 +16,7 @@ import { getNetworkPassphrase } from "../../contracts/util";
 import { handleChipError, formatChipError } from "../../util/chipErrorHandler";
 import type { ContractCallOptions } from "../../types/contract";
 
-type MintStep = 'idle' | 'scanning' | 'reading' | 'signing' | 'recovering' | 'calling' | 'submitting' | 'confirming' | 'writing-ndef';
+type MintStep = 'idle' | 'reading' | 'signing' | 'recovering' | 'calling' | 'submitting' | 'confirming' | 'writing-ndef';
 
 interface MintSectionProps {
   keyId: string;
@@ -40,16 +40,13 @@ export const MintSection = ({ keyId, contractId }: MintSectionProps) => {
   const [minting, setMinting] = useState(false);
   const [mintStep, setMintStep] = useState<MintStep>('idle');
   const [result, setResult] = useState<MintResult>();
-  const [countdown, setCountdown] = useState<number | undefined>(undefined);
 
-  const chipSteps: MintStep[] = ['scanning', 'reading', 'signing', 'recovering'];
+  const chipSteps: MintStep[] = ['reading', 'signing', 'recovering'];
   const blockchainSteps: MintStep[] = ['calling', 'submitting', 'confirming'];
   const allSteps: MintStep[] = [...chipSteps, ...blockchainSteps, 'writing-ndef'];
 
   const getStepMessage = (step: MintStep): string => {
     switch (step) {
-      case 'scanning':
-        return 'Scanning chip...';
       case 'reading':
         return 'Reading chip public key...';
       case 'signing':
@@ -77,48 +74,16 @@ export const MintSection = ({ keyId, contractId }: MintSectionProps) => {
     return blockchainSteps.includes(step);
   };
 
-  // Handle 3-second forced scanning period
-  useEffect(() => {
-    if (mintStep === 'scanning') {
-      setCountdown(3);
-      const interval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev === undefined || prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      const timeout = setTimeout(() => {
-        clearInterval(interval);
-        setCountdown(undefined);
-        // After 3 seconds, proceed to reading
-        if (mintStep === 'scanning') {
-          setMintStep('reading');
-        }
-      }, 3000);
-
-      return () => {
-        clearInterval(interval);
-        clearTimeout(timeout);
-      };
-    } else {
-      setCountdown(undefined);
-    }
-  }, [mintStep]);
-
   const handleMint = async () => {
     if (!address) return;
     if (!isReady || !contractClient) {
       throw new Error('Contract client is not ready. Please check your contract ID.');
     }
 
+    // Set UI state FIRST to ensure it renders immediately
     setMinting(true);
-    setMintStep('idle');
     setResult(undefined);
-    setCountdown(undefined);
+    setMintStep('reading');
 
     try {
       // Ensure we're connected to NFC server
@@ -149,18 +114,7 @@ export const MintSection = ({ keyId, contractId }: MintSectionProps) => {
         networkPassphraseToUse
       );
 
-      // Start with forced 3-second scanning period
-      setMintStep('scanning');
-      
-      // Wait for 3-second scanning period to complete
-      await new Promise<void>((resolve) => {
-        setTimeout(() => {
-          resolve();
-        }, 3000);
-      });
-      
-      // Now proceed with chip operations
-      setMintStep('reading');
+      // Proceed with chip operations
       const authResult = await authenticateWithChip(keyIdNum, messageHash);
 
       // Chip operations complete - close scanning UI
@@ -221,7 +175,6 @@ export const MintSection = ({ keyId, contractId }: MintSectionProps) => {
     } finally {
       setMinting(false);
       setMintStep('idle');
-      setCountdown(undefined);
     }
   };
 
@@ -307,14 +260,13 @@ export const MintSection = ({ keyId, contractId }: MintSectionProps) => {
             Mint NFT with Chip
           </Button>
 
-          {minting && mintStep !== 'idle' && (
+          {minting && (
             <>
               {isChipOperation(mintStep) && (
                 <ChipProgressIndicator
                   step={mintStep}
                   stepMessage={getStepMessage(mintStep)}
                   steps={chipSteps}
-                  countdown={countdown}
                 />
               )}
               {isBlockchainOperation(mintStep) && (

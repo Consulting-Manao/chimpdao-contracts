@@ -49,7 +49,7 @@ export const ChipProgressIndicator = ({
         )}
         <Text as="p" size="sm" weight="semi-bold" style={{ color: "#333", flex: 1 }}>
           {stepMessage}
-          {countdown !== undefined && countdown > 0 && (
+          {countdown !== undefined && countdown >= 0 && (
             <span style={{ marginLeft: "8px", color: "#7c3aed", fontWeight: "bold" }}>
               {countdown}s
             </span>

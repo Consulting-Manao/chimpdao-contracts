@@ -8,6 +8,78 @@
 import UIKit
 import CoreNFC
 
+/// Simple confetti animation view for success celebrations
+class ConfettiView: UIView {
+    private var emitterLayer: CAEmitterLayer?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setupConfetti()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupConfetti()
+    }
+
+    private func setupConfetti() {
+        let emitter = CAEmitterLayer()
+        emitter.emitterPosition = CGPoint(x: bounds.midX, y: bounds.midY - 100)
+        emitter.emitterSize = CGSize(width: bounds.width, height: 1)
+        emitter.emitterShape = .line
+        emitter.birthRate = 0 // Start stopped
+
+        // Create confetti particles
+        var cells = [CAEmitterCell]()
+
+        let colors: [UIColor] = [.systemBlue, .systemGreen, .systemPurple, .systemOrange, .systemPink]
+        let shapes = ["circle", "triangle", "square"]
+
+        for (index, color) in colors.enumerated() {
+            let cell = CAEmitterCell()
+            cell.birthRate = 1.0
+            cell.lifetime = 7.0
+            cell.velocity = 150 + CGFloat(index * 20)
+            cell.velocityRange = 50
+            cell.emissionLongitude = .pi
+            cell.emissionRange = .pi / 4
+            cell.spin = 2
+            cell.spinRange = 3
+            cell.scale = 0.1
+            cell.scaleRange = 0.05
+            cell.alphaSpeed = -0.1
+
+            // Create small colored shapes
+            let shapeSize = CGSize(width: 8, height: 8)
+            UIGraphicsBeginImageContextWithOptions(shapeSize, false, 0)
+            color.setFill()
+            UIBezierPath(ovalIn: CGRect(origin: .zero, size: shapeSize)).fill()
+            let image = UIGraphicsGetImageFromCurrentImageContext()
+            UIGraphicsEndImageContext()
+
+            cell.contents = image?.cgImage
+            cells.append(cell)
+        }
+
+        emitter.emitterCells = cells
+        layer.addSublayer(emitter)
+        emitterLayer = emitter
+    }
+
+    func startConfetti() {
+        emitterLayer?.birthRate = 1.0
+
+        // Stop after 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+            self?.stopConfetti()
+        }
+    }
+
+    func stopConfetti() {
+        emitterLayer?.birthRate = 0
+    }
+}
+
 /// Contains the user interface controller code of the main screen
 class ViewController: UIViewController {
     let TAG: String = "MainViewController"
@@ -22,6 +94,7 @@ class ViewController: UIViewController {
     var nfc_helper: NFCHelper?
     var walletService: WalletService!
     var claimService: ClaimService!
+    var confettiView: ConfettiView?
     
     /// Stores the key index selected by the user. Default value is 1
     var selected_keyindex: UInt8  = 0x01
@@ -177,6 +250,13 @@ class ViewController: UIViewController {
         label.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(label)
         publicKeyLabel = label
+
+        // Create confetti view for success celebrations
+        let confetti = ConfettiView(frame: view.bounds)
+        confetti.translatesAutoresizingMaskIntoConstraints = false
+        confetti.isHidden = true
+        view.addSubview(confetti)
+        confettiView = confetti
         
         // Layout constraints
         NSLayoutConstraint.activate([
@@ -198,7 +278,13 @@ class ViewController: UIViewController {
             claimBtn.topAnchor.constraint(equalTo: signBtn.bottomAnchor, constant: 20),
             claimBtn.widthAnchor.constraint(equalToConstant: 200),
             claimBtn.heightAnchor.constraint(equalToConstant: 50),
-            
+
+            // Confetti view fills entire screen
+            confetti.topAnchor.constraint(equalTo: view.topAnchor),
+            confetti.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            confetti.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            confetti.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
             label.topAnchor.constraint(equalTo: claimBtn.bottomAnchor, constant: 40),
             label.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             label.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20)
@@ -235,6 +321,9 @@ class ViewController: UIViewController {
     /// Resets the user interface elements to the initial state
     func ResetDefaults() {
         self.publicKeyLabel.text = ""
+        self.publicKeyLabel.textColor = .label // Reset to default color
+        self.confettiView?.stopConfetti()
+        self.confettiView?.isHidden = true
     }
     
     // MARK: - Private helpers: NFC
@@ -275,15 +364,29 @@ class ViewController: UIViewController {
                         }
                         
                         await MainActor.run {
-                            self.publicKeyLabel.text = "Claim Successful!\n\nTransaction: \(txHash)"
+                            // Show confetti animation for success
+                            self.confettiView?.isHidden = false
+                            self.confettiView?.startConfetti()
+
+                            // Minimalistic success message following Apple guidelines
+                            self.publicKeyLabel.text = "✓ NFT Claimed Successfully"
+                            self.publicKeyLabel.textColor = .systemGreen
                             self.claimButton.isEnabled = true
+
                             session.alertMessage = "Claim successful"
                             session.invalidate()
                         }
                     } catch {
                         await MainActor.run {
-                            self.publicKeyLabel.text = "Claim Failed:\n\(error.localizedDescription)"
+                            // Clean error message following Apple guidelines
+                            let errorMessage = error.localizedDescription.contains("tokenAlreadyClaimed")
+                                ? "This NFT has already been claimed"
+                                : "Claim failed. Please try again."
+
+                            self.publicKeyLabel.text = "✗ \(errorMessage)"
+                            self.publicKeyLabel.textColor = .systemRed
                             self.claimButton.isEnabled = true
+
                             session.invalidate(errorMessage: "Claim failed")
                         }
                     }
@@ -343,7 +446,8 @@ class ViewController: UIViewController {
                 error_message += error!
             }
             DispatchQueue.main.async {
-                self.publicKeyLabel.text = error_message
+                self.publicKeyLabel.text = "✗ \(error_message)"
+                self.publicKeyLabel.textColor = .systemRed
             }
         }
     }
@@ -419,7 +523,8 @@ class ViewController: UIViewController {
         } else {
             
             DispatchQueue.main.async {
-                self.publicKeyLabel.text = "Failed to read tag. " + error_msg
+                self.publicKeyLabel.text = "✗ Failed to read tag"
+                self.publicKeyLabel.textColor = .systemRed
             }
              session.invalidate(errorMessage: "Failed to read tag. ")
         }
@@ -478,7 +583,8 @@ class ViewController: UIViewController {
             session.invalidate()
         } else {
             DispatchQueue.main.async {
-                self.publicKeyLabel.text = "Failed to generate signature. " + error_msg
+                self.publicKeyLabel.text = "✗ Failed to generate signature"
+                self.publicKeyLabel.textColor = .systemRed
             }
             session.invalidate(errorMessage: "Failed to generate signature. ")
         }
