@@ -9,6 +9,220 @@ import stellarsdk
 class BlockchainService {
     private let config = AppConfig.shared
     
+    /// Get owner of a token from the contract
+    /// - Parameters:
+    ///   - contractId: Contract ID
+    ///   - tokenId: Token ID
+    ///   - sourceKeyPair: Source account keypair (must exist on network)
+    /// - Returns: Owner address string
+    /// - Throws: BlockchainError if call fails
+    func getTokenOwner(contractId: String, tokenId: UInt64, sourceKeyPair: KeyPair) async throws -> String {
+        print("BlockchainService: getTokenOwner called")
+        print("BlockchainService: Contract ID: \(contractId)")
+        print("BlockchainService: Token ID: \(tokenId)")
+        print("BlockchainService: Network: \(config.currentNetwork)")
+
+        // Validate contract ID format
+        guard config.validateContractId(contractId) else {
+            print("BlockchainService: ERROR: Invalid contract ID format: \(contractId)")
+            throw BlockchainError.invalidResponse
+        }
+
+        let rpcClient = SorobanServer(endpoint: config.rpcUrl)
+
+        // Build the contract call
+        let network: Network
+        switch config.currentNetwork {
+        case .testnet:
+            network = .testnet
+        case .mainnet:
+            network = .public
+        }
+
+        print("BlockchainService: Creating ClientOptions with contractId: '\(contractId)'")
+        let clientOptions = ClientOptions(
+            sourceAccountKeyPair: sourceKeyPair,
+            contractId: contractId,
+            network: network,
+            rpcUrl: config.rpcUrl
+        )
+        print("BlockchainService: ClientOptions created successfully")
+
+        let args: [SCValXDR] = [
+            SCValXDR.u64(tokenId)
+        ]
+
+        let assembledOptions = AssembledTransactionOptions(
+            clientOptions: clientOptions,
+            methodOptions: MethodOptions(),
+            method: "owner_of",
+            arguments: args
+        )
+
+        // Build the transaction using SDK's AssembledTransaction
+        // For read operations, we need to simulate to get the result
+        print("BlockchainService: Building transaction...")
+        print("BlockchainService: Method: owner_of")
+        print("BlockchainService: Arguments count: \(args.count)")
+        let assembledTx: AssembledTransaction
+        do {
+            // AssembledTransaction.build() handles:
+            // - Transaction building
+            // - Fee calculation
+            // - Time bounds
+            assembledTx = try await AssembledTransaction.build(options: assembledOptions)
+            print("BlockchainService: Transaction built successfully")
+        } catch {
+            print("BlockchainService: ERROR building transaction: \(error)")
+            throw BlockchainError.invalidResponse
+        }
+
+        // For read operations, simulate to get the result
+        guard let rawTx = assembledTx.raw else {
+            print("BlockchainService: ERROR: No raw transaction")
+            throw BlockchainError.invalidResponse
+        }
+
+        // Simulate to get the return value
+        let simulateRequest = SimulateTransactionRequest(transaction: rawTx)
+        let simulateResponse = await rpcClient.simulateTransaction(simulateTxRequest: simulateRequest)
+
+        switch simulateResponse {
+        case .success(let simulateResult):
+            print("BlockchainService: Simulation successful")
+            guard let xdrString = simulateResult.results?.first?.xdr,
+                  let xdrData = Data(base64Encoded: xdrString),
+                  let returnValue = try? XDRDecoder.decode(SCValXDR.self, data: xdrData),
+                  case .address(let address) = returnValue else {
+                print("BlockchainService: No owner found in response")
+                throw BlockchainError.invalidResponse
+            }
+            guard let ownerAddress = address.accountId else {
+                print("BlockchainService: ERROR: Invalid account ID in address")
+                throw BlockchainError.invalidResponse
+            }
+            print("BlockchainService: Token owner retrieved: \(ownerAddress)")
+            return ownerAddress
+        case .failure(let error):
+            print("BlockchainService: Simulation failed: \(error)")
+            throw BlockchainError.invalidResponse
+        }
+    }
+
+    /// Get token URI for a given token ID from the contract
+    /// - Parameters:
+    ///   - contractId: Contract ID
+    ///   - tokenId: Token ID
+    ///   - sourceKeyPair: Source account keypair (must exist on network)
+    /// - Returns: Token URI string (IPFS URL)
+    /// - Throws: BlockchainError if call fails
+    func getTokenUri(contractId: String, tokenId: UInt64, sourceKeyPair: KeyPair) async throws -> String {
+        print("BlockchainService: getTokenUri called")
+        print("BlockchainService: RPC URL: \(config.rpcUrl)")
+        print("BlockchainService: Contract ID: \(contractId)")
+        print("BlockchainService: Contract ID length: \(contractId.count)")
+        print("BlockchainService: Token ID: \(tokenId)")
+        print("BlockchainService: Network: \(config.currentNetwork)")
+        print("BlockchainService: Source account: \(sourceKeyPair.accountId)")
+
+        // Validate contract ID format
+        guard config.validateContractId(contractId) else {
+            print("BlockchainService: ERROR: Invalid contract ID format: \(contractId)")
+            throw BlockchainError.invalidResponse
+        }
+
+        let rpcClient = SorobanServer(endpoint: config.rpcUrl)
+
+        // Build the contract call
+        let network: Network
+        switch config.currentNetwork {
+        case .testnet:
+            network = .testnet
+        case .mainnet:
+            network = .public
+        }
+
+        // Use the actual source account keypair (must exist on network)
+        print("BlockchainService: Creating ClientOptions with contractId: '\(contractId)'")
+        let clientOptions = ClientOptions(
+            sourceAccountKeyPair: sourceKeyPair,
+            contractId: contractId,
+            network: network,
+            rpcUrl: config.rpcUrl
+        )
+        print("BlockchainService: ClientOptions created successfully")
+
+        let args: [SCValXDR] = [
+            SCValXDR.u64(tokenId)
+        ]
+
+        let assembledOptions = AssembledTransactionOptions(
+            clientOptions: clientOptions,
+            methodOptions: MethodOptions(),
+            method: "token_uri",
+            arguments: args
+        )
+
+        // Build the transaction using SDK's AssembledTransaction
+        // For read operations, we need to simulate to get the result
+        print("BlockchainService: Building transaction...")
+        print("BlockchainService: Method: token_uri")
+        print("BlockchainService: Arguments count: \(args.count)")
+        let assembledTx: AssembledTransaction
+        do {
+            // AssembledTransaction.build() handles:
+            // - Transaction building
+            // - Fee calculation
+            // - Time bounds
+            assembledTx = try await AssembledTransaction.build(options: assembledOptions)
+            print("BlockchainService: Transaction built successfully")
+        } catch {
+            print("BlockchainService: ERROR building transaction: \(error)")
+            throw BlockchainError.invalidResponse
+        }
+
+        // For read operations, simulate to get the result
+        guard let rawTx = assembledTx.raw else {
+            print("BlockchainService: ERROR: No raw transaction")
+            throw BlockchainError.invalidResponse
+        }
+
+        // Simulate to get the return value
+        let simulateRequest = SimulateTransactionRequest(transaction: rawTx)
+        let simulateResponse = await rpcClient.simulateTransaction(simulateTxRequest: simulateRequest)
+
+        switch simulateResponse {
+        case .success(let simulateResult):
+            print("BlockchainService: Simulation successful")
+            guard let xdrString = simulateResult.results?.first?.xdr,
+                  let xdrData = Data(base64Encoded: xdrString),
+                  let returnValue = try? XDRDecoder.decode(SCValXDR.self, data: xdrData),
+                  case .string(let uri) = returnValue else {
+                print("BlockchainService: No token URI found in response")
+                throw BlockchainError.invalidResponse
+            }
+            // Trim null bytes from the end of the URI
+            let trimmedUri = uri.trimmingCharacters(in: .controlCharacters).trimmingCharacters(in: CharacterSet(charactersIn: "\0"))
+            print("BlockchainService: Token URI retrieved: \(trimmedUri)")
+
+            // If URI doesn't end with the token ID, append it
+            var finalUri = trimmedUri
+            if !finalUri.hasSuffix("/\(tokenId)") {
+                if finalUri.hasSuffix("/") {
+                    finalUri += "\(tokenId)"
+                } else {
+                    finalUri += "/\(tokenId)"
+                }
+                print("BlockchainService: Appended token ID to URI: \(finalUri)")
+            }
+
+            return finalUri
+        case .failure(let error):
+            print("BlockchainService: Simulation failed: \(error)")
+            throw BlockchainError.invalidResponse
+        }
+    }
+
     /// Get nonce for a public key from the contract
     /// - Parameters:
     ///   - contractId: Contract ID
@@ -145,7 +359,7 @@ class BlockchainService {
             do {
                 // Try to build the transaction (this will simulate it)
                 // If simulation succeeds without invalidSignature error, this recovery ID is correct
-                _ = try await buildClaimTransaction(
+                let (_ , _) = try await buildClaimTransaction(
                     contractId: contractId,
                     claimant: claimant,
                     message: message,
@@ -189,7 +403,7 @@ class BlockchainService {
         }
         
         // If we get here, no recovery ID worked
-        let errorDetails = errors.isEmpty ? "" : "\nErrors encountered:\n\(errors.joined(separator: "\n"))"
+        _ = errors.isEmpty ? "" : "\nErrors encountered:\n\(errors.joined(separator: "\n"))"
         throw BlockchainError.transactionFailed
     }
     
@@ -204,7 +418,7 @@ class BlockchainService {
     ///   - nonce: Nonce value
     ///   - sourceAccount: Source account address
     ///   - sourceKeyPair: Source account keypair for signing
-    /// - Returns: Transaction object (not signed)
+    /// - Returns: Tuple with Transaction object (not signed) and the token ID from simulation
     /// - Throws: BlockchainError if building fails
     func buildClaimTransaction(
         contractId: String,
@@ -216,7 +430,7 @@ class BlockchainService {
         nonce: UInt32,
         sourceAccount: String,
         sourceKeyPair: KeyPair
-    ) async throws -> Transaction {
+    ) async throws -> (transaction: Transaction, tokenId: UInt64) {
         print("BlockchainService: buildClaimTransaction called")
         print("BlockchainService: Contract ID: \(contractId)")
         print("BlockchainService: Contract ID length: \(contractId.count)")
@@ -256,7 +470,9 @@ class BlockchainService {
         
         print("BlockchainService: Network: \(network)")
         print("BlockchainService: RPC URL: \(config.rpcUrl)")
-        
+
+        let rpcClient = SorobanServer(endpoint: config.rpcUrl)
+
         print("BlockchainService: Creating ClientOptions with contractId: '\(contractId)'")
         let clientOptions = ClientOptions(
             sourceAccountKeyPair: sourceKeyPair,
@@ -288,20 +504,38 @@ class BlockchainService {
             // - Resource limits
             let assembledTx = try await AssembledTransaction.build(options: assembledOptions)
             print("BlockchainService: Transaction built and simulated successfully")
-            
+
+            // Extract token ID by simulating the transaction directly
+            var tokenId: UInt64 = 0
+            if let rawTx = assembledTx.raw {
+                let simulateRequest = SimulateTransactionRequest(transaction: rawTx)
+                let simulateResponse = await rpcClient.simulateTransaction(simulateTxRequest: simulateRequest)
+
+                if case .success(let simulateResult) = simulateResponse,
+                   let xdrString = simulateResult.results?.first?.xdr,
+                   let xdrData = Data(base64Encoded: xdrString),
+                   let returnValue = try? XDRDecoder.decode(SCValXDR.self, data: xdrData),
+                   case .u64(let simulatedTokenId) = returnValue {
+                    tokenId = simulatedTokenId
+                    print("BlockchainService: Token ID from simulation: \(tokenId)")
+                } else {
+                    print("BlockchainService: WARNING: Could not extract token ID from simulation, using 0")
+                }
+            }
+
             // Get the Transaction object (not signed yet)
             // The SDK has already validated everything during build()
             guard let rawTx = assembledTx.raw else {
                 print("BlockchainService: ERROR: Failed to get Transaction from AssembledTransaction")
                 throw BlockchainError.transactionFailed
             }
-            
+
             print("BlockchainService: Transaction ready for signing")
             print("BlockchainService: Transaction operations count: \(rawTx.operations.count)")
             print("BlockchainService: Transaction fee: \(rawTx.fee) stroops")
-            
-            // Return the Transaction object - SDK has already handled all validation
-            return rawTx
+
+            // Return the Transaction object and token ID - SDK has already handled all validation
+            return (transaction: rawTx, tokenId: tokenId)
         } catch {
             print("BlockchainService: ERROR building transaction: \(error)")
             print("BlockchainService: Error type: \(type(of: error))")

@@ -7,6 +7,12 @@ import Foundation
 import CoreNFC
 import stellarsdk
 
+/// Result of a successful claim operation
+struct ClaimResult {
+    let transactionHash: String
+    let tokenId: UInt64
+}
+
 class ClaimService {
     private let blockchainService = BlockchainService()
     private let walletService = WalletService()
@@ -18,14 +24,14 @@ class ClaimService {
     ///   - session: NFCTagReaderSession for session management
     ///   - keyIndex: Key index to use (default: 1)
     ///   - progressCallback: Optional callback for progress updates
-    /// - Returns: Transaction hash
+    /// - Returns: Claim result with transaction hash and token ID
     /// - Throws: ClaimError if any step fails
     func executeClaim(
         tag: NFCISO7816Tag,
         session: NFCTagReaderSession,
         keyIndex: UInt8 = 0x01,
         progressCallback: ((String) -> Void)? = nil
-    ) async throws -> String {
+    ) async throws -> ClaimResult {
         guard let wallet = walletService.getStoredWallet() else {
             throw ClaimError.noWallet
         }
@@ -161,9 +167,9 @@ class ClaimService {
         // Step 8: Build transaction with the correct recovery ID
         progressCallback?("Building transaction...")
         print("ClaimService: Building transaction with recovery ID \(recoveryId)...")
-        let transaction: Transaction
+        let (transaction, tokenId): (Transaction, UInt64)
         do {
-            transaction = try await blockchainService.buildClaimTransaction(
+            (transaction, tokenId) = try await blockchainService.buildClaimTransaction(
                 contractId: config.contractId,
                 claimant: wallet.address,
                 message: message,
@@ -174,21 +180,21 @@ class ClaimService {
                 sourceAccount: wallet.address,
                 sourceKeyPair: sourceKeyPair
             )
-            print("ClaimService: Transaction built successfully")
+            print("ClaimService: Transaction built successfully, token ID: \(tokenId)")
         } catch {
             print("ClaimService: ERROR building transaction: \(error)")
             throw ClaimError.chipSignFailed("Failed to build transaction: \(error.localizedDescription)")
         }
-        
+
         // Step 9: Sign transaction
         progressCallback?("Signing transaction...")
         try await walletService.signTransaction(transaction)
-        
+
         // Step 10: Submit transaction (send the signed transaction object directly, matching test script)
         progressCallback?("Submitting transaction...")
         let txHash = try await blockchainService.submitTransaction(transaction, progressCallback: progressCallback)
-        
-        return txHash
+
+        return ClaimResult(transactionHash: txHash, tokenId: tokenId)
     }
     
     /// Read public key from chip

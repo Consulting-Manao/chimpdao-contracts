@@ -50,7 +50,7 @@ class DERSignatureParser {
         offset += 1
         
         // Read sequence length
-        let sequenceLength = try readLength(derSignature, offset: &offset)
+        _ = try readLength(derSignature, offset: &offset)
         
         // Check for 0x02 (INTEGER tag for r)
         guard offset < derSignature.count && derSignature[offset] == 0x02 else {

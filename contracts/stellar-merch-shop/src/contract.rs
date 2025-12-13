@@ -152,11 +152,7 @@ impl NFCtoNFTContract for StellarMerchShop {
         }
 
         let owner = Self::owner_of(e, token_id);
-        if owner != from {
-            panic_with_error!(e, &errors::NonFungibleTokenError::IncorrectOwner);
-        }
-
-        if from == to {
+        if owner != from || from == to {
             panic_with_error!(e, &errors::NonFungibleTokenError::IncorrectOwner);
         }
 

@@ -7,6 +7,7 @@
 
 import UIKit
 import CoreNFC
+import stellarsdk
 
 /// Simple confetti animation view for success celebrations
 class ConfettiView: UIView {
@@ -33,7 +34,7 @@ class ConfettiView: UIView {
         var cells = [CAEmitterCell]()
 
         let colors: [UIColor] = [.systemBlue, .systemGreen, .systemPurple, .systemOrange, .systemPink]
-        let shapes = ["circle", "triangle", "square"]
+        _ = ["circle", "triangle", "square"] // shapes not currently used
 
         for (index, color) in colors.enumerated() {
             let cell = CAEmitterCell()
@@ -94,13 +95,16 @@ class ViewController: UIViewController {
     var nfc_helper: NFCHelper?
     var walletService: WalletService!
     var claimService: ClaimService!
+    var blockchainService: BlockchainService!
+    var ipfsService: IPFSService!
     var confettiView: ConfettiView?
     
     /// Stores the key index selected by the user. Default value is 1
     var selected_keyindex: UInt8  = 0x01
-    
+
     /// Operation type: true for signature, false for read
     var isSignOperation: Bool = false
+
     
     // MARK: - View controller events
     override func viewDidLoad() {
@@ -108,6 +112,8 @@ class ViewController: UIViewController {
         
         walletService = WalletService()
         claimService = ClaimService()
+        blockchainService = BlockchainService()
+        ipfsService = IPFSService()
         
         ConfigureViews()
         ResetDefaults()
@@ -125,9 +131,107 @@ class ViewController: UIViewController {
     }
     
     // MARK: - Event handlers
+    @objc func LoadNFTButtonTapped() {
+        print(TAG + ": Load NFT button clicked")
+
+        guard walletService.getStoredWallet() != nil else {
+            showLoginView()
+            return
+        }
+
+        ResetDefaults()
+        scanButton.isEnabled = false
+        publicKeyLabel.text = "Scan NFC chip to load NFT"
+
+        // Start NFC session to read NDEF
+        nfc_helper = NFCHelper()
+        nfc_helper?.OnNDEFEvent = self.OnNDEFEvent(success:url:error:)
+        nfc_helper?.BeginSession()
+    }
+
+    /// Handles NDEF reading events
+    func OnNDEFEvent(success: Bool, url: String?, error: String?) {
+        if success, let ndefUrl = url {
+            print(TAG + ": NDEF URL read: \(ndefUrl)")
+
+            // Parse URL to extract contract ID and token ID
+            if let (contractId, tokenId) = parseNDEFUrl(ndefUrl) {
+                print(TAG + ": Parsed contract ID: \(contractId), token ID: \(tokenId)")
+
+                // Update UI
+                DispatchQueue.main.async {
+                    self.publicKeyLabel.text = "Loading NFT...\nFetching metadata from blockchain"
+                }
+
+                // Load the NFT
+                Task {
+                    do {
+                        try await self.loadNFT(contractId: contractId, tokenId: tokenId)
+                    } catch {
+                        DispatchQueue.main.async {
+                            self.publicKeyLabel.text = "✗ Failed to load NFT: \(error.localizedDescription)"
+                            self.publicKeyLabel.textColor = .systemRed
+                            self.scanButton.isEnabled = true
+                        }
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self.publicKeyLabel.text = "✗ Failed to parse NDEF URL"
+                    self.publicKeyLabel.textColor = .systemRed
+                    self.scanButton.isEnabled = true
+                }
+            }
+        } else {
+            DispatchQueue.main.async {
+                self.publicKeyLabel.text = "✗ Failed to read NDEF: \(error ?? "Unknown error")"
+                self.publicKeyLabel.textColor = .systemRed
+                self.scanButton.isEnabled = true
+            }
+        }
+    }
+
+    /// Parse NDEF URL to extract contract ID and token ID
+    /// Expected format: [base]/[contractID]/[token_id]
+    private func parseNDEFUrl(_ url: String) -> (contractId: String, tokenId: UInt64)? {
+        // Remove protocol if present
+        var urlPath = url
+        if urlPath.hasPrefix("http://") {
+            urlPath = String(urlPath.dropFirst(7))
+        } else if urlPath.hasPrefix("https://") {
+            urlPath = String(urlPath.dropFirst(8))
+        }
+
+        // Split by '/' and expect at least 3 parts: [base]/[contractID]/[token_id]
+        let components = urlPath.split(separator: "/", omittingEmptySubsequences: true)
+        guard components.count >= 3 else {
+            print(TAG + ": URL doesn't have expected format: \(url)")
+            return nil
+        }
+
+        // Contract ID is typically the second-to-last component
+        // Token ID is the last component
+        let contractId = String(components[components.count - 2])
+        let tokenIdString = String(components[components.count - 1])
+
+        // Validate contract ID format (should be 56 characters, start with 'C')
+        guard contractId.count == 56 && contractId.hasPrefix("C") else {
+            print(TAG + ": Invalid contract ID format: \(contractId)")
+            return nil
+        }
+
+        // Parse token ID
+        guard let tokenId = UInt64(tokenIdString) else {
+            print(TAG + ": Invalid token ID: \(tokenIdString)")
+            return nil
+        }
+
+        return (contractId, tokenId)
+    }
+
     @objc func ScanButtonTapped() {
         print(TAG + ": Read card button clicked")
-        
+
         ResetDefaults()
         selected_keyindex = 0x01
         isSignOperation = false
@@ -205,15 +309,15 @@ class ViewController: UIViewController {
         view.addSubview(addrLabel)
         addressLabel = addrLabel
         
-        // Create scan button
+        // Create load NFT button
         let button = UIButton(type: .system)
-        button.setTitle("Scan NFC Chip", for: .normal)
+        button.setTitle("Load NFT", for: .normal)
         button.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
         button.backgroundColor = .systemBlue
         button.setTitleColor(.white, for: .normal)
         button.layer.cornerRadius = 10
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.addTarget(self, action: #selector(ScanButtonTapped), for: .touchUpInside)
+        button.addTarget(self, action: #selector(LoadNFTButtonTapped), for: .touchUpInside)
         view.addSubview(button)
         scanButton = button
         
@@ -353,7 +457,7 @@ class ViewController: UIViewController {
             if let tag = tag, let session = session {
                 Task {
                     do {
-                        let txHash = try await claimService.executeClaim(
+                        let claimResult = try await claimService.executeClaim(
                             tag: tag,
                             session: session,
                             keyIndex: selected_keyindex
@@ -362,20 +466,30 @@ class ViewController: UIViewController {
                                 self.publicKeyLabel.text = progress
                             }
                         }
-                        
+
                         await MainActor.run {
                             // Show confetti animation for success
                             self.confettiView?.isHidden = false
                             self.confettiView?.startConfetti()
 
                             // Minimalistic success message following Apple guidelines
-                            self.publicKeyLabel.text = "✓ NFT Claimed Successfully"
+                            self.publicKeyLabel.text = "✓ NFT Claimed Successfully\nLoading NFT..."
                             self.publicKeyLabel.textColor = .systemGreen
                             self.claimButton.isEnabled = true
 
                             session.alertMessage = "Claim successful"
                             session.invalidate()
                         }
+
+                        // After confetti animation, load the NFT
+                        try await Task.sleep(nanoseconds: 3_000_000_000) // Wait for confetti animation (3 seconds)
+
+                        await MainActor.run {
+                            self.publicKeyLabel.text = "Loading NFT..."
+                        }
+
+                        // Load the NFT using the token ID from the claim result
+                        try await self.loadNFT(contractId: AppConfig.shared.contractId, tokenId: claimResult.tokenId)
                     } catch {
                         await MainActor.run {
                             // Clean error message following Apple guidelines
@@ -521,12 +635,12 @@ class ViewController: UIViewController {
             session.alertMessage = "Completed successfully"
             session.invalidate()
         } else {
-            
+
             DispatchQueue.main.async {
-                self.publicKeyLabel.text = "✗ Failed to read tag"
+                self.publicKeyLabel.text = "✗ Failed to read tag\n\(error_msg)"
                 self.publicKeyLabel.textColor = .systemRed
             }
-             session.invalidate(errorMessage: "Failed to read tag. ")
+             session.invalidate(errorMessage: "Failed to read tag. \(error_msg)")
         }
     }
     
@@ -583,10 +697,103 @@ class ViewController: UIViewController {
             session.invalidate()
         } else {
             DispatchQueue.main.async {
-                self.publicKeyLabel.text = "✗ Failed to generate signature"
+                self.publicKeyLabel.text = "✗ Failed to generate signature\n\(error_msg)"
                 self.publicKeyLabel.textColor = .systemRed
             }
-            session.invalidate(errorMessage: "Failed to generate signature. ")
+            session.invalidate(errorMessage: "Failed to generate signature. \(error_msg)")
+        }
+    }
+
+    // MARK: - NFT Loading
+    private func loadNFT(contractId: String, tokenId: UInt64) async throws {
+        do {
+            // Check wallet exists for contract calls
+            guard walletService.getStoredWallet() != nil else {
+                throw NFTError.noWallet
+            }
+
+            // Get private key from secure storage
+            let secureStorage = SecureKeyStorage()
+            guard let privateKey = try secureStorage.loadPrivateKey() else {
+                throw NFTError.noWallet
+            }
+            let keyPair = try KeyPair(secretSeed: privateKey)
+
+            await MainActor.run {
+                publicKeyLabel.text = "Loading NFT...\nChecking ownership"
+            }
+
+            // First check if the token exists by getting its owner
+            let ownerAddress = try await blockchainService.getTokenOwner(
+                contractId: contractId,
+                tokenId: tokenId,
+                sourceKeyPair: keyPair
+            )
+
+            await MainActor.run {
+                publicKeyLabel.text = "Loading NFT...\nFetching metadata from blockchain"
+            }
+
+            // Get token URI
+            let ipfsUrl = try await blockchainService.getTokenUri(
+                contractId: contractId,
+                tokenId: tokenId,
+                sourceKeyPair: keyPair
+            )
+
+            await MainActor.run {
+                publicKeyLabel.text = "Loading NFT...\nDownloading metadata from IPFS"
+            }
+
+            // Convert IPFS URL to HTTP gateway URL
+            let httpMetadataUrl = ipfsService.convertToHTTPGateway(ipfsUrl)
+
+            // Download NFT metadata from IPFS
+            let metadata = try await ipfsService.downloadNFTMetadata(from: httpMetadataUrl)
+
+            // Download image if available
+            var imageData: Data? = nil
+            if let imageUrl = metadata.image {
+                let httpImageUrl = ipfsService.convertToHTTPGateway(imageUrl)
+                imageData = try await ipfsService.downloadImageData(from: httpImageUrl)
+            }
+
+            // Show NFT view with owner information
+            await MainActor.run {
+                let nftView = NFTView()
+                nftView.displayNFT(metadata: metadata, imageData: imageData, ownerAddress: ownerAddress)
+                let navController = UINavigationController(rootViewController: nftView)
+                present(navController, animated: true)
+
+                publicKeyLabel.text = "✓ NFT Loaded Successfully"
+                publicKeyLabel.textColor = .systemGreen
+                scanButton.isEnabled = true
+            }
+
+        } catch {
+            await MainActor.run {
+                let errorMessage = (error as? NFTError)?.errorDescription ?? error.localizedDescription
+                publicKeyLabel.text = "✗ Failed to load NFT: \(errorMessage)"
+                publicKeyLabel.textColor = .systemRed
+                scanButton.isEnabled = true
+            }
+        }
+    }
+}
+
+enum NFTError: Error, LocalizedError {
+    case noWallet
+    case invalidTokenId
+    case downloadFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .noWallet:
+            return "No wallet available. Please log in first."
+        case .invalidTokenId:
+            return "Invalid token ID."
+        case .downloadFailed(let details):
+            return "Failed to download NFT data: \(details)"
         }
     }
 }
