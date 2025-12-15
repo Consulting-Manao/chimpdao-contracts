@@ -539,7 +539,250 @@ class BlockchainService {
             throw error
         }
     }
-    
+
+    /// Build transfer transaction
+    /// - Parameters:
+    ///   - contractId: Contract ID
+    ///   - from: Sender address
+    ///   - to: Recipient address
+    ///   - tokenId: Token ID to transfer
+    ///   - message: SEP-53 message (without nonce)
+    ///   - signature: ECDSA signature (64 bytes: r + s)
+    ///   - recoveryId: Recovery ID (0-3)
+    ///   - publicKey: Chip public key (65 bytes, uncompressed)
+    ///   - nonce: Nonce value
+    ///   - sourceKeyPair: Source account keypair for signing
+    /// - Returns: Transaction object ready for signing
+    /// - Throws: BlockchainError if building fails
+    func buildTransferTransaction(
+        contractId: String,
+        from: String,
+        to: String,
+        tokenId: UInt64,
+        message: Data,
+        signature: Data,
+        recoveryId: UInt32,
+        publicKey: Data,
+        nonce: UInt32,
+        sourceKeyPair: KeyPair
+    ) async throws -> Transaction {
+        print("BlockchainService: buildTransferTransaction called")
+        print("BlockchainService: Contract ID: \(contractId)")
+        print("BlockchainService: From: \(from)")
+        print("BlockchainService: To: \(to)")
+        print("BlockchainService: Token ID: \(tokenId)")
+        print("BlockchainService: Message length: \(message.count)")
+        print("BlockchainService: Signature length: \(signature.count)")
+        print("BlockchainService: Recovery ID: \(recoveryId)")
+        print("BlockchainService: Public key length: \(publicKey.count)")
+        print("BlockchainService: Nonce: \(nonce)")
+
+        // Validate contract ID format
+        guard config.validateContractId(contractId) else {
+            print("BlockchainService: ERROR: Invalid contract ID format: \(contractId)")
+            throw BlockchainError.invalidResponse
+        }
+
+        // Create SCValXDR arguments
+        let fromAddress = try SCAddressXDR(accountId: from)
+        let toAddress = try SCAddressXDR(accountId: to)
+
+        let args: [SCValXDR] = [
+            SCValXDR.address(fromAddress),
+            SCValXDR.address(toAddress),
+            SCValXDR.u64(tokenId),
+            SCValXDR.bytes(message),
+            SCValXDR.bytes(signature),
+            SCValXDR.u32(recoveryId),
+            SCValXDR.bytes(publicKey),
+            SCValXDR.u32(nonce)
+        ]
+
+        // Create client options
+        let network: Network
+        switch config.currentNetwork {
+        case .testnet:
+            network = .testnet
+        case .mainnet:
+            network = .public
+        }
+
+        print("BlockchainService: Network: \(network)")
+        print("BlockchainService: RPC URL: \(config.rpcUrl)")
+
+        let clientOptions = ClientOptions(
+            sourceAccountKeyPair: sourceKeyPair,
+            contractId: contractId,
+            network: network,
+            rpcUrl: config.rpcUrl
+        )
+        print("BlockchainService: ClientOptions created successfully")
+
+        // Create assembled transaction options
+        let assembledOptions = AssembledTransactionOptions(
+            clientOptions: clientOptions,
+            methodOptions: MethodOptions(),
+            method: "transfer",
+            arguments: args
+        )
+
+        // Build the transaction using SDK's AssembledTransaction
+        print("BlockchainService: Building transfer transaction...")
+        print("BlockchainService: Method: transfer")
+        print("BlockchainService: Arguments count: \(args.count)")
+        do {
+            let assembledTx = try await AssembledTransaction.build(options: assembledOptions)
+            print("BlockchainService: Transaction built and simulated successfully")
+
+            // Get the Transaction object (not signed yet)
+            guard let rawTx = assembledTx.raw else {
+                print("BlockchainService: ERROR: Failed to get Transaction from AssembledTransaction")
+                throw BlockchainError.transactionFailed
+            }
+
+            print("BlockchainService: Transaction ready for signing")
+            print("BlockchainService: Transaction operations count: \(rawTx.operations.count)")
+            print("BlockchainService: Transaction fee: \(rawTx.fee) stroops")
+
+            return rawTx
+        } catch {
+            print("BlockchainService: ERROR building transfer transaction: \(error)")
+            print("BlockchainService: Error type: \(type(of: error))")
+
+            // Check if it's a contract error
+            let errorString = "\(error)"
+            if let contractError = ContractError.fromErrorString(errorString) {
+                print("BlockchainService: Contract error detected: \(contractError)")
+                throw BlockchainError.contractError(contractError)
+            }
+
+            throw error
+        }
+    }
+
+    /// Build mint transaction
+    /// - Parameters:
+    ///   - contractId: Contract ID
+    ///   - message: SEP-53 message (without nonce)
+    ///   - signature: ECDSA signature (64 bytes: r + s)
+    ///   - recoveryId: Recovery ID (0-3)
+    ///   - publicKey: Chip public key (65 bytes, uncompressed)
+    ///   - nonce: Nonce value
+    ///   - sourceKeyPair: Source account keypair for signing
+    /// - Returns: Tuple with Transaction object and the token ID from simulation
+    /// - Throws: BlockchainError if building fails
+    func buildMintTransaction(
+        contractId: String,
+        message: Data,
+        signature: Data,
+        recoveryId: UInt32,
+        publicKey: Data,
+        nonce: UInt32,
+        sourceKeyPair: KeyPair
+    ) async throws -> (transaction: Transaction, tokenId: UInt64) {
+        print("BlockchainService: buildMintTransaction called")
+        print("BlockchainService: Contract ID: \(contractId)")
+        print("BlockchainService: Message length: \(message.count)")
+        print("BlockchainService: Signature length: \(signature.count)")
+        print("BlockchainService: Recovery ID: \(recoveryId)")
+        print("BlockchainService: Public key length: \(publicKey.count)")
+        print("BlockchainService: Nonce: \(nonce)")
+
+        // Validate contract ID format
+        guard config.validateContractId(contractId) else {
+            print("BlockchainService: ERROR: Invalid contract ID format: \(contractId)")
+            throw BlockchainError.invalidResponse
+        }
+
+        let args: [SCValXDR] = [
+            SCValXDR.bytes(message),
+            SCValXDR.bytes(signature),
+            SCValXDR.u32(recoveryId),
+            SCValXDR.bytes(publicKey),
+            SCValXDR.u32(nonce)
+        ]
+
+        // Create client options
+        let network: Network
+        switch config.currentNetwork {
+        case .testnet:
+            network = .testnet
+        case .mainnet:
+            network = .public
+        }
+
+        print("BlockchainService: Network: \(network)")
+        print("BlockchainService: RPC URL: \(config.rpcUrl)")
+
+        let clientOptions = ClientOptions(
+            sourceAccountKeyPair: sourceKeyPair,
+            contractId: contractId,
+            network: network,
+            rpcUrl: config.rpcUrl
+        )
+        print("BlockchainService: ClientOptions created successfully")
+
+        // Create assembled transaction options
+        let assembledOptions = AssembledTransactionOptions(
+            clientOptions: clientOptions,
+            methodOptions: MethodOptions(),
+            method: "mint",
+            arguments: args
+        )
+
+        // Build the transaction using SDK's AssembledTransaction
+        print("BlockchainService: Building mint transaction...")
+        print("BlockchainService: Method: mint")
+        print("BlockchainService: Arguments count: \(args.count)")
+        do {
+            let assembledTx = try await AssembledTransaction.build(options: assembledOptions)
+            print("BlockchainService: Transaction built and simulated successfully")
+
+            // Extract token ID by simulating the transaction directly
+            var tokenId: UInt64 = 0
+            let rpcClient = SorobanServer(endpoint: config.rpcUrl)
+            if let rawTx = assembledTx.raw {
+                let simulateRequest = SimulateTransactionRequest(transaction: rawTx)
+                let simulateResponse = await rpcClient.simulateTransaction(simulateTxRequest: simulateRequest)
+
+                if case .success(let simulateResult) = simulateResponse,
+                   let xdrString = simulateResult.results?.first?.xdr,
+                   let xdrData = Data(base64Encoded: xdrString),
+                   let returnValue = try? XDRDecoder.decode(SCValXDR.self, data: xdrData),
+                   case .u64(let simulatedTokenId) = returnValue {
+                    tokenId = simulatedTokenId
+                    print("BlockchainService: Token ID from simulation: \(tokenId)")
+                } else {
+                    print("BlockchainService: WARNING: Could not extract token ID from simulation, using 0")
+                }
+            }
+
+            // Get the Transaction object (not signed yet)
+            guard let rawTx = assembledTx.raw else {
+                print("BlockchainService: ERROR: Failed to get Transaction from AssembledTransaction")
+                throw BlockchainError.transactionFailed
+            }
+
+            print("BlockchainService: Transaction ready for signing")
+            print("BlockchainService: Transaction operations count: \(rawTx.operations.count)")
+            print("BlockchainService: Transaction fee: \(rawTx.fee) stroops")
+
+            return (transaction: rawTx, tokenId: tokenId)
+        } catch {
+            print("BlockchainService: ERROR building mint transaction: \(error)")
+            print("BlockchainService: Error type: \(type(of: error))")
+
+            // Check if it's a contract error
+            let errorString = "\(error)"
+            if let contractError = ContractError.fromErrorString(errorString) {
+                print("BlockchainService: Contract error detected: \(contractError)")
+                throw BlockchainError.contractError(contractError)
+            }
+
+            throw error
+        }
+    }
+
     /// Submit transaction to network
     /// - Parameters:
     ///   - transaction: Signed transaction object (matching test script pattern)

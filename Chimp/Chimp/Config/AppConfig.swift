@@ -79,10 +79,24 @@ class AppConfig {
               contractId.hasPrefix("C") else {
             return false
         }
-        
+
         // Check if it's valid base32 (alphanumeric, no ambiguous characters)
         let validChars = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
         return contractId.uppercased().unicodeScalars.allSatisfy { validChars.contains($0) }
+    }
+
+    /// Validates Stellar address format
+    /// Stellar addresses should be 56 characters, start with 'G', and be valid base32
+    func validateStellarAddress(_ address: String) -> Bool {
+        // Stellar addresses are 56 characters, start with 'G'
+        guard address.count == 56,
+              address.hasPrefix("G") else {
+            return false
+        }
+
+        // Check if it's valid base32 (alphanumeric, no ambiguous characters)
+        let validChars = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
+        return address.uppercased().unicodeScalars.allSatisfy { validChars.contains($0) }
     }
     
     /// RPC URL based on current network

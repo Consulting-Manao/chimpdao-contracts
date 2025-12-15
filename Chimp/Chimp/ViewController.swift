@@ -270,13 +270,17 @@ class ViewController: UIViewController {
     var scanButton: UIButton!
     var signButton: UIButton!
     var claimButton: UIButton!
+    var transferButton: UIButton!
+    var mintButton: UIButton!
     var addressLabel: UILabel!
     var settingsButton: UIButton!
     var loadingIndicator: UIActivityIndicatorView!
-    
+
     var nfc_helper: NFCHelper?
     var walletService: WalletService!
     var claimService: ClaimService!
+    var transferService: TransferService!
+    var mintService: MintService!
     var blockchainService: BlockchainService!
     var ipfsService: IPFSService!
     var confettiView: ConfettiView?
@@ -287,6 +291,10 @@ class ViewController: UIViewController {
     /// Operation type: true for signature, false for read
     var isSignOperation: Bool = false
 
+    /// Transfer operation parameters
+    var transferRecipientAddress: String?
+    var transferTokenId: UInt64?
+
     
     // MARK: - View controller events
     override func viewDidLoad() {
@@ -294,6 +302,8 @@ class ViewController: UIViewController {
         
         walletService = WalletService()
         claimService = ClaimService()
+        transferService = TransferService()
+        mintService = MintService()
         blockchainService = BlockchainService()
         ipfsService = IPFSService()
         
@@ -435,11 +445,9 @@ class ViewController: UIViewController {
     
     @objc func SignButtonTapped() {
         print(TAG + ": Sign message button clicked")
-        
-        ResetDefaults()
-        selected_keyindex = 0x01
-        isSignOperation = true
-        BeginNFCReadSession()
+
+        // Show input dialog for message to sign
+        showSignMessageInputDialog()
     }
     
     @objc func ClaimButtonTapped() {
@@ -466,7 +474,55 @@ class ViewController: UIViewController {
         
         BeginNFCClaimSession()
     }
-    
+
+    @objc func TransferButtonTapped() {
+        print(TAG + ": Transfer button clicked")
+
+        guard walletService.getStoredWallet() != nil else {
+            showLoginView()
+            return
+        }
+
+        guard !AppConfig.shared.contractId.isEmpty else {
+            let alert = UIAlertController(
+                title: "Contract ID Required",
+                message: "Please set the contract ID in Settings",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+
+        // Show transfer input dialog
+        showTransferInputDialog()
+    }
+
+    @objc func MintButtonTapped() {
+        print(TAG + ": Mint button clicked")
+
+        guard walletService.getStoredWallet() != nil else {
+            showLoginView()
+            return
+        }
+
+        guard !AppConfig.shared.contractId.isEmpty else {
+            let alert = UIAlertController(
+                title: "Contract ID Required",
+                message: "Please set the contract ID in Settings",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+
+        ResetDefaults()
+        mintButton.isEnabled = false
+
+        BeginNFCMintSession()
+    }
+
     @objc func SettingsButtonTapped() {
         let settingsView = SettingsView()
         settingsView.onLogout = { [weak self] in
@@ -538,7 +594,31 @@ class ViewController: UIViewController {
         claimBtn.addTarget(self, action: #selector(ClaimButtonTapped), for: .touchUpInside)
         view.addSubview(claimBtn)
         claimButton = claimBtn
-        
+
+        // Create transfer button
+        let transferBtn = UIButton(type: .system)
+        transferBtn.setTitle("Transfer NFT", for: .normal)
+        transferBtn.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
+        transferBtn.backgroundColor = .systemOrange
+        transferBtn.setTitleColor(.white, for: .normal)
+        transferBtn.layer.cornerRadius = 10
+        transferBtn.translatesAutoresizingMaskIntoConstraints = false
+        transferBtn.addTarget(self, action: #selector(TransferButtonTapped), for: .touchUpInside)
+        view.addSubview(transferBtn)
+        transferButton = transferBtn
+
+        // Create mint button
+        let mintBtn = UIButton(type: .system)
+        mintBtn.setTitle("Mint NFT", for: .normal)
+        mintBtn.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
+        mintBtn.backgroundColor = .systemIndigo
+        mintBtn.setTitleColor(.white, for: .normal)
+        mintBtn.layer.cornerRadius = 10
+        mintBtn.translatesAutoresizingMaskIntoConstraints = false
+        mintBtn.addTarget(self, action: #selector(MintButtonTapped), for: .touchUpInside)
+        view.addSubview(mintBtn)
+        mintButton = mintBtn
+
         // Create loading indicator
         let loading = UIActivityIndicatorView(style: .medium)
         loading.translatesAutoresizingMaskIntoConstraints = false
@@ -559,21 +639,31 @@ class ViewController: UIViewController {
             addrLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
             addrLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             addrLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            
+
             button.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            button.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -100),
+            button.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -150),
             button.widthAnchor.constraint(equalToConstant: 200),
             button.heightAnchor.constraint(equalToConstant: 50),
-            
+
             signBtn.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             signBtn.topAnchor.constraint(equalTo: button.bottomAnchor, constant: 20),
             signBtn.widthAnchor.constraint(equalToConstant: 200),
             signBtn.heightAnchor.constraint(equalToConstant: 50),
-            
+
             claimBtn.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             claimBtn.topAnchor.constraint(equalTo: signBtn.bottomAnchor, constant: 20),
             claimBtn.widthAnchor.constraint(equalToConstant: 200),
             claimBtn.heightAnchor.constraint(equalToConstant: 50),
+
+            transferBtn.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            transferBtn.topAnchor.constraint(equalTo: claimBtn.bottomAnchor, constant: 20),
+            transferBtn.widthAnchor.constraint(equalToConstant: 200),
+            transferBtn.heightAnchor.constraint(equalToConstant: 50),
+
+            mintBtn.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            mintBtn.topAnchor.constraint(equalTo: transferBtn.bottomAnchor, constant: 20),
+            mintBtn.widthAnchor.constraint(equalToConstant: 200),
+            mintBtn.heightAnchor.constraint(equalToConstant: 50),
 
             // Confetti view fills entire screen
             confetti.topAnchor.constraint(equalTo: view.topAnchor),
@@ -582,7 +672,7 @@ class ViewController: UIViewController {
             confetti.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
             loading.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            loading.topAnchor.constraint(equalTo: claimBtn.bottomAnchor, constant: 20)
+            loading.topAnchor.constraint(equalTo: mintBtn.bottomAnchor, constant: 20)
         ])
     }
     
@@ -625,6 +715,19 @@ class ViewController: UIViewController {
         self.scanButton.isEnabled = true
         self.signButton.isEnabled = true
         self.claimButton.isEnabled = true
+        self.transferButton.isEnabled = true
+        self.mintButton.isEnabled = true
+    }
+
+    /// Ensures clean view controller state before presenting alerts
+    private func ensureCleanUIState() {
+        // Dismiss any presented view controllers to prevent UI conflicts
+        if let presentedVC = presentedViewController {
+            presentedVC.dismiss(animated: false, completion: nil)
+        }
+
+        // Reset any active first responders to clear keyboard state
+        view.endEditing(true)
     }
     
     // MARK: - Private helpers: NFC
@@ -646,7 +749,49 @@ class ViewController: UIViewController {
         nfc_helper?.OnTagEvent = self.OnClaimTagEvent(success:tag:session:error:)
         nfc_helper?.BeginSession()
     }
-    
+
+    /// Begins NFC session for transfer operation
+    func BeginNFCTransferSession(recipientAddress: String, tokenId: UInt64) {
+        guard NFCTagReaderSession.readingAvailable else {
+            let alert = UIAlertController(
+                title: "No NFC",
+                message: "NFC is not available on this device",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            transferButton.isEnabled = true
+            return
+        }
+
+        // Store transfer parameters for use in callback
+        transferRecipientAddress = recipientAddress
+        transferTokenId = tokenId
+
+        nfc_helper = NFCHelper()
+        nfc_helper?.OnTagEvent = self.OnTransferTagEvent(success:tag:session:error:)
+        nfc_helper?.BeginSession()
+    }
+
+    /// Begins NFC session for mint operation
+    func BeginNFCMintSession() {
+        guard NFCTagReaderSession.readingAvailable else {
+            let alert = UIAlertController(
+                title: "No NFC",
+                message: "NFC is not available on this device",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            mintButton.isEnabled = true
+            return
+        }
+
+        nfc_helper = NFCHelper()
+        nfc_helper?.OnTagEvent = self.OnMintTagEvent(success:tag:session:error:)
+        nfc_helper?.BeginSession()
+    }
+
     /// Handles tag events for claim operation
     func OnClaimTagEvent(success: Bool, tag: NFCISO7816Tag?,
                         session: NFCTagReaderSession?, error: String?) {
@@ -698,7 +843,153 @@ class ViewController: UIViewController {
             }
         }
     }
-    
+
+    /// Handles tag events for transfer operation
+    func OnTransferTagEvent(success: Bool, tag: NFCISO7816Tag?,
+                           session: NFCTagReaderSession?, error: String?) {
+        if success {
+            if let tag = tag, let session = session {
+                guard let recipientAddress = transferRecipientAddress,
+                      let tokenId = transferTokenId else {
+                    DispatchQueue.main.async {
+                        self.enableAllButtons()
+                    }
+                    session.invalidate(errorMessage: "Transfer parameters not set")
+                    return
+                }
+
+                Task {
+                    do {
+                        let transferResult = try await transferService.executeTransfer(
+                            tag: tag,
+                            session: session,
+                            keyIndex: selected_keyindex,
+                            recipientAddress: recipientAddress,
+                            tokenId: tokenId
+                        ) { progress in
+                            // Progress updates removed - no status text displayed
+                        }
+
+                        await MainActor.run {
+                            // Show confetti animation for success
+                            self.confettiView?.isHidden = false
+                            self.confettiView?.startConfetti()
+
+                            session.alertMessage = "Transfer successful"
+                            session.invalidate()
+                        }
+
+                        // After confetti animation, show success message
+                        try await Task.sleep(nanoseconds: 3_000_000_000) // Wait for confetti animation (3 seconds)
+
+                        await MainActor.run {
+                            // Ensure clean UI state before presenting alert
+                            self.ensureCleanUIState()
+
+                            let alert = UIAlertController(
+                                title: "Transfer Successful",
+                                message: "Token \(tokenId) has been successfully transferred to \(recipientAddress)",
+                                preferredStyle: .alert
+                            )
+                            alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in
+                                // Ensure UI is properly reset after alert dismissal
+                                self?.enableAllButtons()
+                            })
+                            self.present(alert, animated: true)
+
+                            // Clear transfer parameters
+                            self.transferRecipientAddress = nil
+                            self.transferTokenId = nil
+                        }
+                    } catch {
+                        await MainActor.run {
+                            // Clean error message following Apple guidelines
+                            let errorMessage = error.localizedDescription.contains("tokenAlreadyClaimed")
+                                ? "This token has already been transferred"
+                                : "Transfer failed. Please try again."
+
+                            self.enableAllButtons()
+
+                            session.invalidate(errorMessage: "Transfer failed")
+
+                            // Clear transfer parameters
+                            self.transferRecipientAddress = nil
+                            self.transferTokenId = nil
+                        }
+                    }
+                }
+            }
+        } else {
+            DispatchQueue.main.async {
+                self.transferButton.isEnabled = true
+                // Clear transfer parameters on failure
+                self.transferRecipientAddress = nil
+                self.transferTokenId = nil
+            }
+        }
+    }
+
+    /// Handles tag events for mint operation
+    func OnMintTagEvent(success: Bool, tag: NFCISO7816Tag?,
+                        session: NFCTagReaderSession?, error: String?) {
+        if success {
+            if let tag = tag, let session = session {
+                Task {
+                    do {
+                        let mintResult = try await mintService.executeMint(
+                            tag: tag,
+                            session: session,
+                            keyIndex: selected_keyindex
+                        ) { progress in
+                            // Progress updates removed - no status text displayed
+                        }
+
+                        await MainActor.run {
+                            // Show confetti animation for success
+                            self.confettiView?.isHidden = false
+                            self.confettiView?.startConfetti()
+
+                            session.alertMessage = "Mint successful"
+                            session.invalidate()
+                        }
+
+                        // After confetti animation, show success message
+                        try await Task.sleep(nanoseconds: 3_000_000_000) // Wait for confetti animation (3 seconds)
+
+                        await MainActor.run {
+                            // Ensure clean UI state before presenting alert
+                            self.ensureCleanUIState()
+
+                            let alert = UIAlertController(
+                                title: "Mint Successful",
+                                message: "Token \(mintResult.tokenId) has been successfully minted to your wallet",
+                                preferredStyle: .alert
+                            )
+                            alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in
+                                // Ensure UI is properly reset after alert dismissal
+                                self?.enableAllButtons()
+                            })
+                            self.present(alert, animated: true)
+                        }
+                    } catch {
+                        await MainActor.run {
+                            // Clean error message following Apple guidelines
+                            let errorMessage = "Mint failed. Please try again."
+
+                            self.enableAllButtons()
+
+                            session.invalidate(errorMessage: "Mint failed")
+                        }
+                    }
+                }
+            }
+        } else {
+            DispatchQueue.main.async {
+                self.mintButton.isEnabled = true
+            }
+        }
+    }
+
     /// Checks for NFC support and begins a tag reader session
     func BeginNFCReadSession() {
         
@@ -757,17 +1048,28 @@ class ViewController: UIViewController {
         let command_handler: BlockchainCommandHandler = BlockchainCommandHandler(tag_iso7816: tag, reader_session: session)
         
         if isSignOperation {
-            // Test hash from command-line example: 53d79d1d1cdcb175a480d34dddf359d3bf9f441d35d5e86b8a3ea78afba9491b
-            let testHashHex = "53d79d1d1cdcb175a480d34dddf359d3bf9f441d35d5e86b8a3ea78afba9491b"
-            guard let messageDigest = Data(hexString: testHashHex) else {
-                print(TAG + ": Error: Failed to parse test hash")
-                session.invalidate(errorMessage: "Invalid test hash")
-                return
+            // Use custom message if provided, otherwise fall back to test hash
+            let messageDigest: Data
+            if let customMessage = customMessageToSign {
+                messageDigest = customMessage
+                print(TAG + ": Using custom message for signing")
+                print(TAG + ": Custom message length: \(customMessage.count) bytes")
+                print(TAG + ": Custom message (hex): \(customMessage.map { String(format: "%02x", $0) }.joined())")
+            } else {
+                // Fallback to test hash
+                let testHashHex = "53d79d1d1cdcb175a480d34dddf359d3bf9f441d35d5e86b8a3ea78afba9491b"
+                guard let testData = Data(hexString: testHashHex) else {
+                    print(TAG + ": Error: Failed to parse test hash")
+                    session.invalidate(errorMessage: "Invalid test hash")
+                    return
+                }
+                messageDigest = testData
+                print(TAG + ": Using test hash (fallback)")
+                print(TAG + ": Message digest (hex): \(testHashHex)")
             }
-            
+
             print(TAG + ": Starting signature generation")
             print(TAG + ": Key index: \(selected_keyindex)")
-            print(TAG + ": Message digest (hex): \(testHashHex)")
             command_handler.ActionGenerateSignature(key_index: selected_keyindex, message_digest: messageDigest, completion_handler: OnSignCommandCompleted)
         } else {
             command_handler.ActionGetKey(key_index: selected_keyindex, completion_handler: OnCommandCompleted)
@@ -869,6 +1171,9 @@ class ViewController: UIViewController {
                 print(TAG + ": Invalid response length: \(response!.count)")
             }
         }
+
+        // Clear the custom message after use
+        customMessageToSign = nil
 
         if(result)
         {
@@ -1023,6 +1328,198 @@ class ViewController: UIViewController {
                 }
             }
         }
+    }
+
+    /// Shows transfer input dialog for recipient address and token ID
+    func showTransferInputDialog() {
+        let alert = UIAlertController(
+            title: "Transfer NFT",
+            message: "Enter the recipient address and token ID to transfer",
+            preferredStyle: .alert
+        )
+
+        // Add recipient address field
+        alert.addTextField { textField in
+            textField.placeholder = "Recipient Stellar Address (G...)"
+            textField.keyboardType = .default
+            textField.autocapitalizationType = .none
+        }
+
+        // Add token ID field
+        alert.addTextField { textField in
+            textField.placeholder = "Token ID"
+            textField.keyboardType = .numberPad
+        }
+
+        // Cancel action
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+            // No action needed
+        })
+
+        // Transfer action
+        alert.addAction(UIAlertAction(title: "Transfer", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+
+            let recipientAddress = alert.textFields?[0].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let tokenIdString = alert.textFields?[1].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+            // Validate inputs
+            guard !recipientAddress.isEmpty else {
+                let errorAlert = UIAlertController(
+                    title: "Invalid Input",
+                    message: "Please enter a recipient address",
+                    preferredStyle: .alert
+                )
+                errorAlert.addAction(UIAlertAction(title: "OK", style: .default))
+                self.present(errorAlert, animated: true)
+                return
+            }
+
+            guard !tokenIdString.isEmpty else {
+                let errorAlert = UIAlertController(
+                    title: "Invalid Input",
+                    message: "Please enter a token ID",
+                    preferredStyle: .alert
+                )
+                errorAlert.addAction(UIAlertAction(title: "OK", style: .default))
+                self.present(errorAlert, animated: true)
+                return
+            }
+
+            guard AppConfig.shared.validateStellarAddress(recipientAddress) else {
+                let errorAlert = UIAlertController(
+                    title: "Invalid Address",
+                    message: "Please enter a valid Stellar address (56 characters starting with 'G')",
+                    preferredStyle: .alert
+                )
+                errorAlert.addAction(UIAlertAction(title: "OK", style: .default))
+                self.present(errorAlert, animated: true)
+                return
+            }
+
+            guard let tokenId = UInt64(tokenIdString) else {
+                let errorAlert = UIAlertController(
+                    title: "Invalid Token ID",
+                    message: "Please enter a valid token ID (numeric value)",
+                    preferredStyle: .alert
+                )
+                errorAlert.addAction(UIAlertAction(title: "OK", style: .default))
+                self.present(errorAlert, animated: true)
+                return
+            }
+
+            // Start transfer process
+            self.ResetDefaults()
+            self.transferButton.isEnabled = false
+            self.BeginNFCTransferSession(recipientAddress: recipientAddress, tokenId: tokenId)
+        })
+
+        present(alert, animated: true)
+    }
+
+    /// Shows input dialog for message to sign
+    func showSignMessageInputDialog() {
+        let alert = UIAlertController(
+            title: "Sign Message",
+            message: "Enter the message you want to sign with your NFC chip",
+            preferredStyle: .alert
+        )
+
+        // Add message field
+        alert.addTextField { textField in
+            textField.placeholder = "Message to sign (hex or text)"
+            textField.keyboardType = .default
+            textField.autocapitalizationType = .none
+            textField.autocorrectionType = .no
+            textField.spellCheckingType = .no
+        }
+
+        // Cancel action
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+
+        // Sign action
+        alert.addAction(UIAlertAction(title: "Sign", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+
+            let messageText = alert.textFields?[0].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+            // Validate input
+            guard !messageText.isEmpty else {
+                let errorAlert = UIAlertController(
+                    title: "Invalid Input",
+                    message: "Please enter a message to sign",
+                    preferredStyle: .alert
+                )
+                errorAlert.addAction(UIAlertAction(title: "OK", style: .default))
+                self.present(errorAlert, animated: true)
+                return
+            }
+
+            // Parse message - could be hex or text
+            var messageData: Data
+            if messageText.hasPrefix("0x") {
+                // Hex string with 0x prefix
+                let hexString = String(messageText.dropFirst(2))
+                guard self.isValidHexString(hexString) && hexString.count % 2 == 0,
+                      let data = Data(hexString: hexString) else {
+                    let errorAlert = UIAlertController(
+                        title: "Invalid Hex",
+                        message: "Please enter valid hexadecimal data",
+                        preferredStyle: .alert
+                    )
+                    errorAlert.addAction(UIAlertAction(title: "OK", style: .default))
+                    self.present(errorAlert, animated: true)
+                    return
+                }
+                messageData = data
+            } else if self.isValidHexString(messageText) && messageText.count % 2 == 0 {
+                // Looks like hex without 0x prefix
+                guard let data = Data(hexString: messageText) else {
+                    let errorAlert = UIAlertController(
+                        title: "Invalid Hex",
+                        message: "Please enter valid hexadecimal data",
+                        preferredStyle: .alert
+                    )
+                    errorAlert.addAction(UIAlertAction(title: "OK", style: .default))
+                    self.present(errorAlert, animated: true)
+                    return
+                }
+                messageData = data
+            } else {
+                // Treat as text - UTF-8 encoding should never fail for valid strings
+                guard let data = messageText.data(using: .utf8) else {
+                    let errorAlert = UIAlertController(
+                        title: "Invalid Message",
+                        message: "Unable to encode message as UTF-8",
+                        preferredStyle: .alert
+                    )
+                    errorAlert.addAction(UIAlertAction(title: "OK", style: .default))
+                    self.present(errorAlert, animated: true)
+                    return
+                }
+                messageData = data
+            }
+
+            // Store the message data for use in NFC operation
+            self.customMessageToSign = messageData
+
+            // Start signing process
+            self.ResetDefaults()
+            self.selected_keyindex = 0x01
+            self.isSignOperation = true
+            self.BeginNFCReadSession()
+        })
+
+        present(alert, animated: true)
+    }
+
+    // MARK: - Properties for custom message signing
+    var customMessageToSign: Data?
+
+    /// Check if string contains only valid hexadecimal characters (0-9, a-f, A-F)
+    private func isValidHexString(_ string: String) -> Bool {
+        let hexCharacters = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
+        return string.unicodeScalars.allSatisfy { hexCharacters.contains($0) }
     }
 }
 
