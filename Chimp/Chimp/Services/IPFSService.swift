@@ -46,12 +46,12 @@ class IPFSService {
     /// Download NFT metadata from IPFS URL
     /// - Parameter ipfsUrl: IPFS URL string
     /// - Returns: NFT metadata
-    /// - Throws: IPFSError if download or parsing fails
+    /// - Throws: AppError if download or parsing fails
     func downloadNFTMetadata(from ipfsUrl: String) async throws -> NFTMetadata {
         print("IPFSService: Downloading NFT metadata from: \(ipfsUrl)")
 
         guard let url = URL(string: ipfsUrl) else {
-            throw IPFSError.invalidURL(ipfsUrl)
+            throw AppError.ipfs(.invalidHash)
         }
 
         let (data, response) = try await session.data(from: url)
@@ -59,7 +59,7 @@ class IPFSService {
         // Check HTTP response
         if let httpResponse = response as? HTTPURLResponse {
             guard (200...299).contains(httpResponse.statusCode) else {
-                throw IPFSError.httpError(httpResponse.statusCode)
+                throw AppError.ipfs(.downloadFailed("HTTP \(httpResponse.statusCode)"))
             }
         }
 
@@ -74,19 +74,19 @@ class IPFSService {
             return metadata
         } catch {
             print("IPFSService: Failed to parse JSON: \(error)")
-            throw IPFSError.invalidJSON(error.localizedDescription)
+            throw AppError.ipfs(.parseFailed(error.localizedDescription))
         }
     }
 
     /// Download image data from IPFS URL
     /// - Parameter ipfsUrl: IPFS URL string
     /// - Returns: Image data
-    /// - Throws: IPFSError if download fails
+    /// - Throws: AppError if download fails
     func downloadImageData(from ipfsUrl: String) async throws -> Data {
         print("IPFSService: Downloading image from: \(ipfsUrl)")
 
         guard let url = URL(string: ipfsUrl) else {
-            throw IPFSError.invalidURL(ipfsUrl)
+            throw AppError.ipfs(.invalidHash)
         }
 
         let (data, response) = try await session.data(from: url)
@@ -94,7 +94,7 @@ class IPFSService {
         // Check HTTP response
         if let httpResponse = response as? HTTPURLResponse {
             guard (200...299).contains(httpResponse.statusCode) else {
-                throw IPFSError.httpError(httpResponse.statusCode)
+                throw AppError.ipfs(.downloadFailed("HTTP \(httpResponse.statusCode)"))
             }
         }
 
@@ -118,22 +118,3 @@ class IPFSService {
     }
 }
 
-enum IPFSError: Error, LocalizedError {
-    case invalidURL(String)
-    case httpError(Int)
-    case invalidJSON(String)
-    case networkError(Error)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL(let url):
-            return "Invalid IPFS URL: \(url)"
-        case .httpError(let code):
-            return "HTTP error: \(code)"
-        case .invalidJSON(let details):
-            return "Invalid JSON format: \(details)"
-        case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
-        }
-    }
-}

@@ -42,22 +42,22 @@ class CryptoUtils {
         } else if contractId.count == 64 {
             // This might be a hex string (64 hex chars = 32 bytes)
             guard let hexData = Data(hexString: contractId), hexData.count == 32 else {
-                throw CryptoError.invalidContractId
+                throw AppError.crypto(.invalidKey("Invalid contract ID format"))
             }
             contractIdData = hexData
             print("CryptoUtils: Using hex contract ID: \(contractIdData.map { String(format: "%02x", $0) }.joined())")
         } else {
-            throw CryptoError.invalidContractId
+            throw AppError.crypto(.invalidKey("Invalid contract ID format"))
         }
         guard contractIdData.count == 32 else {
             print("CryptoUtils: ERROR: Contract ID data length is \(contractIdData.count), expected 32")
-            throw CryptoError.invalidContractId
+            throw AppError.crypto(.invalidKey("Invalid contract ID format"))
         }
         parts.append(contractIdData)
         
         // Function name
         guard let functionNameData = functionName.data(using: .utf8) else {
-            throw CryptoError.invalidFunctionName
+            throw AppError.crypto(.invalidOperation("Invalid function name"))
         }
         parts.append(functionNameData)
         
@@ -179,7 +179,7 @@ class CryptoUtils {
         
         for char in contractAddress.uppercased() {
             guard let index = base32Alphabet.firstIndex(of: char) else {
-                throw CryptoError.invalidContractId
+                throw AppError.crypto(.invalidKey("Invalid contract ID format"))
             }
             let charValue = UInt64(base32Alphabet.distance(from: base32Alphabet.startIndex, to: index))
             
@@ -198,7 +198,7 @@ class CryptoUtils {
         // After base32 decode: 35 bytes
         // We need bytes 1-32 (skip version byte, take 32 bytes, skip checksum)
         guard result.count >= 35 else {
-            throw CryptoError.invalidContractId
+            throw AppError.crypto(.invalidKey("Invalid contract ID format"))
         }
         
         // Extract the 32-byte contract ID (skip first byte, take next 32 bytes)
@@ -207,16 +207,3 @@ class CryptoUtils {
     }
 }
 
-enum CryptoError: Error, LocalizedError {
-    case invalidContractId
-    case invalidFunctionName
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidContractId:
-            return "Invalid contract ID format"
-        case .invalidFunctionName:
-            return "Invalid function name"
-        }
-    }
-}

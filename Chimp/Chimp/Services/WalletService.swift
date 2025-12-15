@@ -18,21 +18,21 @@ class WalletService {
     /// Load wallet from secret key
     /// - Parameter secretKey: Stellar secret key (starts with 'S', 56 chars)
     /// - Returns: WalletConnection with address
-    /// - Throws: WalletError if key is invalid or storage fails
+    /// - Throws: AppError if key is invalid or storage fails
     func loadWalletFromSecretKey(_ secretKey: String) async throws -> WalletConnection {
         // Validate secret key format
         let trimmedKey = secretKey.trimmingCharacters(in: .whitespacesAndNewlines)
         
         guard !trimmedKey.isEmpty else {
-            throw WalletError.invalidSecretKey("Secret key cannot be empty")
+            throw AppError.validation("Secret key cannot be empty")
         }
         
         guard trimmedKey.hasPrefix("S") else {
-            throw WalletError.invalidSecretKey("Invalid secret key format. Stellar secret keys start with 'S'")
+            throw AppError.validation("Invalid secret key format. Stellar secret keys start with 'S'")
         }
         
         guard trimmedKey.count == 56 else {
-            throw WalletError.invalidSecretKey("Invalid secret key length. Stellar secret keys are 56 characters")
+            throw AppError.validation("Invalid secret key length. Stellar secret keys are 56 characters")
         }
         
         // Generate KeyPair from secret key
@@ -40,7 +40,7 @@ class WalletService {
         do {
             keyPair = try KeyPair(secretSeed: trimmedKey)
         } catch {
-            throw WalletError.invalidSecretKey("Failed to create key pair from secret key: \(error.localizedDescription)")
+            throw AppError.validation("Failed to create key pair from secret key: \(error.localizedDescription)")
         }
         
         // Get public key/address
@@ -50,7 +50,7 @@ class WalletService {
         do {
             try secureKeyStorage.storePrivateKey(trimmedKey)
         } catch {
-            throw WalletError.keychainError
+            throw AppError.secureStorage(.storageFailed("Failed to store wallet securely"))
         }
         
         // Store public info in UserDefaults
@@ -78,10 +78,10 @@ class WalletService {
     
     /// Sign a transaction (modifies the transaction object in place)
     /// - Parameter transaction: Transaction object to sign (will be modified)
-    /// - Throws: WalletError if signing fails
+    /// - Throws: AppError if signing fails
     func signTransaction(_ transaction: Transaction) async throws {
         guard let privateKeyString = try secureKeyStorage.loadPrivateKey() else {
-            throw WalletError.noWalletConfigured
+            throw AppError.wallet(.noWallet)
         }
         
         let keyPair = try KeyPair(secretSeed: privateKeyString)
@@ -91,7 +91,7 @@ class WalletService {
         // Validate transaction has required operations
         guard !transaction.operations.isEmpty else {
             print("WalletService: ERROR: Transaction has no operations")
-            throw WalletError.signingFailed
+            throw AppError.wallet(.signingFailed("Transaction signing failed"))
         }
         print("WalletService: Transaction has \(transaction.operations.count) operation(s)")
         
@@ -103,7 +103,7 @@ class WalletService {
         let requiredMinFee = minFeePerOperation * Int64(transaction.operations.count)
         if transaction.fee < requiredMinFee {
             print("WalletService: ERROR: Transaction fee (\(transaction.fee)) is below minimum (\(requiredMinFee))")
-            throw WalletError.signingFailed
+            throw AppError.wallet(.signingFailed("Transaction signing failed"))
         }
         print("WalletService: Transaction fee validated: \(transaction.fee) stroops (minimum: \(requiredMinFee))")
         
@@ -136,22 +136,3 @@ class WalletService {
     }
 }
 
-enum WalletError: Error, LocalizedError {
-    case invalidSecretKey(String)
-    case keychainError
-    case noWalletConfigured
-    case signingFailed
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidSecretKey(let message):
-            return message
-        case .keychainError:
-            return "Failed to access secure storage. Please ensure your device supports secure storage and try again."
-        case .noWalletConfigured:
-            return "No wallet configured. Please login with your secret key first."
-        case .signingFailed:
-            return "Transaction signing failed. Please ensure your wallet is properly configured and try again."
-        }
-    }
-}

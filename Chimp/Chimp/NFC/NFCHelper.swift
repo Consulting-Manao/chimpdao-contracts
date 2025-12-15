@@ -194,7 +194,8 @@ class NFCHelper: NSObject, NFCTagReaderSessionDelegate {
                             }
                         }
                     } else if let OnTagEvent = self.OnTagEvent {
-                        // APDU operation
+                        // APDU operation - chip detected, user should hold steady
+                        session.alertMessage = "Chip detected! Hold steady while processing..."
                         DispatchQueue.main.async {
                             OnTagEvent(true, tag, session, nil)
                         }

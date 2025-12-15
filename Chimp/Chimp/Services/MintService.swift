@@ -25,7 +25,7 @@ class MintService {
     ///   - keyIndex: Key index to use (default: 1)
     ///   - progressCallback: Optional callback for progress updates
     /// - Returns: Mint result with transaction hash and token ID
-    /// - Throws: MintError if any step fails
+    /// - Throws: AppError if any step fails
     func executeMint(
         tag: NFCISO7816Tag,
         session: NFCTagReaderSession,
@@ -33,20 +33,20 @@ class MintService {
         progressCallback: ((String) -> Void)? = nil
     ) async throws -> MintResult {
         guard let wallet = walletService.getStoredWallet() else {
-            throw MintError.noWallet
+            throw AppError.wallet(.noWallet)
         }
 
         let contractId = config.contractId
         guard !contractId.isEmpty else {
             print("MintService: ERROR: Contract ID is empty")
-            throw MintError.noContractId
+            throw AppError.validation("Contract ID not configured. Please set the contract ID in settings.")
         }
 
         // Validate contract ID format
         guard config.validateContractId(contractId) else {
             print("MintService: ERROR: Invalid contract ID format: \(contractId)")
             print("MintService: Contract ID should be 56 characters, start with 'C'")
-            throw MintError.invalidContractId("Invalid contract ID format. Contract ID must be 56 characters and start with 'C'.")
+            throw AppError.validation("Invalid contract ID format. Contract ID must be 56 characters and start with 'C'.")
         }
 
         print("MintService: Contract ID: \(contractId)")
@@ -61,13 +61,13 @@ class MintService {
         guard let publicKeyData = Data(hexString: chipPublicKey),
               publicKeyData.count == 65,
               publicKeyData[0] == 0x04 else {
-            throw MintError.invalidPublicKey
+            throw AppError.crypto(.invalidKey("Invalid public key format from chip. Please ensure you're using a compatible NFC chip."))
         }
 
         // Step 2: Get source keypair for transaction building
         let secureStorage = SecureKeyStorage()
         guard let privateKey = try secureStorage.loadPrivateKey() else {
-            throw MintError.noWallet
+            throw AppError.wallet(.noWallet)
         }
         let sourceKeyPair = try KeyPair(secretSeed: privateKey)
         print("MintService: Source account: \(sourceKeyPair.accountId)")
@@ -82,9 +82,16 @@ class MintService {
                 publicKey: publicKeyData,
                 sourceKeyPair: sourceKeyPair
             )
+        } catch let appError as AppError {
+            // Re-throw contract errors as-is so ViewController can handle them specifically
+            if case .blockchain(.contract) = appError {
+                throw appError
+            }
+            print("MintService: ERROR getting nonce: \(appError)")
+            throw AppError.nfc(.chipError("Failed to get nonce: \(appError.localizedDescription)"))
         } catch {
             print("MintService: ERROR getting nonce: \(error)")
-            throw MintError.nonceRetrievalFailed("Failed to get nonce: \(error.localizedDescription)")
+            throw AppError.nfc(.chipError("Failed to get nonce: \(error.localizedDescription)"))
         }
         let nonce: UInt32 = 1 // Mint uses nonce = 1
         print("MintService: Using nonce: \(nonce)")
@@ -135,7 +142,7 @@ class MintService {
         signature.append(normalizedS)
 
         guard signature.count == 64 else {
-            throw MintError.invalidSignature
+            throw AppError.crypto(.invalidSignature)
         }
 
         let signatureHex = signature.map { String(format: "%02x", $0) }.joined()
@@ -158,7 +165,7 @@ class MintService {
             print("MintService: Recovery ID determined: \(recoveryId)")
         } catch {
             print("MintService: ERROR determining recovery ID: \(error)")
-            throw MintError.invalidRecoveryId("Could not determine recovery ID: \(error.localizedDescription)")
+            throw AppError.crypto(.verificationFailed)
         }
 
         // Step 9: Build transaction with the correct recovery ID
@@ -176,9 +183,16 @@ class MintService {
                 sourceKeyPair: sourceKeyPair
             )
             print("MintService: Transaction built successfully, token ID: \(tokenId)")
+        } catch let appError as AppError {
+            // Re-throw contract errors as-is so ViewController can handle them specifically
+            if case .blockchain(.contract) = appError {
+                throw appError
+            }
+            print("MintService: ERROR building transaction: \(appError)")
+            throw AppError.blockchain(.networkError("Failed to build transaction: \(appError.localizedDescription)"))
         } catch {
             print("MintService: ERROR building transaction: \(error)")
-            throw MintError.transactionBuildFailed("Failed to build transaction: \(error.localizedDescription)")
+            throw AppError.blockchain(.networkError("Failed to build transaction: \(error.localizedDescription)"))
         }
 
         // Step 10: Sign transaction
@@ -187,7 +201,18 @@ class MintService {
 
         // Step 11: Submit transaction
         progressCallback?("Submitting transaction...")
-        let txHash = try await blockchainService.submitTransaction(transaction, progressCallback: progressCallback)
+        let txHash: String
+        do {
+            txHash = try await blockchainService.submitTransaction(transaction, progressCallback: progressCallback)
+        } catch let appError as AppError {
+            // Re-throw contract errors as-is so ViewController can handle them specifically
+            if case .blockchain(.contract) = appError {
+                throw appError
+            }
+            throw AppError.blockchain(.networkError("Failed to submit transaction: \(appError.localizedDescription)"))
+        } catch {
+            throw AppError.blockchain(.networkError("Failed to submit transaction: \(error.localizedDescription)"))
+        }
 
         return MintResult(transactionHash: txHash, tokenId: tokenId)
     }
@@ -206,7 +231,7 @@ class MintService {
                     let publicKeyHex = fullPublicKey.map { String(format: "%02x", $0) }.joined()
                     continuation.resume(returning: publicKeyHex)
                 } else {
-                    continuation.resume(throwing: MintError.chipReadFailed(error ?? "Unknown error"))
+                    continuation.resume(throwing: AppError.nfc(.chipError(error ?? "Unknown error")))
                 }
             }
         }
@@ -215,7 +240,7 @@ class MintService {
     /// Sign message with chip
     private func signWithChip(tag: NFCISO7816Tag, session: NFCTagReaderSession, messageHash: Data, keyIndex: UInt8) async throws -> SignatureComponents {
         guard messageHash.count == 32 else {
-            throw MintError.invalidMessageHash
+            throw AppError.crypto(.invalidOperation("Invalid message hash. This is an internal error. Please try again."))
         }
 
         return try await withCheckedThrowingContinuation { continuation in
@@ -229,56 +254,13 @@ class MintService {
                         let components = try DERSignatureParser.parse(derSignature)
                         continuation.resume(returning: components)
                     } catch {
-                        continuation.resume(throwing: MintError.signatureParseFailed(error.localizedDescription))
+                        continuation.resume(throwing: AppError.derSignature(.parseFailed(error.localizedDescription)))
                     }
                 } else {
-                    continuation.resume(throwing: MintError.chipSignFailed(error ?? "Unknown error"))
+                    continuation.resume(throwing: AppError.nfc(.chipError(error ?? "Unknown error")))
                 }
             }
         }
     }
 }
 
-enum MintError: Error, LocalizedError {
-    case noWallet
-    case noContractId
-    case invalidContractId(String)
-    case invalidPublicKey
-    case invalidMessageHash
-    case nonceRetrievalFailed(String)
-    case chipReadFailed(String)
-    case chipSignFailed(String)
-    case signatureParseFailed(String)
-    case invalidSignature
-    case invalidRecoveryId(String)
-    case transactionBuildFailed(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .noWallet:
-            return "No wallet configured. Please login with your secret key first."
-        case .noContractId:
-            return "Contract ID not configured. Please set the contract ID in settings."
-        case .invalidContractId(let message):
-            return message
-        case .invalidPublicKey:
-            return "Invalid public key format from chip. Please ensure you're using a compatible NFC chip."
-        case .invalidMessageHash:
-            return "Invalid message hash. This is an internal error. Please try again."
-        case .nonceRetrievalFailed(let message):
-            return "Failed to get nonce: \(message). Please try again."
-        case .chipReadFailed(let message):
-            return "Failed to read from NFC chip: \(message). Please ensure the chip is held steady near the top of your device."
-        case .chipSignFailed(let message):
-            return "Failed to sign with NFC chip: \(message). Please ensure the chip is held steady and try again."
-        case .signatureParseFailed(let message):
-            return "Failed to parse signature from chip: \(message). Please try again."
-        case .invalidSignature:
-            return "Invalid signature format. Please try again."
-        case .invalidRecoveryId(let message):
-            return "Could not verify signature: \(message). Please ensure the NFC chip is working correctly."
-        case .transactionBuildFailed(let message):
-            return "Failed to build transaction: \(message). Please try again."
-        }
-    }
-}

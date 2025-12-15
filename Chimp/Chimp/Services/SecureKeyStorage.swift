@@ -12,10 +12,10 @@ class SecureKeyStorage {
     
     /// Store private key in Keychain
     /// - Parameter secretKey: Stellar secret key to store
-    /// - Throws: SecureKeyStorageError if storage fails
+    /// - Throws: AppError if storage fails
     func storePrivateKey(_ secretKey: String) throws {
         guard let privateKeyData = secretKey.data(using: .utf8) else {
-            throw SecureKeyStorageError.invalidData
+            throw AppError.secureStorage(.retrievalFailed("Invalid key data retrieved from secure storage"))
         }
         
         // Delete existing key if present
@@ -37,13 +37,13 @@ class SecureKeyStorage {
         
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
-            throw SecureKeyStorageError.keychainError
+            throw AppError.secureStorage(.storageFailed("Keychain access failed"))
         }
     }
     
     /// Load private key from Keychain
     /// - Returns: Stellar secret key if found, nil otherwise
-    /// - Throws: SecureKeyStorageError if retrieval fails
+    /// - Throws: AppError if retrieval fails
     func loadPrivateKey() throws -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -62,14 +62,14 @@ class SecureKeyStorage {
             if status == errSecItemNotFound {
                 return nil
             }
-            throw SecureKeyStorageError.keychainError
+            throw AppError.secureStorage(.storageFailed("Keychain access failed"))
         }
         
         return secretKey
     }
     
     /// Delete stored private key
-    /// - Throws: SecureKeyStorageError if deletion fails
+    /// - Throws: AppError if deletion fails
     func deletePrivateKey() throws {
         let deleteQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -79,7 +79,7 @@ class SecureKeyStorage {
         
         let status = SecItemDelete(deleteQuery as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw SecureKeyStorageError.keychainError
+            throw AppError.secureStorage(.storageFailed("Keychain access failed"))
         }
     }
     
@@ -94,16 +94,3 @@ class SecureKeyStorage {
     }
 }
 
-enum SecureKeyStorageError: Error, LocalizedError {
-    case invalidData
-    case keychainError
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidData:
-            return "Invalid key data"
-        case .keychainError:
-            return "Failed to access Keychain"
-        }
-    }
-}

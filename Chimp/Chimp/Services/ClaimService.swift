@@ -25,7 +25,7 @@ class ClaimService {
     ///   - keyIndex: Key index to use (default: 1)
     ///   - progressCallback: Optional callback for progress updates
     /// - Returns: Claim result with transaction hash and token ID
-    /// - Throws: ClaimError if any step fails
+    /// - Throws: AppError if any step fails
     func executeClaim(
         tag: NFCISO7816Tag,
         session: NFCTagReaderSession,
@@ -33,20 +33,20 @@ class ClaimService {
         progressCallback: ((String) -> Void)? = nil
     ) async throws -> ClaimResult {
         guard let wallet = walletService.getStoredWallet() else {
-            throw ClaimError.noWallet
+            throw AppError.wallet(.noWallet)
         }
         
         let contractId = config.contractId
         guard !contractId.isEmpty else {
             print("ClaimService: ERROR: Contract ID is empty")
-            throw ClaimError.noContractId
+            throw AppError.validation("Contract ID not configured. Please set the contract ID in settings.")
         }
         
         // Validate contract ID format
         guard config.validateContractId(contractId) else {
             print("ClaimService: ERROR: Invalid contract ID format: \(contractId)")
             print("ClaimService: Contract ID should be 56 characters, start with 'C'")
-            throw ClaimError.chipReadFailed("Invalid contract ID format. Contract ID must be 56 characters and start with 'C'.")
+            throw AppError.validation("Invalid contract ID format. Contract ID must be 56 characters and start with 'C'.")
         }
         
         print("ClaimService: Contract ID: \(contractId)")
@@ -61,13 +61,13 @@ class ClaimService {
         guard let publicKeyData = Data(hexString: chipPublicKey),
               publicKeyData.count == 65,
               publicKeyData[0] == 0x04 else {
-            throw ClaimError.invalidPublicKey
+            throw AppError.crypto(.invalidKey("Invalid public key format from chip. Please ensure you're using a compatible NFC chip."))
         }
         
         // Step 2: Get source keypair for transaction building
         let secureStorage = SecureKeyStorage()
         guard let privateKey = try secureStorage.loadPrivateKey() else {
-            throw ClaimError.noWallet
+            throw AppError.wallet(.keyLoadFailed)
         }
         let sourceKeyPair = try KeyPair(secretSeed: privateKey)
         print("ClaimService: Source account: \(sourceKeyPair.accountId)")
@@ -82,9 +82,16 @@ class ClaimService {
                 publicKey: publicKeyData,
                 sourceKeyPair: sourceKeyPair
             )
+        } catch let appError as AppError {
+            // Re-throw contract errors as-is so ViewController can handle them specifically
+            if case .blockchain(.contract) = appError {
+                throw appError
+            }
+            print("ClaimService: ERROR getting nonce: \(appError)")
+            throw AppError.nfc(.chipError("Failed to get nonce: \(appError.localizedDescription)"))
         } catch {
             print("ClaimService: ERROR getting nonce: \(error)")
-            throw ClaimError.chipReadFailed("Failed to get nonce: \(error.localizedDescription)")
+            throw AppError.nfc(.chipError("Failed to get nonce: \(error.localizedDescription)"))
         }
         let nonce = currentNonce + 1
         print("ClaimService: Using nonce: \(nonce) (previous: \(currentNonce))")
@@ -136,7 +143,7 @@ class ClaimService {
         signature.append(normalizedS)
         
         guard signature.count == 64 else {
-            throw ClaimError.invalidSignature
+            throw AppError.crypto(.invalidSignature)
         }
         
         let signatureHex = signature.map { String(format: "%02x", $0) }.joined()
@@ -161,7 +168,7 @@ class ClaimService {
             print("ClaimService: Recovery ID determined: \(recoveryId)")
         } catch {
             print("ClaimService: ERROR determining recovery ID: \(error)")
-            throw ClaimError.invalidRecoveryId("Could not determine recovery ID: \(error.localizedDescription)")
+            throw AppError.crypto(.verificationFailed)
         }
         
         // Step 8: Build transaction with the correct recovery ID
@@ -181,9 +188,16 @@ class ClaimService {
                 sourceKeyPair: sourceKeyPair
             )
             print("ClaimService: Transaction built successfully, token ID: \(tokenId)")
+        } catch let appError as AppError {
+            // Re-throw contract errors as-is so ViewController can handle them specifically
+            if case .blockchain(.contract) = appError {
+                throw appError
+            }
+            print("ClaimService: ERROR building transaction: \(appError)")
+            throw AppError.blockchain(.networkError("Failed to build transaction: \(appError.localizedDescription)"))
         } catch {
             print("ClaimService: ERROR building transaction: \(error)")
-            throw ClaimError.chipSignFailed("Failed to build transaction: \(error.localizedDescription)")
+            throw AppError.blockchain(.networkError("Failed to build transaction: \(error.localizedDescription)"))
         }
 
         // Step 9: Sign transaction
@@ -192,7 +206,18 @@ class ClaimService {
 
         // Step 10: Submit transaction (send the signed transaction object directly, matching test script)
         progressCallback?("Submitting transaction...")
-        let txHash = try await blockchainService.submitTransaction(transaction, progressCallback: progressCallback)
+        let txHash: String
+        do {
+            txHash = try await blockchainService.submitTransaction(transaction, progressCallback: progressCallback)
+        } catch let appError as AppError {
+            // Re-throw contract errors as-is so ViewController can handle them specifically
+            if case .blockchain(.contract) = appError {
+                throw appError
+            }
+            throw AppError.blockchain(.networkError("Failed to submit transaction: \(appError.localizedDescription)"))
+        } catch {
+            throw AppError.blockchain(.networkError("Failed to submit transaction: \(error.localizedDescription)"))
+        }
 
         return ClaimResult(transactionHash: txHash, tokenId: tokenId)
     }
@@ -211,7 +236,7 @@ class ClaimService {
                     let publicKeyHex = fullPublicKey.map { String(format: "%02x", $0) }.joined()
                     continuation.resume(returning: publicKeyHex)
                 } else {
-                    continuation.resume(throwing: ClaimError.chipReadFailed(error ?? "Unknown error"))
+                    continuation.resume(throwing: AppError.nfc(.chipError(error ?? "Unknown error")))
                 }
             }
         }
@@ -220,7 +245,7 @@ class ClaimService {
     /// Sign message with chip
     private func signWithChip(tag: NFCISO7816Tag, session: NFCTagReaderSession, messageHash: Data, keyIndex: UInt8) async throws -> SignatureComponents {
         guard messageHash.count == 32 else {
-            throw ClaimError.invalidMessageHash
+            throw AppError.crypto(.invalidOperation("Invalid message hash. This is an internal error. Please try again."))
         }
         
         return try await withCheckedThrowingContinuation { continuation in
@@ -234,47 +259,13 @@ class ClaimService {
                         let components = try DERSignatureParser.parse(derSignature)
                         continuation.resume(returning: components)
                     } catch {
-                        continuation.resume(throwing: ClaimError.signatureParseFailed(error.localizedDescription))
+                        continuation.resume(throwing: AppError.derSignature(.parseFailed(error.localizedDescription)))
                     }
                 } else {
-                    continuation.resume(throwing: ClaimError.chipSignFailed(error ?? "Unknown error"))
+                    continuation.resume(throwing: AppError.nfc(.chipError(error ?? "Unknown error")))
                 }
             }
         }
     }
 }
 
-enum ClaimError: Error, LocalizedError {
-    case noWallet
-    case noContractId
-    case invalidPublicKey
-    case invalidMessageHash
-    case chipReadFailed(String)
-    case chipSignFailed(String)
-    case signatureParseFailed(String)
-    case invalidSignature
-    case invalidRecoveryId(String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .noWallet:
-            return "No wallet configured. Please login with your secret key first."
-        case .noContractId:
-            return "Contract ID not configured. Please set the contract ID in settings."
-        case .invalidPublicKey:
-            return "Invalid public key format from chip. Please ensure you're using a compatible NFC chip."
-        case .invalidMessageHash:
-            return "Invalid message hash. This is an internal error. Please try again."
-        case .chipReadFailed(let message):
-            return "Failed to read from NFC chip: \(message). Please ensure the chip is held steady near the top of your device."
-        case .chipSignFailed(let message):
-            return "Failed to sign with NFC chip: \(message). Please ensure the chip is held steady and try again."
-        case .signatureParseFailed(let message):
-            return "Failed to parse signature from chip: \(message). Please try again."
-        case .invalidSignature:
-            return "Invalid signature format. Please try again."
-        case .invalidRecoveryId(let message):
-            return "Could not verify signature: \(message). Please ensure the NFC chip is working correctly."
-        }
-    }
-}

@@ -372,8 +372,36 @@ class ViewController: UIViewController {
                 // Load the NFT in background (ownership check and metadata download can fail)
                 Task {
                     do {
-                        try await self.loadUnclaimedNFT(contractId: contractId, tokenId: tokenId)
-                    } catch let nftError as NFTError {
+                        // First check if the NFT has an owner
+                        let wallet = self.walletService.getStoredWallet()
+                        guard wallet != nil else {
+                            throw AppError.nft(.noWallet)
+                        }
+
+                        let secureStorage = SecureKeyStorage()
+                        guard let privateKey = try secureStorage.loadPrivateKey() else {
+                            throw AppError.nft(.noWallet)
+                        }
+                        let keyPair = try KeyPair(secretSeed: privateKey)
+
+                        // Try to get the owner - if this succeeds, the NFT is claimed
+                        do {
+                            print("LoadNFT: Checking ownership for token \(tokenId)")
+                            let ownerAddress = try await self.blockchainService.getTokenOwner(
+                                contractId: contractId,
+                                tokenId: tokenId,
+                                sourceKeyPair: keyPair
+                            )
+                            print("LoadNFT: Token \(tokenId) has owner: \(ownerAddress), loading as claimed NFT")
+                            // NFT has an owner, load as claimed
+                            try await self.loadNFT(contractId: contractId, tokenId: tokenId)
+                        } catch {
+                            print("LoadNFT: Token \(tokenId) ownership check failed: \(error), loading as unclaimed NFT")
+                            // getTokenOwner failed, NFT might not exist or not be claimed
+                            // Try loading as unclaimed
+                            try await self.loadUnclaimedNFT(contractId: contractId, tokenId: tokenId)
+                        }
+                    } catch let appError as AppError {
                         // Error will be handled in the NFT view if needed
                     } catch {
                         // Error will be handled in the NFT view if needed
@@ -825,14 +853,12 @@ class ViewController: UIViewController {
                         try await self.loadNFT(contractId: AppConfig.shared.contractId, tokenId: claimResult.tokenId)
                     } catch {
                         await MainActor.run {
-                            // Clean error message following Apple guidelines
-                            let errorMessage = error.localizedDescription.contains("tokenAlreadyClaimed")
-                                ? "This NFT has already been claimed"
-                                : "Claim failed. Please try again."
+                            // Use standard AppError messages (NFC modal will truncate long ones)
+                            let errorMessage = (error as? AppError)?.localizedDescription ?? "Claim failed"
 
                             self.enableAllButtons()
 
-                            session.invalidate(errorMessage: "Claim failed")
+                            session.invalidate(errorMessage: errorMessage)
                         }
                     }
                 }
@@ -903,14 +929,12 @@ class ViewController: UIViewController {
                         }
                     } catch {
                         await MainActor.run {
-                            // Clean error message following Apple guidelines
-                            let errorMessage = error.localizedDescription.contains("tokenAlreadyClaimed")
-                                ? "This token has already been transferred"
-                                : "Transfer failed. Please try again."
+                            // Use standard AppError messages (NFC modal will truncate long ones)
+                            let errorMessage = (error as? AppError)?.localizedDescription ?? "Transfer failed"
 
                             self.enableAllButtons()
 
-                            session.invalidate(errorMessage: "Transfer failed")
+                            session.invalidate(errorMessage: errorMessage)
 
                             // Clear transfer parameters
                             self.transferRecipientAddress = nil
@@ -973,12 +997,12 @@ class ViewController: UIViewController {
                         }
                     } catch {
                         await MainActor.run {
-                            // Clean error message following Apple guidelines
-                            let errorMessage = "Mint failed. Please try again."
+                            // Use standard AppError messages (NFC modal will truncate long ones)
+                            let errorMessage = (error as? AppError)?.localizedDescription ?? "Mint failed"
 
                             self.enableAllButtons()
 
-                            session.invalidate(errorMessage: "Mint failed")
+                            session.invalidate(errorMessage: errorMessage)
                         }
                     }
                 }
@@ -1193,13 +1217,13 @@ class ViewController: UIViewController {
         do {
             // Check wallet exists for contract calls
             guard walletService.getStoredWallet() != nil else {
-                throw NFTError.noWallet
+                throw AppError.nft(.noWallet)
             }
 
             // Get private key from secure storage
             let secureStorage = SecureKeyStorage()
             guard let privateKey = try secureStorage.loadPrivateKey() else {
-                throw NFTError.noWallet
+                throw AppError.nft(.noWallet)
             }
             let keyPair = try KeyPair(secretSeed: privateKey)
 
@@ -1256,13 +1280,13 @@ class ViewController: UIViewController {
         do {
             // Check wallet exists for contract calls
             guard walletService.getStoredWallet() != nil else {
-                throw NFTError.noWallet
+                throw AppError.nft(.noWallet)
             }
 
             // Get private key from secure storage
             let secureStorage = SecureKeyStorage()
             guard let privateKey = try secureStorage.loadPrivateKey() else {
-                throw NFTError.noWallet
+                throw AppError.nft(.noWallet)
             }
             let keyPair = try KeyPair(secretSeed: privateKey)
 
@@ -1523,22 +1547,6 @@ class ViewController: UIViewController {
     }
 }
 
-enum NFTError: Error, LocalizedError {
-    case noWallet
-    case invalidTokenId
-    case downloadFailed(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .noWallet:
-            return "No wallet available. Please log in first."
-        case .invalidTokenId:
-            return "Invalid token ID."
-        case .downloadFailed(let details):
-            return "Failed to download NFT data: \(details)"
-        }
-    }
-}
 
 extension Data {
     func hexEncodedString() -> String {
