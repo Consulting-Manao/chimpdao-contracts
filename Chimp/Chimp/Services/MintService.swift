@@ -93,7 +93,7 @@ class MintService {
             print("MintService: ERROR getting nonce: \(error)")
             throw AppError.nfc(.chipError("Failed to get nonce: \(error.localizedDescription)"))
         }
-        let nonce: UInt32 = 1 // Mint uses nonce = 1
+        let nonce = currentNonce + 1
         print("MintService: Using nonce: \(nonce)")
 
         // Step 4: Create SEP-53 message

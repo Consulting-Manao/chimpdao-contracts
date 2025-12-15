@@ -119,6 +119,15 @@ class BlockchainService {
             return ownerAddress
         case .failure(let error):
             print("BlockchainService: getTokenOwner simulation failed: \(error)")
+            print("BlockchainService: Error type: \(type(of: error))")
+
+            // Check if it's a contract error
+            let errorString = "\(error)"
+            if let contractError = ContractError.fromErrorString(errorString) {
+                print("BlockchainService: Contract error detected: \(contractError)")
+                throw AppError.blockchain(.contract(contractError))
+            }
+
             throw AppError.blockchain(.invalidResponse)
         }
     }
@@ -222,6 +231,15 @@ class BlockchainService {
             return trimmedUri
         case .failure(let error):
             print("BlockchainService: Simulation failed: \(error)")
+            print("BlockchainService: Error type: \(type(of: error))")
+
+            // Check if it's a contract error
+            let errorString = "\(error)"
+            if let contractError = ContractError.fromErrorString(errorString) {
+                print("BlockchainService: Contract error detected: \(contractError)")
+                throw AppError.blockchain(.contract(contractError))
+            }
+
             throw AppError.blockchain(.invalidResponse)
         }
     }

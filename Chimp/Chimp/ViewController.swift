@@ -396,12 +396,11 @@ class ViewController: UIViewController {
                             // NFT has an owner, load as claimed
                             try await self.loadNFT(contractId: contractId, tokenId: tokenId)
                         } catch {
-                            print("LoadNFT: Token \(tokenId) ownership check failed: \(error), loading as unclaimed NFT")
-                            // getTokenOwner failed, NFT might not exist or not be claimed
-                            // Try loading as unclaimed
+                            print("LoadNFT: Token \(tokenId) ownership check failed: \(error), trying as unclaimed NFT")
+                            // getTokenOwner failed, assume token is unclaimed and try loading
                             try await self.loadUnclaimedNFT(contractId: contractId, tokenId: tokenId)
                         }
-                    } catch let appError as AppError {
+                    } catch let _ as AppError {
                         // Error will be handled in the NFT view if needed
                     } catch {
                         // Error will be handled in the NFT view if needed
@@ -747,6 +746,7 @@ class ViewController: UIViewController {
         self.mintButton.isEnabled = true
     }
 
+
     /// Ensures clean view controller state before presenting alerts
     private func ensureCleanUIState() {
         // Dismiss any presented view controllers to prevent UI conflicts
@@ -886,7 +886,7 @@ class ViewController: UIViewController {
 
                 Task {
                     do {
-                        let transferResult = try await transferService.executeTransfer(
+                        _ = try await transferService.executeTransfer(
                             tag: tag,
                             session: session,
                             keyIndex: selected_keyindex,
@@ -1120,7 +1120,7 @@ class ViewController: UIViewController {
             // Extract public key (skip first 9 bytes: 4 bytes global counter + 4 bytes signature counter + 1 byte 0x04)
             if response!.count >= 73 {
                 let publicKeyData = response!.subdata(in: 9..<73) // 64 bytes of public key
-                let publicKeyHex = publicKeyData.map { String(format: "%02x", $0) }.joined()
+                _ = publicKeyData.map { String(format: "%02x", $0) }.joined()
                 
                 result = true
                 // Public key read successfully - no display needed
