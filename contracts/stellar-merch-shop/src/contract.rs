@@ -205,11 +205,37 @@ impl NFCtoNFTContract for StellarMerchShop {
         let mut uri_bytes = Bytes::new(e);
         uri_bytes.append(&Bytes::from(base_uri));
         uri_bytes.append(&Bytes::from_slice(e, b"/"));
-        uri_bytes.append(&Bytes::from_array(e, &token_id.to_be_bytes()));
+        uri_bytes.append(&u64_to_decimal_bytes(e, token_id));
 
         String::from(uri_bytes)
     }
 
+}
+
+/// Convert a u64 to its decimal string representation as Bytes
+fn u64_to_decimal_bytes(e: &Env, mut num: u64) -> Bytes {
+    if num == 0 {
+        return Bytes::from_slice(e, b"0");
+    }
+
+    // Maximum digits for u64 is 20 (2^64 - 1 = 18446744073709551615)
+    let mut digits = [0u8; 20];
+    let mut len = 0;
+
+    while num > 0 {
+        digits[len] = b'0' + (num % 10) as u8;
+        len += 1;
+        num /= 10;
+    }
+
+    // Reverse the digits since we collected them in reverse order
+    for i in 0..len / 2 {
+        let temp = digits[i];
+        digits[i] = digits[len - 1 - i];
+        digits[len - 1 - i] = temp;
+    }
+
+    Bytes::from_slice(e, &digits[..len])
 }
 
 /// Common function to verify chip signature

@@ -25,8 +25,7 @@ class ConfettiView: UIView {
 
     private func setupConfetti() {
         let emitter = CAEmitterLayer()
-        emitter.emitterPosition = CGPoint(x: bounds.midX, y: bounds.midY - 100)
-        emitter.emitterSize = CGSize(width: bounds.width, height: 1)
+        // Position and size will be set in layoutSubviews
         emitter.emitterShape = .line
         emitter.birthRate = 0 // Start stopped
 
@@ -38,17 +37,17 @@ class ConfettiView: UIView {
 
         for (index, color) in colors.enumerated() {
             let cell = CAEmitterCell()
-            cell.birthRate = 1.0
-            cell.lifetime = 7.0
-            cell.velocity = 150 + CGFloat(index * 20)
-            cell.velocityRange = 50
-            cell.emissionLongitude = .pi
-            cell.emissionRange = .pi / 4
+            cell.birthRate = 2.0 // More particles
+            cell.lifetime = 8.0 // Longer lifetime
+            cell.velocity = 200 + CGFloat(index * 30) // Faster fall
+            cell.velocityRange = 100 // More variation in speed
+            cell.emissionLongitude = .pi // Straight down
+            cell.emissionRange = .pi / 2 // Wider spread (90 degrees)
             cell.spin = 2
             cell.spinRange = 3
-            cell.scale = 0.1
-            cell.scaleRange = 0.05
-            cell.alphaSpeed = -0.1
+            cell.scale = 0.08 // Slightly smaller
+            cell.scaleRange = 0.04
+            cell.alphaSpeed = -0.08 // Slower fade
 
             // Create small colored shapes
             let shapeSize = CGSize(width: 8, height: 8)
@@ -78,6 +77,13 @@ class ConfettiView: UIView {
 
     func stopConfetti() {
         emitterLayer?.birthRate = 0
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // Update emitter position and size when view bounds change
+        emitterLayer?.emitterPosition = CGPoint(x: bounds.midX, y: bounds.minY - 10)
+        emitterLayer?.emitterSize = CGSize(width: bounds.width * 1.2, height: 2)
     }
 }
 

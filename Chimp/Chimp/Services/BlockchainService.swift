@@ -205,18 +205,7 @@ class BlockchainService {
             let trimmedUri = uri.trimmingCharacters(in: .controlCharacters).trimmingCharacters(in: CharacterSet(charactersIn: "\0"))
             print("BlockchainService: Token URI retrieved: \(trimmedUri)")
 
-            // If URI doesn't end with the token ID, append it
-            var finalUri = trimmedUri
-            if !finalUri.hasSuffix("/\(tokenId)") {
-                if finalUri.hasSuffix("/") {
-                    finalUri += "\(tokenId)"
-                } else {
-                    finalUri += "/\(tokenId)"
-                }
-                print("BlockchainService: Appended token ID to URI: \(finalUri)")
-            }
-
-            return finalUri
+            return trimmedUri
         case .failure(let error):
             print("BlockchainService: Simulation failed: \(error)")
             throw BlockchainError.invalidResponse
