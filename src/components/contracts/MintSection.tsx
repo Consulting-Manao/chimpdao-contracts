@@ -174,7 +174,7 @@ export const MintSection = ({ keyId, contractId }: MintSectionProps) => {
       setMintStep("writing-ndef");
       let ndefWriteSuccess = false;
       try {
-        const ndefUrl = `https://nft.stellarmerchshop.com/${contractId}/${tokenIdString}`;
+        const ndefUrl = `https://nft.chimpdao.xyz/${contractId}/${tokenIdString}`;
         await writeNDEF(ndefUrl);
         ndefWriteSuccess = true;
       } catch (ndefError) {
@@ -252,7 +252,7 @@ export const MintSection = ({ keyId, contractId }: MintSectionProps) => {
               size="xs"
               style={{ marginTop: "8px", color: "#4caf50" }}
             >
-              ✓ NDEF URL written to chip: https://nft.stellarmerchshop.com/
+              ✓ NDEF URL written to chip: https://nft.chimpdao.xyz/
               {result.contractId}/{result.tokenId}
             </Text>
           )}

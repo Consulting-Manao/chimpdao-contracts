@@ -287,7 +287,7 @@ class MintService {
 
         // Construct new NDEF URL with token ID
         let contractId = config.contractId
-        let newUrl = "https://nft.stellarmerchshop.com/\(contractId)/\(tokenId)"
+        let newUrl = "https://nft.chimpdao.xyz/\(contractId)/\(tokenId)"
         print("MintService: New NDEF URL: \(newUrl)")
 
         // Convert URL to NDEF record bytes

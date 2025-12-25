@@ -1,5 +1,5 @@
 import { Buffer } from "buffer";
-import { Address } from "@stellar/stellar-sdk";
+import { Address } from '@stellar/stellar-sdk';
 import {
   AssembledTransaction,
   Client as ContractClient,
@@ -7,7 +7,7 @@ import {
   MethodOptions,
   Result,
   Spec as ContractSpec,
-} from "@stellar/stellar-sdk/contract";
+} from '@stellar/stellar-sdk/contract';
 import type {
   u32,
   i32,
@@ -18,216 +18,301 @@ import type {
   u256,
   i256,
   Option,
-  Timepoint,
+  Typepoint,
   Duration,
-} from "@stellar/stellar-sdk/contract";
-export * from "@stellar/stellar-sdk";
-export * as contract from "@stellar/stellar-sdk/contract";
-export * as rpc from "@stellar/stellar-sdk/rpc";
+} from '@stellar/stellar-sdk/contract';
+export * from '@stellar/stellar-sdk'
+export * as contract from '@stellar/stellar-sdk/contract'
+export * as rpc from '@stellar/stellar-sdk/rpc'
 
-if (typeof window !== "undefined") {
+if (typeof window !== 'undefined') {
   //@ts-ignore Buffer exists
   window.Buffer = window.Buffer || Buffer;
 }
 
-export type DataKey =
-  | { tag: "Admin"; values: void }
-  | { tag: "NextTokenId"; values: void }
-  | { tag: "MaxTokens"; values: void };
 
-export type NFTStorageKey =
-  | { tag: "ChipNonceByPublicKey"; values: readonly [Buffer] }
-  | { tag: "Owner"; values: readonly [u64] }
-  | { tag: "PublicKey"; values: readonly [u64] }
-  | { tag: "TokenIdByPublicKey"; values: readonly [Buffer] }
-  | { tag: "Balance"; values: readonly [string] }
-  | { tag: "Name"; values: void }
-  | { tag: "Symbol"; values: void }
-  | { tag: "URI"; values: void };
+export const networks = {
+  standalone: {
+    networkPassphrase: "Standalone Network ; February 2017",
+    contractId: "CAR5AWPSVXVLPDYFSFG3ZI4PHGOQXGZW22GYFCZFR2JPOP4TUGHXMRN2",
+  }
+} as const
+
+export type DataKey = {tag: "Admin", values: void} | {tag: "NextTokenId", values: void} | {tag: "MaxTokens", values: void};
+
+export type NFTStorageKey = {tag: "ChipNonceByPublicKey", values: readonly [Buffer]} | {tag: "Owner", values: readonly [u64]} | {tag: "PublicKey", values: readonly [u64]} | {tag: "TokenIdByPublicKey", values: readonly [Buffer]} | {tag: "Balance", values: readonly [string]} | {tag: "Name", values: void} | {tag: "Symbol", values: void} | {tag: "URI", values: void};
 
 export const NonFungibleTokenError = {
   /**
    * Indicates a non-existent `token_id`.
    */
-  200: { message: "NonExistentToken" },
+  200: {message:"NonExistentToken"},
   /**
    * Indicates an error related to the ownership over a particular token.
    * Used in transfers.
    */
-  201: { message: "IncorrectOwner" },
+  201: {message:"IncorrectOwner"},
   /**
    * Indicates overflow when adding two values
    */
-  205: { message: "MathOverflow" },
+  205: {message:"MathOverflow"},
   /**
    * Indicates all possible `token_id`s are already in use.
    */
-  206: { message: "TokenIDsAreDepleted" },
+  206: {message:"TokenIDsAreDepleted"},
   /**
    * Indicates an invalid amount to batch mint in `consecutive` extension.
    */
-  207: { message: "InvalidAmount" },
+  207: {message:"InvalidAmount"},
   /**
    * Indicates the token was already minted.
    */
-  210: { message: "TokenAlreadyMinted" },
+  210: {message:"TokenAlreadyMinted"},
   /**
    * Indicates the royalty amount is higher than 10_000 (100%) basis points.
    */
-  212: { message: "InvalidRoyaltyAmount" },
+  212: {message:"InvalidRoyaltyAmount"},
   /**
    * Indicates an invalid signature
    */
-  214: { message: "InvalidSignature" },
+  214: {message:"InvalidSignature"},
   /**
    * Indicates the token exists but has not been claimed yet
    */
-  215: { message: "TokenNotClaimed" },
-};
+  215: {message:"TokenNotClaimed"}
+}
+
+
+
+
+
 
 export interface Client {
   /**
    * Construct and simulate a mint transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  mint: (
-    {
-      message,
-      signature,
-      recovery_id,
-      public_key,
-      nonce,
-    }: {
-      message: Buffer;
-      signature: Buffer;
-      recovery_id: u32;
-      public_key: Buffer;
-      nonce: u32;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<u64>>;
+  mint: ({message, signature, recovery_id, public_key, nonce}: {message: Buffer, signature: Buffer, recovery_id: u32, public_key: Buffer, nonce: u32}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u64>>
 
   /**
    * Construct and simulate a claim transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  claim: (
-    {
-      claimant,
-      message,
-      signature,
-      recovery_id,
-      public_key,
-      nonce,
-    }: {
-      claimant: string;
-      message: Buffer;
-      signature: Buffer;
-      recovery_id: u32;
-      public_key: Buffer;
-      nonce: u32;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<u64>>;
+  claim: ({claimant, message, signature, recovery_id, public_key, nonce}: {claimant: string, message: Buffer, signature: Buffer, recovery_id: u32, public_key: Buffer, nonce: u32}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u64>>
 
   /**
    * Construct and simulate a transfer transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  transfer: (
-    {
-      from,
-      to,
-      token_id,
-      message,
-      signature,
-      recovery_id,
-      public_key,
-      nonce,
-    }: {
-      from: string;
-      to: string;
-      token_id: u64;
-      message: Buffer;
-      signature: Buffer;
-      recovery_id: u32;
-      public_key: Buffer;
-      nonce: u32;
-    },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<null>>;
+  transfer: ({from, to, token_id, message, signature, recovery_id, public_key, nonce}: {from: string, to: string, token_id: u64, message: Buffer, signature: Buffer, recovery_id: u32, public_key: Buffer, nonce: u32}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<null>>
 
   /**
    * Construct and simulate a get_nonce transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  get_nonce: (
-    { public_key }: { public_key: Buffer },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<u32>>;
+  get_nonce: ({public_key}: {public_key: Buffer}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u32>>
 
   /**
    * Construct and simulate a balance transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  balance: (
-    { owner }: { owner: string },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<u32>>;
+  balance: ({owner}: {owner: string}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u32>>
 
   /**
    * Construct and simulate a owner_of transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  owner_of: (
-    { token_id }: { token_id: u64 },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<string>>;
+  owner_of: ({token_id}: {token_id: u64}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<string>>
 
   /**
    * Construct and simulate a name transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  name: (options?: MethodOptions) => Promise<AssembledTransaction<string>>;
+  name: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<string>>
 
   /**
    * Construct and simulate a symbol transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  symbol: (options?: MethodOptions) => Promise<AssembledTransaction<string>>;
+  symbol: (options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<string>>
 
   /**
    * Construct and simulate a token_uri transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  token_uri: (
-    { token_id }: { token_id: u64 },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<string>>;
+  token_uri: ({token_id}: {token_id: u64}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<string>>
 
   /**
    * Construct and simulate a token_id transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  token_id: (
-    { public_key }: { public_key: Buffer },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<u64>>;
+  token_id: ({public_key}: {public_key: Buffer}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<u64>>
 
   /**
    * Construct and simulate a public_key transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
-  public_key: (
-    { token_id }: { token_id: u64 },
-    options?: MethodOptions,
-  ) => Promise<AssembledTransaction<Buffer>>;
+  public_key: ({token_id}: {token_id: u64}, options?: {
+    /**
+     * The fee to pay for the transaction. Default: BASE_FEE
+     */
+    fee?: number;
+
+    /**
+     * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
+     */
+    timeoutInSeconds?: number;
+
+    /**
+     * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
+     */
+    simulate?: boolean;
+  }) => Promise<AssembledTransaction<Buffer>>
+
 }
 export class Client extends ContractClient {
   static async deploy<T = Client>(
-    /** Constructor/Initialization Args for the contract's `__constructor` method */
-    {
-      admin,
-      name,
-      symbol,
-      uri,
-      max_tokens,
-    }: {
-      admin: string;
-      name: string;
-      symbol: string;
-      uri: string;
-      max_tokens: u64;
-    },
+        /** Constructor/Initialization Args for the contract's `__constructor` method */
+        {admin, name, symbol, uri, max_tokens}: {admin: string, name: string, symbol: string, uri: string, max_tokens: u64},
     /** Options for initializing a Client as well as for calling a method, with extras specific to deploying. */
     options: MethodOptions &
       Omit<ContractClientOptions, "contractId"> & {
@@ -237,17 +322,13 @@ export class Client extends ContractClient {
         salt?: Buffer | Uint8Array;
         /** The format used to decode `wasmHash`, if it's provided as a string. */
         format?: "hex" | "base64";
-      },
+      }
   ): Promise<AssembledTransaction<T>> {
-    return ContractClient.deploy(
-      { admin, name, symbol, uri, max_tokens },
-      options,
-    );
+    return ContractClient.deploy({admin, name, symbol, uri, max_tokens}, options)
   }
   constructor(public readonly options: ContractClientOptions) {
     super(
-      new ContractSpec([
-        "AAAAAgAAAAAAAAAAAAAAB0RhdGFLZXkAAAAAAwAAAAAAAAAAAAAABUFkbWluAAAAAAAAAAAAAAAAAAALTmV4dFRva2VuSWQAAAAAAAAAAAAAAAAJTWF4VG9rZW5zAAAA",
+      new ContractSpec([ "AAAAAgAAAAAAAAAAAAAAB0RhdGFLZXkAAAAAAwAAAAAAAAAAAAAABUFkbWluAAAAAAAAAAAAAAAAAAALTmV4dFRva2VuSWQAAAAAAAAAAAAAAAAJTWF4VG9rZW5zAAAA",
         "AAAAAgAAAAAAAAAAAAAADU5GVFN0b3JhZ2VLZXkAAAAAAAAIAAAAAQAAAAAAAAAUQ2hpcE5vbmNlQnlQdWJsaWNLZXkAAAABAAAD7gAAAEEAAAABAAAAAAAAAAVPd25lcgAAAAAAAAEAAAAGAAAAAQAAAAAAAAAJUHVibGljS2V5AAAAAAAAAQAAAAYAAAABAAAAAAAAABJUb2tlbklkQnlQdWJsaWNLZXkAAAAAAAEAAAPuAAAAQQAAAAEAAAAAAAAAB0JhbGFuY2UAAAAAAQAAABMAAAAAAAAAAAAAAAROYW1lAAAAAAAAAAAAAAAGU3ltYm9sAAAAAAAAAAAAAAAAAANVUkkA",
         "AAAAAAAAAAAAAAANX19jb25zdHJ1Y3RvcgAAAAAAAAUAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAEbmFtZQAAABAAAAAAAAAABnN5bWJvbAAAAAAAEAAAAAAAAAADdXJpAAAAABAAAAAAAAAACm1heF90b2tlbnMAAAAAAAYAAAAA",
         "AAAAAAAAAAAAAAAEbWludAAAAAUAAAAAAAAAB21lc3NhZ2UAAAAADgAAAAAAAAAJc2lnbmF0dXJlAAAAAAAD7gAAAEAAAAAAAAAAC3JlY292ZXJ5X2lkAAAAAAQAAAAAAAAACnB1YmxpY19rZXkAAAAAA+4AAABBAAAAAAAAAAVub25jZQAAAAAAAAQAAAABAAAABg==",
@@ -266,22 +347,21 @@ export class Client extends ContractClient {
         "AAAABQAAAAAAAAAAAAAAB0FwcHJvdmUAAAAAAQAAAAdhcHByb3ZlAAAAAAQAAAAAAAAACGFwcHJvdmVyAAAAEwAAAAEAAAAAAAAACHRva2VuX2lkAAAABgAAAAEAAAAAAAAACGFwcHJvdmVkAAAAEwAAAAAAAAAAAAAAEWxpdmVfdW50aWxfbGVkZ2VyAAAAAAAABAAAAAAAAAAC",
         "AAAABQAAAAAAAAAAAAAADUFwcHJvdmVGb3JBbGwAAAAAAAABAAAAD2FwcHJvdmVfZm9yX2FsbAAAAAADAAAAAAAAAAVvd25lcgAAAAAAABMAAAABAAAAAAAAAAhvcGVyYXRvcgAAABMAAAAAAAAAAAAAABFsaXZlX3VudGlsX2xlZGdlcgAAAAAAAAQAAAAAAAAAAg==",
         "AAAABQAAAAAAAAAAAAAABE1pbnQAAAABAAAABG1pbnQAAAABAAAAAAAAAAh0b2tlbl9pZAAAAAYAAAABAAAAAg==",
-        "AAAABQAAAAAAAAAAAAAABUNsYWltAAAAAAAAAQAAAAVjbGFpbQAAAAAAAAIAAAAAAAAACGNsYWltYW50AAAAEwAAAAEAAAAAAAAACHRva2VuX2lkAAAABgAAAAAAAAAC",
-      ]),
-      options,
-    );
+        "AAAABQAAAAAAAAAAAAAABUNsYWltAAAAAAAAAQAAAAVjbGFpbQAAAAAAAAIAAAAAAAAACGNsYWltYW50AAAAEwAAAAEAAAAAAAAACHRva2VuX2lkAAAABgAAAAAAAAAC" ]),
+      options
+    )
   }
   public readonly fromJSON = {
     mint: this.txFromJSON<u64>,
-    claim: this.txFromJSON<u64>,
-    transfer: this.txFromJSON<null>,
-    get_nonce: this.txFromJSON<u32>,
-    balance: this.txFromJSON<u32>,
-    owner_of: this.txFromJSON<string>,
-    name: this.txFromJSON<string>,
-    symbol: this.txFromJSON<string>,
-    token_uri: this.txFromJSON<string>,
-    token_id: this.txFromJSON<u64>,
-    public_key: this.txFromJSON<Buffer>,
-  };
+        claim: this.txFromJSON<u64>,
+        transfer: this.txFromJSON<null>,
+        get_nonce: this.txFromJSON<u32>,
+        balance: this.txFromJSON<u32>,
+        owner_of: this.txFromJSON<string>,
+        name: this.txFromJSON<string>,
+        symbol: this.txFromJSON<string>,
+        token_uri: this.txFromJSON<string>,
+        token_id: this.txFromJSON<u64>,
+        public_key: this.txFromJSON<Buffer>
+  }
 }
