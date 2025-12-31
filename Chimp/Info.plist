@@ -24,7 +24,6 @@
 	<string>Allow to scan tags</string>
 	<key>com.apple.developer.nfc.readersession.formats</key>
 	<array>
-		<string>NDEF</string>
 		<string>TAG</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
@@ -65,5 +64,7 @@
 	<string>$(STELLAR_CONTRACT_ID_MAINNET)</string>
 	<key>ADMIN_MODE</key>
 	<string>$(ADMIN_MODE)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
