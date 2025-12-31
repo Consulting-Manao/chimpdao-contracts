@@ -16,15 +16,11 @@
         "opacity" : 0.5
       },
       "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
+        "enabled" : false
       }
     }
   ],
   "supported-platforms" : {
-    "circles" : [
-      "watchOS"
-    ],
     "squares" : "shared"
   }
 }
