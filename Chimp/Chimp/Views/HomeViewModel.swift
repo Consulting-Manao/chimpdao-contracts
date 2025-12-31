@@ -5,7 +5,18 @@ class HomeViewModel: ObservableObject {
     private let walletService = WalletService()
     
     @Published var isLoading = false
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? {
+        didSet {
+            // Cancel existing timer when error message changes
+            errorTimeoutTimer?.invalidate()
+            errorTimeoutTimer = nil
+            
+            // Start new timer if error message is set
+            if errorMessage != nil {
+                startErrorTimeout()
+            }
+        }
+    }
     @Published var showingTransferAlert = false
     @Published var showingSignAlert = false
     @Published var showingNFTView = false
@@ -21,8 +32,15 @@ class HomeViewModel: ObservableObject {
     // Operation coordinator will handle the actual NFC operations
     let nfcCoordinator = NFCOperationCoordinator()
     
+    // Timer for auto-dismissing error messages
+    private var errorTimeoutTimer: Timer?
+    
     init() {
         setupCoordinatorCallbacks()
+    }
+    
+    deinit {
+        errorTimeoutTimer?.invalidate()
     }
     
     private func setupCoordinatorCallbacks() {
@@ -109,6 +127,24 @@ class HomeViewModel: ObservableObject {
         // Hide confetti after 3 seconds - no need for extra alert since NFC session already provided feedback
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
             self?.showingConfetti = false
+        }
+    }
+    
+    func dismissError() {
+        errorTimeoutTimer?.invalidate()
+        errorTimeoutTimer = nil
+        errorMessage = nil
+    }
+    
+    private func startErrorTimeout() {
+        // Cancel any existing timer
+        errorTimeoutTimer?.invalidate()
+        
+        // Create new timer for 5-second auto-dismiss
+        errorTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.errorMessage = nil
+            }
         }
     }
     

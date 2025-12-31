@@ -38,18 +38,31 @@ struct HomeView: View {
                         VStack(spacing: 20) {
                             // Error message
                             if let error = viewModel.errorMessage {
-                                Text(error)
-                                    .font(.system(size: 14, weight: .regular))
-                                    .foregroundColor(.red)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.red.opacity(0.1))
-                                    )
-                                    .padding(.horizontal, 20)
-                                    .padding(.top, 16)
+                                HStack(alignment: .top, spacing: 12) {
+                                    Text(error)
+                                        .font(.system(size: 14, weight: .regular))
+                                        .foregroundColor(.red)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    
+                                    Button(action: {
+                                        viewModel.dismissError()
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 20))
+                                            .foregroundColor(.red.opacity(0.7))
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.red.opacity(0.1))
+                                )
+                                .padding(.horizontal, 20)
+                                .padding(.top, 16)
                             }
                             
                             // Main action cards

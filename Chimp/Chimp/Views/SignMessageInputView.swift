@@ -1,4 +1,5 @@
 import SwiftUI
+import CryptoKit
 
 struct SignMessageInputView: View {
     @Binding var isPresented: Bool
@@ -11,9 +12,14 @@ struct SignMessageInputView: View {
         NavigationView {
             Form {
                 Section(header: Text("Message to Sign")) {
-                    TextField("Message (hex or text)", text: $messageText)
+                    TextField("32-byte hex (64 chars) or any text message", text: $messageText)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
+                    
+                    Text("Enter a 32-byte hex value (64 characters) to sign directly, or any text message to hash with SHA256.")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
                 }
                 
                 if let error = errorMessage {
@@ -50,31 +56,44 @@ struct SignMessageInputView: View {
             return
         }
         
-        // Parse message - could be hex or text
+        let trimmedText = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            errorMessage = "Please enter a message to sign"
+            return
+        }
+        
+        // Determine if input is a 32-byte hex value (64 hex characters)
+        let hexString: String
+        if trimmedText.hasPrefix("0x") {
+            hexString = String(trimmedText.dropFirst(2))
+        } else {
+            hexString = trimmedText
+        }
+        
         var messageData: Data
-        if messageText.hasPrefix("0x") {
-            // Hex string with 0x prefix
-            let hexString = String(messageText.dropFirst(2))
-            guard isValidHexString(hexString) && hexString.count % 2 == 0,
-                  let data = Data(hexString: hexString) else {
-                errorMessage = "Please enter valid hexadecimal data"
+        
+        // Check if it's a valid 32-byte hex value (64 hex characters)
+        if isValidHexString(hexString) && hexString.count == 64 {
+            // Use 32-byte hex value directly
+            guard let data = Data(hexString: hexString) else {
+                errorMessage = "Invalid hexadecimal format"
                 return
             }
-            messageData = data
-        } else if isValidHexString(messageText) && messageText.count % 2 == 0 {
-            // Looks like hex without 0x prefix
-            guard let data = Data(hexString: messageText) else {
-                errorMessage = "Please enter valid hexadecimal data"
+            guard data.count == 32 else {
+                errorMessage = "Hex value must be exactly 32 bytes (64 hex characters)"
                 return
             }
             messageData = data
         } else {
-            // Treat as text - UTF-8 encoding
-            guard let data = messageText.data(using: .utf8) else {
-                errorMessage = "Unable to encode message as UTF-8"
-                return
-            }
-            messageData = data
+            // Treat as generic text message - hash with SHA256 to get 32 bytes
+            let textData = trimmedText.data(using: .utf8) ?? Data()
+            messageData = Data(SHA256.hash(data: textData))
+        }
+        
+        // Ensure we have exactly 32 bytes (required by the chip)
+        guard messageData.count == 32 else {
+            errorMessage = "Message digest must be exactly 32 bytes"
+            return
         }
         
         isPresented = false
