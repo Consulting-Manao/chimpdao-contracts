@@ -43,3 +43,4 @@ src/contracts/*
 .cursor
 .build
 nfc-server/scripts
+dapp
