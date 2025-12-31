@@ -3,13 +3,30 @@ import UIKit
 
 struct SettingsView: View {
     @ObservedObject var walletState: WalletState
-    @State private var network: AppNetwork = AppConfig.shared.currentNetwork
     @State private var contractId: String = AppConfig.shared.contractId
+    @State private var originalContractId: String = ""
     @State private var showLogoutAlert = false
-    @State private var saveStatus: String?
+    @State private var showResetAlert = false
     @State private var contractCopied = false
+    @State private var saveStatus: String?
+    @Environment(\.openURL) private var openURL
     
     private let walletService = WalletService()
+    private var currentNetwork: AppNetwork {
+        AppConfig.shared.currentNetwork
+    }
+    
+    // Check if contract ID has been modified from original
+    private var hasChanges: Bool {
+        contractId.trimmingCharacters(in: .whitespacesAndNewlines) != originalContractId.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    // Check if current value is at build config default
+    private var isAtDefault: Bool {
+        let buildConfigId = AppConfig.shared.getBuildConfigContractId()
+        let currentId = contractId.trimmingCharacters(in: .whitespacesAndNewlines)
+        return currentId == buildConfigId || (currentId.isEmpty && buildConfigId.isEmpty)
+    }
     
     var body: some View {
         NavigationView {
@@ -19,53 +36,57 @@ struct SettingsView: View {
                     Section(header: Text("Wallet")) {
                         WalletAddressCard(
                             address: wallet.address,
-                            network: network
+                            network: currentNetwork
                         )
                     }
                 }
                 
                 Section(header: Text("Smart Contract")) {
-                    Picker("Network", selection: $network) {
-                        Text("Testnet").tag(AppNetwork.testnet)
-                        Text("Mainnet").tag(AppNetwork.mainnet)
+                    TextField("Enter contract address", text: $contractId)
+                        .font(.system(size: 15, design: .monospaced))
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                    
+                    if hasChanges {
+                        Button(action: saveContractId) {
+                            HStack {
+                                if let status = saveStatus {
+                                    Label(status, systemImage: "checkmark")
+                                        .foregroundColor(.green)
+                                } else {
+                                    Text("Save")
+                                }
+                                Spacer()
+                            }
+                        }
                     }
                     
-                    HStack {
-                        TextField("Address", text: $contractId)
-                            .font(.system(size: 15, design: .monospaced))
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                        
-                        if !contractId.isEmpty {
+                    if !contractId.isEmpty {
+                        HStack(spacing: 12) {
                             Button(action: copyContractId) {
-                                Image(systemName: contractCopied ? "checkmark" : "doc.on.doc")
-                                    .font(.system(size: 16, weight: .medium))
+                                Label("Copy", systemImage: contractCopied ? "checkmark" : "doc.on.doc")
+                                    .font(.system(size: 15, weight: .medium))
                                     .foregroundColor(contractCopied ? .green : .chimpYellow)
-                                    .frame(width: 32, height: 32)
                             }
                             .buttonStyle(PlainButtonStyle())
+                            
+                            Button(action: openContractStellarExpert) {
+                                Label("View on Stellar.Expert", systemImage: "arrow.up.right.square")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(.chimpYellow)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            Spacer()
                         }
                     }
                 }
                 
                 Section {
-                    Button(action: saveSettings) {
-                        HStack {
-                            Text("Save Settings")
-                            Spacer()
-                            if let status = saveStatus {
-                                Text(status)
-                                    .foregroundColor(.green)
-                            }
-                        }
+                    Button(role: .destructive, action: { showResetAlert = true }) {
+                        Text("Reset to Default")
                     }
-                    
-                    Button(action: resetToDefault) {
-                        HStack {
-                            Text("Reset to Default")
-                            Spacer()
-                        }
-                    }
+                    .disabled(isAtDefault)
                 }
                 
                 Section {
@@ -84,6 +105,14 @@ struct SettingsView: View {
             } message: {
                 Text("Are you sure you want to logout? Your private key will be removed from this device.")
             }
+            .alert("Reset to Default", isPresented: $showResetAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Reset", role: .destructive) {
+                    resetToDefault()
+                }
+            } message: {
+                Text("This will reset the contract address to the build configuration default. This action cannot be undone.")
+            }
             .onAppear {
                 loadCurrentSettings()
             }
@@ -91,32 +120,43 @@ struct SettingsView: View {
     }
     
     private func loadCurrentSettings() {
-        network = AppConfig.shared.currentNetwork
         contractId = AppConfig.shared.contractId
+        originalContractId = AppConfig.shared.contractId
     }
     
-    private func saveSettings() {
-        AppConfig.shared.currentNetwork = network
-        AppConfig.shared.contractId = contractId
+    private func saveContractId() {
+        AppConfig.shared.contractId = contractId.trimmingCharacters(in: .whitespacesAndNewlines)
+        originalContractId = contractId.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        saveStatus = "Saved!"
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        saveStatus = "Saved"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             saveStatus = nil
         }
     }
     
     private func resetToDefault() {
         // Reset to build configuration defaults
-        UserDefaults.standard.removeObject(forKey: "app_network")
         UserDefaults.standard.removeObject(forKey: "app_contract_id")
         
-        network = AppConfig.shared.currentNetwork
         contractId = AppConfig.shared.contractId
+        originalContractId = AppConfig.shared.contractId
+    }
+    
+    private func openContractStellarExpert() {
+        guard !contractId.isEmpty else { return }
         
-        saveStatus = "Reset!"
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            saveStatus = nil
+        let baseUrl: String
+        switch currentNetwork {
+        case .testnet:
+            baseUrl = "https://stellar.expert/explorer/testnet/contract"
+        case .mainnet:
+            baseUrl = "https://stellar.expert/explorer/public/contract"
         }
+        
+        let urlString = "\(baseUrl)/\(contractId)"
+        guard let url = URL(string: urlString) else { return }
+        
+        openURL(url)
     }
     
     private func copyContractId() {

@@ -18,10 +18,11 @@ struct LoginView: View {
                 VStack(spacing: 24) {
                     Spacer()
                     
-                    // Logo/Icon
-                    Image(systemName: "pawprint.fill")
-                        .font(.system(size: 80))
-                        .foregroundColor(.chimpYellow)
+                    // Logo
+                    Image("Logo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 100, height: 100)
                         .padding(.bottom, 20)
                     
                     // Title

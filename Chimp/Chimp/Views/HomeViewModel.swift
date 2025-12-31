@@ -15,8 +15,6 @@ class HomeViewModel: ObservableObject {
     // Result states for post-operation display
     @Published var showingSignatureView = false
     @Published var signatureData: (globalCounter: String, keyCounter: String, derSignature: String)?
-    @Published var showingSuccessAlert = false
-    @Published var successMessage: String?
     @Published var showingConfetti = false
     @Published var confettiMessage: String?
     
@@ -44,6 +42,9 @@ class HomeViewModel: ObservableObject {
         
         nfcCoordinator.onClaimSuccess = { [weak self] tokenId in
             DispatchQueue.main.async {
+                // Reset coordinator state first to ensure clean state
+                self?.nfcCoordinator.resetState()
+                // Show confetti briefly, then load NFT
                 self?.showConfetti(message: "Claim successful!")
                 // After confetti, load the NFT
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
@@ -62,8 +63,8 @@ class HomeViewModel: ObservableObject {
         
         nfcCoordinator.onTransferSuccess = { [weak self] in
             DispatchQueue.main.async {
-                self?.successMessage = "NFT transferred successfully"
-                self?.showingSuccessAlert = true
+                // NFC session already showed success message, no need for extra alert
+                self?.nfcCoordinator.resetState()
             }
         }
         
@@ -88,6 +89,9 @@ class HomeViewModel: ObservableObject {
         
         nfcCoordinator.onMintSuccess = { [weak self] tokenId in
             DispatchQueue.main.async {
+                // Reset coordinator state first to ensure clean state
+                self?.nfcCoordinator.resetState()
+                // Show confetti briefly - no need for extra alert since NFC session already showed success
                 self?.showConfetti(message: "Mint successful! Token ID: \(tokenId)")
             }
         }
@@ -102,13 +106,9 @@ class HomeViewModel: ObservableObject {
     private func showConfetti(message: String) {
         confettiMessage = message
         showingConfetti = true
-        // Hide confetti after 3 seconds and show success alert
+        // Hide confetti after 3 seconds - no need for extra alert since NFC session already provided feedback
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
             self?.showingConfetti = false
-            self?.successMessage = message
-            self?.showingSuccessAlert = true
-            // Reset coordinator state after mint to ensure clean state
-            self?.nfcCoordinator.resetState()
         }
     }
     
@@ -117,6 +117,9 @@ class HomeViewModel: ObservableObject {
             errorMessage = "Please login first"
             return
         }
+        
+        // Reset coordinator state first to ensure clean state
+        nfcCoordinator.resetState()
         
         isLoading = true
         errorMessage = nil

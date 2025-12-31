@@ -19,21 +19,23 @@ struct HomeView: View {
                 Color.chimpBackground
                     .ignoresSafeArea()
                 
-                GeometryReader { geometry in
-                    ScrollView {
-                        VStack(spacing: 24) {
-                            // Header with scroll-based zoom
-                            headerSection(scrollOffset: scrollOffset)
-                                .background(
-                                    GeometryReader { headerGeometry in
-                                        Color.clear
-                                            .preference(
-                                                key: ScrollOffsetPreferenceKey.self,
-                                                value: -headerGeometry.frame(in: .named("scroll")).minY
-                                            )
-                                    }
-                                )
-                            
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // Header with scroll-based zoom
+                        headerSection(scrollOffset: scrollOffset)
+                            .id("header")
+                            .background(
+                                GeometryReader { headerGeometry in
+                                    let offset = headerGeometry.frame(in: .named("scroll")).minY
+                                    Color.clear
+                                        .preference(
+                                            key: ScrollOffsetPreferenceKey.self,
+                                            value: max(0, -offset)
+                                        )
+                                }
+                            )
+                        
+                        VStack(spacing: 20) {
                             // Error message
                             if let error = viewModel.errorMessage {
                                 Text(error)
@@ -46,19 +48,25 @@ struct HomeView: View {
                                         RoundedRectangle(cornerRadius: 12)
                                             .fill(Color.red.opacity(0.1))
                                     )
+                                    .padding(.horizontal, 20)
+                                    .padding(.top, 16)
                             }
                             
                             // Main action cards
                             actionCardsSection
+                                .padding(.horizontal, 20)
+                                .padding(.top, viewModel.errorMessage == nil ? 16 : 0)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
                         .padding(.bottom, 32)
                     }
-                    .coordinateSpace(name: "scroll")
-                    .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-                        scrollOffset = value
-                    }
+                }
+                .coordinateSpace(name: "scroll")
+                .scrollBounceBehavior(.basedOnSize)
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+                    scrollOffset = value
+                }
+                .onAppear {
+                    scrollOffset = 0
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -113,38 +121,34 @@ struct HomeView: View {
                     )
                 }
             }
-            .alert("Success", isPresented: $viewModel.showingSuccessAlert) {
-                Button("OK") {
-                    viewModel.showingSuccessAlert = false
-                }
-            } message: {
-                Text(viewModel.successMessage ?? "")
-            }
         }
     }
     
+    @ViewBuilder
     private func headerSection(scrollOffset: CGFloat) -> some View {
         VStack(spacing: 0) {
             // Calculate scale based on scroll offset
-            // Logo starts at scale 1.0 and scales down to 0.75 as user scrolls
-            let minScale: CGFloat = 0.75
-            let maxScroll: CGFloat = 100 // Start scaling after 100pt of scroll
-            let scale = max(minScale, 1.0 - min(scrollOffset / maxScroll, 1.0 - minScale))
+            // Logo starts at scale 1.0 when at top (scrollOffset = 0)
+            // Scales down to 0.7 as user scrolls down
+            let minScale: CGFloat = 0.7
+            let maxScroll: CGFloat = 100 // Full scale transition over 100pt
+            let scrollProgress = min(scrollOffset / maxScroll, 1.0)
+            let scale = 1.0 - (scrollProgress * (1.0 - minScale))
+            let finalScale = max(minScale, scale)
             
             Image("Logo")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 140, height: 140)
-                .scaleEffect(scale)
-                .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: 10)
-                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: scale)
-                .padding(.top, 60)
-                .padding(.bottom, 70)
+                .frame(width: 100, height: 100)
+                .scaleEffect(finalScale)
+                .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 8)
+                .padding(.top, 24)
+                .padding(.bottom, 24)
         }
     }
     
     private var actionCardsSection: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
             // Load NFT Card
             ActionCard(
                 icon: "photo.fill",
