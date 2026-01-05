@@ -8,13 +8,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "start": "node index.js",
-    "postinstall": "npm rebuild @pokusew/pcsclite",
-    "rebuild": "npm rebuild @pokusew/pcsclite",
-    "check:blocksec2go": "node scripts/check-blocksec2go.js",
-    "test:ndef": "node scripts/test-ndef-format.js",
-    "test:ndef:read": "node scripts/test-ndef-read.js",
-    "test:ndef:write": "node scripts/test-ndef-write.js"
+    "start": "node index.js"
   },
   "dependencies": {
     "nfc-pcsc": "^0.8.0",
