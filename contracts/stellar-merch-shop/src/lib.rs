@@ -19,6 +19,8 @@ pub trait NFCtoNFTContract {
 
     fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String, max_tokens: u64);
 
+    fn upgrade(e: &Env, wasm_hash: BytesN<32>);
+
     /// Mint NFT using NFC chip signature.
     ///
     /// This function verifies that the provided signature was created by an Infineon
