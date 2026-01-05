@@ -37,6 +37,15 @@ impl NFCtoNFTContract for StellarMerchShop {
         e.storage().instance().set(&DataKey::NextTokenId, &0u64);
     }
 
+    fn upgrade(e: &Env, wasm_hash: BytesN<32>) {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        e.deployer().update_current_contract_wasm(wasm_hash.clone());
+
+        events::Upgrade { admin, wasm_hash: wasm_hash.into() }.publish(e);
+    }
+
     fn mint(
         e: &Env,
         message: Bytes,
@@ -45,6 +54,9 @@ impl NFCtoNFTContract for StellarMerchShop {
         public_key: BytesN<65>,
         nonce: u32,
     ) -> u64 {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
         verify_chip_signature(e, message, signature, recovery_id, public_key.clone(), nonce);
 
         let public_key_lookup = NFTStorageKey::TokenIdByPublicKey(public_key.clone());
