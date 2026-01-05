@@ -24,6 +24,7 @@ SOFTWARE.
 
 import Foundation
 import CoreNFC
+import OSLog
 
 /// Contains the handlers to transmit APDU commands
 class CommandHandler{
@@ -45,7 +46,7 @@ class CommandHandler{
     ///   - on_response_event: Response event handler that contains the response APDU
     func Transmit(command: APDUCommand, on_response_event: @escaping (APDUResponse) -> Void) {
         guard let command_apdu = NFCISO7816APDU(data: command.command) else {
-            print("CommandHandler: Failed to create APDU from command data")
+            Logger.logError("Failed to create APDU from command data", category: .nfc)
             on_response_event(APDUResponse(sw1: 0x6F, sw2: 0x00, data: nil)) // General error
             return
         }

@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 
+@MainActor
 class HomeViewModel: ObservableObject {
     private let walletService = WalletService()
     
@@ -65,7 +66,7 @@ class HomeViewModel: ObservableObject {
                 // Show confetti briefly, then load NFT
                 self?.showConfetti(message: "Claim successful!")
                 // After confetti, load the NFT
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
                     self?.loadedNFTContractId = AppConfig.shared.contractId
                     self?.loadedNFTTokenId = tokenId
                     self?.showingNFTView = true
@@ -140,12 +141,16 @@ class HomeViewModel: ObservableObject {
         // Cancel any existing timer
         errorTimeoutTimer?.invalidate()
         
-        // Create new timer for 5-second auto-dismiss
+        // Create new timer for 5-second auto-dismiss on main run loop
         errorTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.errorMessage = nil
+            guard let self = self else { return }
+            // Timer is on main run loop, so we can safely access main actor properties
+            MainActor.assumeIsolated {
+                self.errorMessage = nil
             }
         }
+        // Ensure timer is on main run loop
+        RunLoop.main.add(errorTimeoutTimer!, forMode: .common)
     }
     
     func loadNFT() {

@@ -5,13 +5,14 @@
 
 import Foundation
 import stellarsdk
+import OSLog
 
 struct WalletConnection {
     let address: String  // Stellar address (public key)
     let name: String
 }
 
-class WalletService {
+final class WalletService {
     private let secureKeyStorage = SecureKeyStorage()
     private let addressKey = "wallet_address"
     
@@ -86,14 +87,14 @@ class WalletService {
         
         let keyPair = try KeyPair(secretSeed: privateKeyString)
         
-        print("WalletService: Validating transaction before signing...")
+        Logger.logDebug("Validating transaction before signing...", category: .blockchain)
         
         // Validate transaction has required operations
         guard !transaction.operations.isEmpty else {
-            print("WalletService: ERROR: Transaction has no operations")
+            Logger.logError("Transaction has no operations", category: .blockchain)
             throw AppError.wallet(.signingFailed("Transaction signing failed"))
         }
-        print("WalletService: Transaction has \(transaction.operations.count) operation(s)")
+        Logger.logDebug("Transaction has \(transaction.operations.count) operation(s)", category: .blockchain)
         
         // Note: Time bounds and fee validation are already done in buildClaimTransaction
         // We just validate basic transaction state here
@@ -102,17 +103,17 @@ class WalletService {
         let minFeePerOperation: Int64 = 100
         let requiredMinFee = minFeePerOperation * Int64(transaction.operations.count)
         if transaction.fee < requiredMinFee {
-            print("WalletService: ERROR: Transaction fee (\(transaction.fee)) is below minimum (\(requiredMinFee))")
+            Logger.logError("Transaction fee (\(transaction.fee)) is below minimum (\(requiredMinFee))", category: .blockchain)
             throw AppError.wallet(.signingFailed("Transaction signing failed"))
         }
-        print("WalletService: Transaction fee validated: \(transaction.fee) stroops (minimum: \(requiredMinFee))")
+        Logger.logDebug("Transaction fee validated: \(transaction.fee) stroops (minimum: \(requiredMinFee))", category: .blockchain)
         
         // Validate source account matches wallet (if we can access it)
         // Note: Transaction.sourceAccount is a protocol, so we can't directly compare
         // The transaction was built with the correct source account, so we trust it
-        print("WalletService: Source account validation skipped (transaction built with correct account)")
+        Logger.logDebug("Source account validation skipped (transaction built with correct account)", category: .blockchain)
         
-        print("WalletService: Transaction validation passed, signing...")
+        Logger.logDebug("Transaction validation passed, signing...", category: .blockchain)
         
         // Determine network
         let network: Network
@@ -126,7 +127,7 @@ class WalletService {
         // Sign the transaction (modifies the transaction object in place)
         // Matching test script: transaction.sign(keyPair: keyPair, network: .testnet)
         try transaction.sign(keyPair: keyPair, network: network)
-        print("WalletService: Transaction signed successfully")
+        Logger.logDebug("Transaction signed successfully", category: .blockchain)
     }
     
     /// Logout - clear stored wallet

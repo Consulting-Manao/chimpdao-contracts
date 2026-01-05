@@ -25,7 +25,7 @@ SOFTWARE.
 import Foundation
 
 /// Stores the command APDU
-class APDUCommand {
+final class APDUCommand {
     var command: Data
     var cla: UInt8
     var ins: UInt8
@@ -34,10 +34,10 @@ class APDUCommand {
     
     /// Initializes the class with the APDU input
     /// - Parameter command: Command APDU
-    init(command: Data)
-    {
-        if(command.count < 4) {
-            fatalError("APDU length must not be less than 4")
+    /// - Throws: AppError if command is invalid
+    init(command: Data) throws {
+        guard command.count >= 4 else {
+            throw AppError.nfc(.readWriteFailed("APDU length must not be less than 4 bytes"))
         }
         self.command = command
         self.cla = command[0]

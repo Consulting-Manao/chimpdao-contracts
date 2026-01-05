@@ -7,7 +7,7 @@ import Foundation
 import CryptoKit
 import stellarsdk
 
-class CryptoUtils {
+final class CryptoUtils {
     /// Create SEP-53 compliant auth message
     /// - Parameters:
     ///   - contractId: Contract ID (hex string, 32 bytes)
@@ -32,25 +32,16 @@ class CryptoUtils {
         
         // Contract ID (32 bytes)
         // Stellar contract IDs are base32 encoded addresses (56 chars starting with 'C')
-        // Decode from base32 to get the 32-byte contract ID
+        // For SEP-53, we need the raw 32-byte contract ID
         // Format: version (1 byte) + contract ID (32 bytes) + checksum (2 bytes) = 35 bytes
         let contractIdData: Data
         if contractId.hasPrefix("C") && contractId.count == 56 {
-            // This is a Stellar contract address - decode from base32
+            // Stellar contract address - decode from base32 to get 32-byte contract ID
             contractIdData = try decodeStellarContractId(contractId)
-            print("CryptoUtils: Decoded contract ID from address: \(contractIdData.map { String(format: "%02x", $0) }.joined())")
-        } else if contractId.count == 64 {
-            // This might be a hex string (64 hex chars = 32 bytes)
-            guard let hexData = Data(hexString: contractId), hexData.count == 32 else {
-                throw AppError.crypto(.invalidKey("Invalid contract ID format"))
-            }
+        } else if contractId.count == 64, let hexData = Data(hexString: contractId), hexData.count == 32 {
+            // Hex string format (64 hex chars = 32 bytes)
             contractIdData = hexData
-            print("CryptoUtils: Using hex contract ID: \(contractIdData.map { String(format: "%02x", $0) }.joined())")
         } else {
-            throw AppError.crypto(.invalidKey("Invalid contract ID format"))
-        }
-        guard contractIdData.count == 32 else {
-            print("CryptoUtils: ERROR: Contract ID data length is \(contractIdData.count), expected 32")
             throw AppError.crypto(.invalidKey("Invalid contract ID format"))
         }
         parts.append(contractIdData)
@@ -157,53 +148,37 @@ class CryptoUtils {
     
     /// Decode Stellar contract ID from base32 address format
     /// Contract addresses are 56 characters starting with 'C'
-    /// Returns the 32-byte contract ID
+    /// Returns the 32-byte contract ID for SEP-53 message format
+    /// Format: version (1 byte) + contract ID (32 bytes) + checksum (2 bytes) = 35 bytes
+    /// Note: This is needed because SEP-53 requires the raw 32-byte contract ID, not the address format
     private static func decodeStellarContractId(_ contractAddress: String) throws -> Data {
-        // Stellar contract IDs use base32 encoding with custom alphabet
-        // The format is: version byte (1) + contract ID (32 bytes) + checksum (2 bytes) = 35 bytes
-        // Base32 encoded: 35 * 8 / 5 = 56 characters
-        
-        // Use stellarsdk to decode if available, otherwise manual base32 decode
-        // For now, we'll use a simple approach: the SDK should handle this
-        // But we need the raw 32 bytes from the contract address
-        
-        // Try using stellarsdk's Address or Contract to decode
-        // Actually, we can use the contract ID directly from the SDK
-        // But for SEP-53, we need the raw 32-byte contract ID
-        
-        // Manual base32 decode (Stellar uses custom base32)
-        let base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        // Stellar uses RFC 4648 base32 alphabet
+        let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        var decoded = Data()
+        var buffer: UInt64 = 0
         var bits = 0
-        var value: UInt64 = 0  // Use UInt64 to avoid overflow
-        var result = Data()
         
         for char in contractAddress.uppercased() {
-            guard let index = base32Alphabet.firstIndex(of: char) else {
+            guard let pos = alphabet.firstIndex(of: char) else {
                 throw AppError.crypto(.invalidKey("Invalid contract ID format"))
             }
-            let charValue = UInt64(base32Alphabet.distance(from: base32Alphabet.startIndex, to: index))
+            let value = alphabet.distance(from: alphabet.startIndex, to: pos)
             
-            value = (value << 5) | charValue
+            buffer = (buffer << 5) | UInt64(value)
             bits += 5
             
-            if bits >= 8 {
-                let byte = UInt8((value >> (bits - 8)) & 0xFF)
-                result.append(byte)
-                value = value & ((1 << (bits - 8)) - 1)  // Keep remaining bits
+            while bits >= 8 {
+                decoded.append(UInt8((buffer >> (bits - 8)) & 0xFF))
                 bits -= 8
             }
         }
         
-        // Stellar contract address: version (1 byte) + contract ID (32 bytes) + checksum (2 bytes) = 35 bytes
-        // After base32 decode: 35 bytes
-        // We need bytes 1-32 (skip version byte, take 32 bytes, skip checksum)
-        guard result.count >= 35 else {
+        // Extract 32-byte contract ID (skip version byte, take next 32 bytes, skip checksum)
+        guard decoded.count >= 35 else {
             throw AppError.crypto(.invalidKey("Invalid contract ID format"))
         }
         
-        // Extract the 32-byte contract ID (skip first byte, take next 32 bytes)
-        let contractIdBytes = result.subdata(in: 1..<33)
-        return contractIdBytes
+        return decoded.subdata(in: 1..<33)
     }
 }
 

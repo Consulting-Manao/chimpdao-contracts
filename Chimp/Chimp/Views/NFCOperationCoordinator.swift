@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import CoreNFC
 import stellarsdk
+import OSLog
 
 /// Coordinator to bridge SwiftUI to existing UIKit NFC functionality
 class NFCOperationCoordinator: NSObject {
@@ -13,8 +14,6 @@ class NFCOperationCoordinator: NSObject {
     private let ipfsService = IPFSService()
     
     // MARK: - Constants
-    private let NDEF_AID: [UInt8] = [0xD2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01]
-    private let NDEF_FILE_ID: [UInt8] = [0xE1, 0x04]
     
     // Callbacks
     var onLoadNFTSuccess: ((String, UInt64) -> Void)?
@@ -30,7 +29,9 @@ class NFCOperationCoordinator: NSObject {
     
     // Helper to get ViewController for presenting
     private func getRootViewController() -> UIViewController? {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+        guard let windowScene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first,
               let window = windowScene.windows.first,
               let rootViewController = window.rootViewController else {
             return nil
@@ -326,11 +327,11 @@ class NFCOperationCoordinator: NSObject {
 // MARK: - NFCTagReaderSessionDelegate
 extension NFCOperationCoordinator: NFCTagReaderSessionDelegate {
     func tagReaderSessionDidBecomeActive(_ session: NFCTagReaderSession) {
-        print("NFCOperationCoordinator: Session became active")
+        Logger.logDebug("Session became active", category: .nfc)
     }
     
     func tagReaderSession(_ session: NFCTagReaderSession, didInvalidateWithError error: Error) {
-        print("NFCOperationCoordinator: Session invalidated with error: \(error)")
+        Logger.logDebug("Session invalidated with error: \(error)", category: .nfc)
         
         if let nfcError = error as? NFCReaderError {
             switch nfcError.code {
@@ -370,7 +371,7 @@ extension NFCOperationCoordinator: NFCTagReaderSessionDelegate {
     }
     
     func tagReaderSession(_ session: NFCTagReaderSession, didDetect tags: [NFCTag]) {
-        print("NFCOperationCoordinator: Detected \(tags.count) tags")
+        Logger.logDebug("Detected \(tags.count) tags", category: .nfc)
         
         guard let firstTag = tags.first else {
             session.invalidate(errorMessage: "No NFC tag found")
@@ -409,19 +410,19 @@ extension NFCOperationCoordinator: NFCTagReaderSessionDelegate {
         
         session.connect(to: tag) { error in
             if let error = error {
-                print("NFCOperationCoordinator: Failed to connect to tag: \(error)")
+                Logger.logError("Failed to connect to tag: \(error)", category: .nfc)
                 session.invalidate(errorMessage: "Failed to connect to NFC tag")
             }
         }
         
         do {
             // Read NDEF to get contract ID
-            let ndefUrl = try await readNDEFUrl(tag: iso7816Tag, session: session)
+            let ndefUrl = try await NDEFReader.readNDEFUrl(tag: iso7816Tag, session: session)
             guard let ndefUrl = ndefUrl else {
                 throw AppError.nfc(.readWriteFailed("No NDEF URL found"))
             }
             
-            guard let contractId = parseContractIdFromNDEFUrl(ndefUrl) else {
+            guard let contractId = NDEFReader.parseContractIdFromNDEFUrl(ndefUrl) else {
                 throw AppError.validation("Invalid contract ID in NFC tag")
             }
             
@@ -476,7 +477,7 @@ extension NFCOperationCoordinator: NFCTagReaderSessionDelegate {
         
         session.connect(to: tag) { error in
             if let error = error {
-                print("NFCOperationCoordinator: Failed to connect to tag: \(error)")
+                Logger.logError("Failed to connect to tag: \(error)", category: .nfc)
                 session.invalidate(errorMessage: "Failed to connect to NFC tag")
             }
         }
@@ -486,13 +487,47 @@ extension NFCOperationCoordinator: NFCTagReaderSessionDelegate {
             guard let self = self else { return }
             
             if success, let response = response, response.count >= 8 {
+                guard response.count >= 8 else {
+                    DispatchQueue.main.async {
+                        let errorMsg = "Invalid response length: expected at least 8 bytes, got \(response.count)"
+                        session.invalidate(errorMessage: errorMsg)
+                        self.signMessageCompletion?(false, nil, nil, errorMsg)
+                        self.onSignError?(errorMsg)
+                        self.signMessageCompletion = nil
+                        self.signMessageData = nil
+                    }
+                    return
+                }
+                
                 let globalCounterData = response.subdata(in: 0..<4)
                 let keyCounterData = response.subdata(in: 4..<8)
                 let derSignature = response.subdata(in: 8..<response.count)
                 
-                // Convert 4-byte Data to UInt32 (big-endian)
-                let globalCounter = globalCounterData.withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
-                let keyCounter = keyCounterData.withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+                // Convert 4-byte Data to UInt32 (big-endian) with bounds checking
+                guard globalCounterData.count == 4, keyCounterData.count == 4 else {
+                    DispatchQueue.main.async {
+                        let errorMsg = "Invalid counter data length"
+                        session.invalidate(errorMessage: errorMsg)
+                        self.signMessageCompletion?(false, nil, nil, errorMsg)
+                        self.onSignError?(errorMsg)
+                        self.signMessageCompletion = nil
+                        self.signMessageData = nil
+                    }
+                    return
+                }
+                
+                let globalCounter = globalCounterData.withUnsafeBytes { buffer -> UInt32 in
+                    guard buffer.count >= MemoryLayout<UInt32>.size else {
+                        return 0
+                    }
+                    return buffer.load(as: UInt32.self).bigEndian
+                }
+                let keyCounter = keyCounterData.withUnsafeBytes { buffer -> UInt32 in
+                    guard buffer.count >= MemoryLayout<UInt32>.size else {
+                        return 0
+                    }
+                    return buffer.load(as: UInt32.self).bigEndian
+                }
                 let derSignatureHex = derSignature.hexEncodedString()
                 
                 DispatchQueue.main.async {
@@ -517,126 +552,8 @@ extension NFCOperationCoordinator: NFCTagReaderSessionDelegate {
         }
     }
     
-    // MARK: - Helper Methods (copied from ViewController)
-    private func readNDEFUrl(tag: NFCISO7816Tag, session: NFCTagReaderSession) async throws -> String? {
-        // Select NDEF Application
-        guard let selectAppAPDU = NFCISO7816APDU(data: Data([0x00, 0xA4, 0x04, 0x00] + [UInt8(NDEF_AID.count)] + NDEF_AID + [0x00])) else {
-            return nil
-        }
-        let (_, selectAppSW1, selectAppSW2) = try await tag.sendCommand(apdu: selectAppAPDU)
-        guard selectAppSW1 == 0x90 && selectAppSW2 == 0x00 else { return nil }
-        
-        // Select NDEF File
-        guard let selectFileAPDU = NFCISO7816APDU(data: Data([0x00, 0xA4, 0x00, 0x0C, 0x02] + NDEF_FILE_ID)) else {
-            return nil
-        }
-        let (_, selectFileSW1, selectFileSW2) = try await tag.sendCommand(apdu: selectFileAPDU)
-        guard selectFileSW1 == 0x90 && selectFileSW2 == 0x00 else { return nil }
-        
-        // Read NLEN
-        guard let readNlenAPDU = NFCISO7816APDU(data: Data([0x00, 0xB0, 0x00, 0x00, 0x02])) else {
-            return nil
-        }
-        let (readNlenData, readNlenSW1, readNlenSW2) = try await tag.sendCommand(apdu: readNlenAPDU)
-        guard readNlenSW1 == 0x90 && readNlenSW2 == 0x00 else { return nil }
-        
-        let nlen = UInt16(readNlenData[0]) << 8 | UInt16(readNlenData[1])
-        if nlen == 0 { return nil }
-        
-        // Read NDEF data
-        var ndefData = Data()
-        var currentOffset: UInt16 = 2
-        let maxReadLength: UInt8 = 255 - 2
-        
-        while ndefData.count < Int(nlen) {
-            let bytesToRead = min(Int(nlen) - ndefData.count, Int(maxReadLength))
-            guard let readBinaryAPDU = NFCISO7816APDU(data: Data([
-                0x00, 0xB0,
-                UInt8((currentOffset >> 8) & 0xFF),
-                UInt8(currentOffset & 0xFF),
-                UInt8(bytesToRead)
-            ])) else { return nil }
-            
-            let (readData, readSW1, readSW2) = try await tag.sendCommand(apdu: readBinaryAPDU)
-            guard readSW1 == 0x90 && readSW2 == 0x00 else { return nil }
-            
-            ndefData.append(readData)
-            currentOffset += UInt16(bytesToRead)
-        }
-        
-        return parseNDEFUrl(from: ndefData)
-    }
-    
-    private func parseNDEFUrl(from data: Data) -> String? {
-        guard data.count >= 7 else { return nil }
-        
-        let _ = data[0] // flags
-        let typeLength = data[1]
-        let payloadLength = data[2]
-        let typeStart = 3
-        let payloadStart = typeStart + Int(typeLength)
-        
-        guard data.count >= payloadStart + Int(payloadLength) else { return nil }
-        
-        let typeData = data.subdata(in: typeStart..<payloadStart)
-        let payloadData = data.subdata(in: payloadStart..<payloadStart + Int(payloadLength))
-        
-        guard typeData.count == 1 && typeData[0] == 0x55 else { return nil }
-        guard payloadData.count >= 1 else { return nil }
-        
-        let uriIdentifierCode = payloadData[0]
-        let uriData = payloadData.subdata(in: 1..<payloadData.count)
-        
-        let uriPrefixes = [
-            "", "http://www.", "https://www.", "http://", "https://",
-            "tel:", "mailto:", "ftp://anonymous:anonymous@", "ftp://ftp.",
-            "ftps://", "sftp://", "smb://", "nfs://", "ftp://", "dav://",
-            "news:", "telnet://", "imap:", "rtsp://", "urn:", "pop:",
-            "sip:", "sips:", "tftp:", "btspp://", "btl2cap://", "btgoep://",
-            "tcpobex://", "irdaobex://", "file://", "urn:epc:id:", "urn:epc:tag:",
-            "urn:epc:pat:", "urn:epc:raw:", "urn:epc:", "urn:nfc:"
-        ]
-        
-        var prefix = ""
-        if Int(uriIdentifierCode) < uriPrefixes.count {
-            prefix = uriPrefixes[Int(uriIdentifierCode)]
-        }
-        
-        guard let uriString = String(data: uriData, encoding: .utf8) else { return nil }
-        return prefix + uriString
-    }
-    
-    private func parseContractIdFromNDEFUrl(_ url: String) -> String? {
-        var urlPath = url
-        if urlPath.hasPrefix("http://") {
-            urlPath = String(urlPath.dropFirst(7))
-        } else if urlPath.hasPrefix("https://") {
-            urlPath = String(urlPath.dropFirst(8))
-        }
-        
-        let components = urlPath.split(separator: "/", omittingEmptySubsequences: true)
-        guard components.count >= 2 else { return nil }
-        
-        let contractId = String(components[1])
-        guard contractId.count == 56 && contractId.hasPrefix("C") else { return nil }
-        return contractId
-    }
-    
     private func readChipPublicKey(tag: NFCISO7816Tag, session: NFCTagReaderSession, keyIndex: UInt8) async throws -> String {
-        return try await withCheckedThrowingContinuation { continuation in
-            let commandHandler = BlockchainCommandHandler(tag_iso7816: tag, reader_session: session)
-            commandHandler.ActionGetKey(key_index: keyIndex) { success, response, error, session in
-                if success, let response = response, response.count >= 73 {
-                    let publicKeyData = response.subdata(in: 9..<73)
-                    var fullPublicKey = Data([0x04])
-                    fullPublicKey.append(publicKeyData)
-                    let publicKeyHex = fullPublicKey.map { String(format: "%02x", $0) }.joined()
-                    continuation.resume(returning: publicKeyHex)
-                } else {
-                    continuation.resume(throwing: AppError.nfc(.chipError(error ?? "Failed to read chip public key")))
-                }
-            }
-        }
+        return try await ChipOperations.readChipPublicKey(tag: tag, session: session, keyIndex: keyIndex)
     }
     
     private func getTokenIdForChip(contractId: String, publicKey: Data) async throws -> UInt64 {

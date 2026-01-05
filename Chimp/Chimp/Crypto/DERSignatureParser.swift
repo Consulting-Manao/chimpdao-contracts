@@ -11,7 +11,7 @@ struct SignatureComponents {
 }
 
 
-class DERSignatureParser {
+final class DERSignatureParser {
     /// Parse DER-encoded signature to extract r and s components
     /// - Parameter derSignature: DER-encoded signature as Data
     /// - Returns: SignatureComponents with r and s (32 bytes each)

@@ -25,7 +25,7 @@ SOFTWARE.
 import Foundation
 
 /// Stores the response APDU
-class APDUResponse {
+final class APDUResponse {
     public static let SW_SUCCESS: UInt16 = 0x9000;
     public static let SW_SUCCESS_WITH_RESPONSE: UInt8 = 0x61;
     public static let SW_KEY_WITH_IDX_NOT_AVAILABLE: UInt16 = 0x6A88;

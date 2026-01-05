@@ -11,7 +11,7 @@ enum AppNetwork: String {
     case mainnet = "mainnet"
 }
 
-class AppConfig {
+final class AppConfig {
     static let shared = AppConfig()
     
     private let networkKey = "app_network" // UserDefaults key for runtime override

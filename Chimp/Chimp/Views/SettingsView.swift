@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import OSLog
 
 struct SettingsView: View {
     @ObservedObject var walletState: WalletState
@@ -181,7 +182,7 @@ struct SettingsView: View {
             walletState.checkWalletState()
             } catch {
             // Error handling could be improved with an alert
-            print("Logout error: \(error.localizedDescription)")
+            Logger.logError("Logout error: \(error.localizedDescription)", category: .ui)
         }
     }
 }

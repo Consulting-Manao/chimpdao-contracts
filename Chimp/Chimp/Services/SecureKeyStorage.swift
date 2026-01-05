@@ -6,7 +6,7 @@
 import Foundation
 import Security
 
-class SecureKeyStorage {
+final class SecureKeyStorage {
     private let keychainService = "com.stellarmerchshop.chimp.privatekey"
     private let keychainAccount = "wallet_key"
     
@@ -15,7 +15,7 @@ class SecureKeyStorage {
     /// - Throws: AppError if storage fails
     func storePrivateKey(_ secretKey: String) throws {
         guard let privateKeyData = secretKey.data(using: .utf8) else {
-            throw AppError.secureStorage(.retrievalFailed("Invalid key data retrieved from secure storage"))
+            throw AppError.secureStorage(.storageFailed("Invalid key data format"))
         }
         
         // Delete existing key if present
@@ -37,7 +37,8 @@ class SecureKeyStorage {
         
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
-            throw AppError.secureStorage(.storageFailed("Keychain access failed"))
+            let errorMessage = keychainErrorMessage(for: status)
+            throw AppError.secureStorage(.storageFailed(errorMessage))
         }
     }
     
@@ -62,7 +63,8 @@ class SecureKeyStorage {
             if status == errSecItemNotFound {
                 return nil
             }
-            throw AppError.secureStorage(.storageFailed("Keychain access failed"))
+            let errorMessage = keychainErrorMessage(for: status)
+            throw AppError.secureStorage(.retrievalFailed(errorMessage))
         }
         
         return secretKey
@@ -79,7 +81,8 @@ class SecureKeyStorage {
         
         let status = SecItemDelete(deleteQuery as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw AppError.secureStorage(.storageFailed("Keychain access failed"))
+            let errorMessage = keychainErrorMessage(for: status)
+            throw AppError.secureStorage(.deletionFailed(errorMessage))
         }
     }
     
@@ -90,6 +93,38 @@ class SecureKeyStorage {
             return try loadPrivateKey() != nil
         } catch {
             return false
+        }
+    }
+    
+    /// Get user-friendly error message for keychain status code
+    /// - Parameter status: Keychain status code
+    /// - Returns: Human-readable error message
+    private func keychainErrorMessage(for status: OSStatus) -> String {
+        switch status {
+        case errSecSuccess:
+            return "Operation succeeded"
+        case errSecItemNotFound:
+            return "Item not found in keychain"
+        case errSecDuplicateItem:
+            return "Item already exists in keychain"
+        case errSecAuthFailed:
+            return "Authentication failed - device may be locked"
+        case errSecInteractionNotAllowed:
+            return "Interaction not allowed - device may be locked"
+        case errSecNotAvailable:
+            return "Keychain services are not available"
+        case errSecReadOnly:
+            return "Keychain is read-only"
+        case errSecParam:
+            return "Invalid parameter"
+        case errSecAllocate:
+            return "Memory allocation failed"
+        case errSecDecode:
+            return "Unable to decode the provided data"
+        case errSecUnimplemented:
+            return "Function or operation not implemented"
+        default:
+            return "Keychain error: \(status)"
         }
     }
 }

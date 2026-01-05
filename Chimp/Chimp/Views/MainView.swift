@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 
+@MainActor
 class WalletState: ObservableObject {
     @Published var hasWallet: Bool = false
     private let walletService = WalletService()

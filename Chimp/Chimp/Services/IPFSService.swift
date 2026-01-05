@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 
 /// NFT metadata structure following SEP-50 standard
 struct NFTMetadata: Codable {
@@ -33,7 +34,7 @@ struct NFTAttribute: Codable {
     }
 }
 
-class IPFSService {
+final class IPFSService {
     private let session: URLSession
 
     init() {
@@ -48,7 +49,7 @@ class IPFSService {
     /// - Returns: NFT metadata
     /// - Throws: AppError if download or parsing fails
     func downloadNFTMetadata(from ipfsUrl: String) async throws -> NFTMetadata {
-        print("IPFSService: Downloading NFT metadata from: \(ipfsUrl)")
+        Logger.logDebug("Downloading NFT metadata from: \(ipfsUrl)", category: .network)
 
         guard let url = URL(string: ipfsUrl) else {
             throw AppError.ipfs(.invalidHash)
@@ -58,7 +59,7 @@ class IPFSService {
 
         // Check HTTP response
         if let httpResponse = response as? HTTPURLResponse {
-            print("IPFSService: HTTP status: \(httpResponse.statusCode)")
+            Logger.logDebug("HTTP status: \(httpResponse.statusCode)", category: .network)
             guard (200...299).contains(httpResponse.statusCode) else {
                 throw AppError.ipfs(.downloadFailed("HTTP \(httpResponse.statusCode)"))
             }
@@ -67,8 +68,8 @@ class IPFSService {
         // Debug: Check if response looks like HTML (error page)
         if let responseString = String(data: data, encoding: .utf8) {
             if responseString.hasPrefix("<!DOCTYPE") || responseString.hasPrefix("<html") || responseString.contains("<html") {
-                print("IPFSService: ERROR - Received HTML instead of JSON. This might be an IPFS gateway error page.")
-                print("IPFSService: Response preview: \(responseString.prefix(200))...")
+                Logger.logError("Received HTML instead of JSON. This might be an IPFS gateway error page.", category: .network)
+                Logger.logDebug("Response preview: \(responseString.prefix(200))...", category: .network)
                 throw AppError.ipfs(.parseFailed("IPFS gateway returned HTML error page instead of JSON"))
             }
         }
@@ -77,16 +78,16 @@ class IPFSService {
         let decoder = JSONDecoder()
         do {
             let metadata = try decoder.decode(NFTMetadata.self, from: data)
-            print("IPFSService: Successfully parsed NFT metadata")
-            print("IPFSService: Name: \(metadata.name ?? "N/A")")
-            print("IPFSService: Description: \(metadata.description ?? "N/A")")
-            print("IPFSService: Image: \(metadata.image ?? "N/A")")
+            Logger.logDebug("Successfully parsed NFT metadata", category: .network)
+            Logger.logDebug("Name: \(metadata.name ?? "N/A")", category: .network)
+            Logger.logDebug("Description: \(metadata.description ?? "N/A")", category: .network)
+            Logger.logDebug("Image: \(metadata.image ?? "N/A")", category: .network)
             return metadata
         } catch {
-            print("IPFSService: Failed to parse JSON: \(error)")
+            Logger.logError("Failed to parse JSON: \(error)", category: .network)
             // Debug: Show first 500 chars of response
             if let responseString = String(data: data, encoding: .utf8) {
-                print("IPFSService: Raw response (first 500 chars): \(responseString.prefix(500))")
+                Logger.logDebug("Raw response (first 500 chars): \(responseString.prefix(500))", category: .network)
             }
             throw AppError.ipfs(.parseFailed(error.localizedDescription))
         }
@@ -97,7 +98,7 @@ class IPFSService {
     /// - Returns: Image data
     /// - Throws: AppError if download fails
     func downloadImageData(from ipfsUrl: String) async throws -> Data {
-        print("IPFSService: Downloading image from: \(ipfsUrl)")
+        Logger.logDebug("Downloading image from: \(ipfsUrl)", category: .network)
 
         guard let url = URL(string: ipfsUrl) else {
             throw AppError.ipfs(.invalidHash)
@@ -112,7 +113,7 @@ class IPFSService {
             }
         }
 
-        print("IPFSService: Successfully downloaded image data (\(data.count) bytes)")
+        Logger.logDebug("Successfully downloaded image data (\(data.count) bytes)", category: .network)
         return data
     }
 
@@ -122,7 +123,7 @@ class IPFSService {
     func convertToHTTPGateway(_ ipfsUrl: String) -> String {
         // If it's already an HTTP/HTTPS URL, return as-is
         if ipfsUrl.hasPrefix("http://") || ipfsUrl.hasPrefix("https://") {
-            print("IPFSService: URL is already HTTP: \(ipfsUrl)")
+            Logger.logDebug("URL is already HTTP: \(ipfsUrl)", category: .network)
             return ipfsUrl
         }
 
@@ -138,7 +139,7 @@ class IPFSService {
         }
 
         // For anything else, try to use it as-is but log a warning
-        print("IPFSService: WARNING - Unrecognized URI format: \(ipfsUrl)")
+        Logger.logWarning("Unrecognized URI format: \(ipfsUrl)", category: .network)
         return ipfsUrl
     }
 }

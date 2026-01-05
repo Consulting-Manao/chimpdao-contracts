@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>ADMIN_MODE</key>
+	<string>$(ADMIN_MODE)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
@@ -18,14 +20,18 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NFCReaderUsageDescription</key>
-	<string>Allow to scan tags</string>
-	<key>com.apple.developer.nfc.readersession.formats</key>
-	<array>
-		<string>TAG</string>
-	</array>
+	<string>This app uses NFC to read and write data to blockchain-enabled NFC chips for NFT claiming, transferring, and minting operations.</string>
+	<key>STELLAR_CONTRACT_ID_MAINNET</key>
+	<string>$(STELLAR_CONTRACT_ID_MAINNET)</string>
+	<key>STELLAR_CONTRACT_ID_TESTNET</key>
+	<string>$(STELLAR_CONTRACT_ID_TESTNET)</string>
+	<key>STELLAR_NETWORK</key>
+	<string>$(STELLAR_NETWORK)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -41,30 +47,22 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+	</array>
+	<key>com.apple.developer.nfc.readersession.formats</key>
+	<array>
+		<string>TAG</string>
 	</array>
 	<key>com.apple.developer.nfc.readersession.iso7816.select-identifiers</key>
 	<array>
 		<string>D2760000041502000100000001</string>
 		<string>D2760000850101</string>
 	</array>
-	<key>STELLAR_NETWORK</key>
-	<string>$(STELLAR_NETWORK)</string>
-	<key>STELLAR_CONTRACT_ID_TESTNET</key>
-	<string>$(STELLAR_CONTRACT_ID_TESTNET)</string>
-	<key>STELLAR_CONTRACT_ID_MAINNET</key>
-	<string>$(STELLAR_CONTRACT_ID_MAINNET)</string>
-	<key>ADMIN_MODE</key>
-	<string>$(ADMIN_MODE)</string>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 </dict>
 </plist>

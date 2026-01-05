@@ -407,6 +407,9 @@ enum SecureKeyStorageError: LocalizedError {
     /// Failed to retrieve data from secure storage
     case retrievalFailed(String)
 
+    /// Failed to delete data from secure storage
+    case deletionFailed(String)
+
     /// Data not found in secure storage
     case dataNotFound
 
@@ -422,6 +425,8 @@ enum SecureKeyStorageError: LocalizedError {
             return "Failed to securely store data: \(message)"
         case .retrievalFailed(let message):
             return "Failed to retrieve data from secure storage: \(message)"
+        case .deletionFailed(let message):
+            return "Failed to delete data from secure storage: \(message)"
         case .dataNotFound:
             return "Required data not found in secure storage."
         case .unavailable:
