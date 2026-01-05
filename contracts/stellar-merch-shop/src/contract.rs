@@ -1,4 +1,4 @@
-//! NFT - NFT binding
+//! NFC - NFT binding
 
 use soroban_sdk::{contractimpl, contracttype, panic_with_error, Address, Bytes, BytesN, Env, String};
 use soroban_sdk::xdr::ToXdr;
@@ -230,7 +230,7 @@ impl NFCtoNFTContract for StellarMerchShop {
 
 /// Convert an u64 to its decimal string representation as Bytes
 /// Implementation inspired by OpenZeppelin's token_id_to_string
-fn u64_to_decimal_bytes(e: &Env, mut value: u64) -> Bytes {
+pub(crate) fn u64_to_decimal_bytes(e: &Env, mut value: u64) -> Bytes {
     if value == 0 {
         return Bytes::from_slice(e, b"0");
     }

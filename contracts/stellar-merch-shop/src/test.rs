@@ -1,6 +1,6 @@
 extern crate std;
 
-use soroban_sdk::{crypto::Hash, testutils::Address as _, Address, Bytes, BytesN, Env, String};
+use soroban_sdk::{testutils::Address as _, Address, Bytes, BytesN, Env, String};
 use soroban_sdk::xdr::ToXdr;
 
 // Test constants for valid signature and public key
@@ -78,18 +78,29 @@ fn normalize_s(s: &[u8; 32]) -> [u8; 32] {
 }
 
 // Helper to create test signature with proper normalization and find recovery ID
-fn create_test_signature_and_recovery_id(e: &Env, message_hash: &Hash<32>) -> (BytesN<64>, u32) {
+fn create_test_signature_and_recovery_id(
+    e: &Env,
+    message: &Bytes,
+    nonce: u32,
+    sig_r: &[u8; 32],
+    sig_s: &[u8; 32],
+) -> (BytesN<64>, u32) {
     let public_key = BytesN::from_array(e, &TEST_PUBLIC_KEY);
 
-    let s_normalized = normalize_s(&TEST_SIGNATURE_S);
+    let mut builder = Bytes::new(e);
+    builder.append(message);
+    builder.append(&nonce.to_xdr(e));
+    let message_hash = e.crypto().sha256(&builder);
+
+    let s_normalized = normalize_s(sig_s);
     let mut sig_bytes = [0u8; 64];
-    sig_bytes[..32].copy_from_slice(&TEST_SIGNATURE_R);
+    sig_bytes[..32].copy_from_slice(sig_r);
     sig_bytes[32..].copy_from_slice(&s_normalized);
     let signature = BytesN::from_array(e, &sig_bytes);
 
     // Find correct recovery ID
     for rid in 0u32..=3u32 {
-        let recovered = e.crypto().secp256k1_recover(message_hash, &signature, rid);
+        let recovered = e.crypto().secp256k1_recover(&message_hash, &signature, rid);
         if recovered == public_key {
             return (signature, rid);
         }
@@ -98,31 +109,6 @@ fn create_test_signature_and_recovery_id(e: &Env, message_hash: &Hash<32>) -> (B
     panic!("No valid recovery ID found for test signature");
 }
 
-// Helper to create test signature for nonce 2 with proper normalization and find recovery ID
-fn create_test_signature_and_recovery_id_nonce_2(e: &Env, message_hash: &Hash<32>) -> (BytesN<64>, u32) {
-    let public_key = BytesN::from_array(e, &TEST_PUBLIC_KEY);
-
-    let s_normalized = normalize_s(&TEST_SIGNATURE_S_NONCE_2);
-    let mut sig_bytes = [0u8; 64];
-    sig_bytes[..32].copy_from_slice(&TEST_SIGNATURE_R_NONCE_2);
-    sig_bytes[32..].copy_from_slice(&s_normalized);
-    let signature = BytesN::from_array(e, &sig_bytes);
-
-    // Find correct recovery ID
-    for rid in 0u32..=3u32 {
-        let recovered = e.crypto().secp256k1_recover(message_hash, &signature, rid);
-        if recovered == public_key {
-            return (signature, rid);
-        }
-    }
-
-    panic!("No valid recovery ID found for test signature nonce 2");
-}
-
-// Helper to create test public key
-fn create_test_public_key(e: &Env) -> BytesN<65> {
-    BytesN::from_array(e, &TEST_PUBLIC_KEY)
-}
 use crate::{StellarMerchShop, StellarMerchShopClient};
 
 fn create_client<'a>(e: &Env, admin: &Address) -> StellarMerchShopClient<'a> {
@@ -132,8 +118,8 @@ fn create_client<'a>(e: &Env, admin: &Address) -> StellarMerchShopClient<'a> {
             admin,
             &String::from_str(e, "TestNFT"),
             &String::from_str(e, "TNFT"),
-            &String::from_str(e, "https://example.com/token/"),
-            &1000u64, // max_tokens
+            &String::from_str(e, "ipfs://abcd"),
+            &10_000u64, // max_tokens
         ),
     );
     StellarMerchShopClient::new(e, &address)
@@ -168,16 +154,16 @@ fn test_claim() {
     let mint_nonce: u32 = 1;
     let claim_nonce: u32 = 2;
 
-    // Use test constants
-    let public_key = create_test_public_key(&e);
+    let public_key = BytesN::from_array(&e, &TEST_PUBLIC_KEY);
 
     // First mint with valid signature (nonce 1)
-    let mut builder = Bytes::new(&e);
-    builder.append(&message);
-    builder.append(&mint_nonce.to_xdr(&e));
-    let mint_message_hash = e.crypto().sha256(&builder);
-
-    let (mint_signature, mint_recovery_id) = create_test_signature_and_recovery_id(&e, &mint_message_hash);
+    let (mint_signature, mint_recovery_id) = create_test_signature_and_recovery_id(
+        &e,
+        &message,
+        mint_nonce,
+        &TEST_SIGNATURE_R,
+        &TEST_SIGNATURE_S,
+    );
 
     let token_id = client.mint(&message, &mint_signature, &mint_recovery_id, &public_key, &mint_nonce);
     assert_eq!(token_id, 0u64);
@@ -189,12 +175,13 @@ fn test_claim() {
     assert!(owner_result.is_err(), "Token should be unclaimed after mint");
 
     // Now claim the token with nonce 2
-    let mut claim_builder = Bytes::new(&e);
-    claim_builder.append(&message);
-    claim_builder.append(&claim_nonce.to_xdr(&e));
-    let claim_message_hash = e.crypto().sha256(&claim_builder);
-
-    let (claim_signature, claim_recovery_id) = create_test_signature_and_recovery_id_nonce_2(&e, &claim_message_hash);
+    let (claim_signature, claim_recovery_id) = create_test_signature_and_recovery_id(
+        &e,
+        &message,
+        claim_nonce,
+        &TEST_SIGNATURE_R_NONCE_2,
+        &TEST_SIGNATURE_S_NONCE_2,
+    );
 
     // Claim the token
     let claimed_token_id = client.claim(&claimant, &message, &claim_signature, &claim_recovery_id, &public_key, &claim_nonce);
@@ -207,6 +194,9 @@ fn test_claim() {
     // Verify claimant's balance was updated
     let claimant_balance = client.balance(&claimant);
     assert_eq!(claimant_balance, 1u32, "Claimant should have balance of 1 after claiming");
+
+    let token_uri = client.token_uri(&0);
+    assert_eq!(token_uri, String::from_str(&e, "ipfs://abcd/0"));
 }
 
 #[test]
@@ -221,21 +211,47 @@ fn test_nonce_reuse_prevention() {
     let message = Bytes::from_slice(&e, b"test message for minting");
     let nonce: u32 = 1;
 
-    // Use test constants
-    let public_key = create_test_public_key(&e);
+    let public_key = BytesN::from_array(&e, &TEST_PUBLIC_KEY);
 
-    // Build message hash
-    let mut builder = Bytes::new(&e);
-    builder.append(&message);
-    builder.append(&nonce.to_xdr(&e));
-    let message_hash = e.crypto().sha256(&builder);
-
-    let (signature, recovery_id) = create_test_signature_and_recovery_id(&e, &message_hash);
+    let (signature, recovery_id) = create_test_signature_and_recovery_id(
+        &e,
+        &message,
+        nonce,
+        &TEST_SIGNATURE_R,
+        &TEST_SIGNATURE_S,
+    );
 
     // First mint should succeed
     let _token_id = client.mint(&message, &signature, &recovery_id, &public_key, &nonce);
 
     // Second mint with same nonce should panic (nonce reuse prevention)
     client.mint(&message, &signature, &recovery_id, &public_key, &nonce);
+}
+
+#[test]
+fn test_u64_to_decimal_bytes() {
+    let e = Env::default();
+
+    let test_cases: &[(u64, &str)] = &[
+        (0, "0"),
+        (1, "1"),
+        (9, "9"),
+        (10, "10"),
+        (99, "99"),
+        (100, "100"),
+        (999, "999"),
+        (1000, "1000"),
+        (9999, "9999"),
+        (10000, "10000"),
+        (12345, "12345"),
+        (99999, "99999"),
+        (100000, "100000"),
+        (999999, "999999"),
+    ];
+
+    for (value, expected_str) in test_cases.iter() {
+        let result = crate::contract::u64_to_decimal_bytes(&e, *value);
+        assert_eq!(result, Bytes::from_slice(&e, expected_str.as_bytes()));
+    }
 }
 
