@@ -60,18 +60,11 @@ class NFCServer {
 
   async checkChipStatus() {
     const wasPresent = this.nfcManager.isChipPresent();
+    const isPresent = this.nfcManager.verifyConnection() &&
+      this.nfcManager.getReader()?.connection;
 
-    if (
-      this.nfcManager.verifyConnection() &&
-      this.nfcManager.getReader()?.connection
-    ) {
-      if (!wasPresent) {
-        this.broadcastStatus();
-      }
-    } else {
-      if (wasPresent) {
-        this.broadcastStatus();
-      }
+    if (wasPresent !== isPresent) {
+      this.broadcastStatus();
     }
   }
 
@@ -114,11 +107,6 @@ class NFCServer {
   }
 
   async handleGenerateKey(ws) {
-    if (!this.nfcManager.isChipPresent()) {
-      this.sendError(ws, "No chip present");
-      return;
-    }
-
     try {
       await this.nfcManager.waitForCardReady();
 
@@ -144,20 +132,11 @@ class NFCServer {
   }
 
   async handleFetchKey(ws, keyId) {
-    if (!this.nfcManager.isChipPresent()) {
-      this.sendError(ws, "No chip present");
-      return;
-    }
-
-    if (!keyId || keyId < 1 || keyId > 255) {
-      this.sendError(ws, "Invalid key ID (must be 1-255)");
-      return;
-    }
-
     try {
+      const normalizedKeyId = this._normalizeKeyId(keyId);
       await this.nfcManager.waitForCardReady();
 
-      const keyInfo = await this.blockchainOps.fetchKeyById(keyId);
+      const keyInfo = await this.blockchainOps.fetchKeyById(normalizedKeyId);
 
       ws.send(
         JSON.stringify({
@@ -168,38 +147,16 @@ class NFCServer {
       );
     } catch (error) {
       console.error("Error fetching key:", error);
-      if (error.message && error.message.includes("does not exist")) {
-        ws.send(
-          JSON.stringify({
-            type: "key-fetched",
-            success: false,
-            data: { keyId, error: "Key not found" },
-            message: `Key ID ${keyId} does not exist on this chip. Generate a key first or try a different key ID.`,
-          }),
-        );
-      } else {
-        this.sendError(ws, `Failed to fetch key: ${error.message}`);
-      }
+      this.sendError(ws, `Failed to fetch key: ${error.message}`);
     }
   }
 
   async readPublicKey(ws, keyId = 1) {
-    if (!this.nfcManager.isChipPresent()) {
-      this.sendError(ws, "No chip present");
-      return;
-    }
-
-    // Validate keyId if provided
-    if (keyId !== undefined && (keyId < 1 || keyId > 255)) {
-      this.sendError(ws, "Invalid key ID (must be 1-255)");
-      return;
-    }
-
     try {
+      const normalizedKeyId = this._normalizeKeyId(keyId);
       await this.nfcManager.waitForCardReady();
 
-      const keyIdToUse = keyId || 1;
-      const keyInfo = await this.blockchainOps.getKeyInfo(keyIdToUse);
+      const keyInfo = await this.blockchainOps.getKeyInfo(normalizedKeyId);
 
       ws.send(
         JSON.stringify({
@@ -219,50 +176,22 @@ class NFCServer {
   }
 
   async signMessage(ws, messageDigestHex, keyId = 1) {
-    if (!this.nfcManager.isChipPresent()) {
-      this.sendError(ws, "No chip present");
-      return;
-    }
-
-    if (!messageDigestHex || messageDigestHex.length !== 64) {
-      this.sendError(
-        ws,
-        "Invalid message digest (must be 32 bytes / 64 hex chars)",
-      );
-      return;
-    }
-
-    // Validate keyId if provided
-    if (keyId !== undefined && (keyId < 1 || keyId > 255)) {
-      this.sendError(ws, "Invalid key ID (must be 1-255)");
-      return;
-    }
-
     try {
+      if (!messageDigestHex || messageDigestHex.length !== 64) {
+        throw new Error("Invalid message digest (must be 32 bytes / 64 hex chars)");
+      }
+
+      const normalizedKeyId = this._normalizeKeyId(keyId);
       await this.nfcManager.waitForCardReady();
 
       const messageDigest = Buffer.from(messageDigestHex, "hex");
-
-      if (messageDigest.length !== 32) {
-        this.sendError(ws, "Invalid message digest length");
-        return;
-      }
-
-      const keyIdToUse = keyId || 1;
       const result = await this.blockchainOps.generateSignature(
-        keyIdToUse,
+        normalizedKeyId,
         messageDigest,
       );
 
-      // Parse DER-encoded signature to extract r and s
       const derHex = result.signature.toString("hex");
       const { r, s, wasNormalized } = parseDERSignature(derHex);
-
-      // Adjust recovery_id when s is normalized
-      // When s is normalized (s -> n-s), recovery_id must be adjusted: recovery_id XOR 1
-      // Original recovery_id from blockchain2go is 1, so:
-      // - If s was normalized: recovery_id = 0 (1 XOR 1)
-      // - If s was not normalized: recovery_id = 1 (1 XOR 0)
       const recoveryId = wasNormalized ? 0 : 1;
 
       ws.send(
@@ -279,37 +208,18 @@ class NFCServer {
   }
 
   async readNDEF(ws) {
-    if (!this.nfcManager.getReader()) {
-      this.sendError(
-        ws,
-        "No NFC reader available. Make sure reader is connected.",
-      );
-      return;
-    }
-
     try {
       const ndefUrl = await this.ndefOps.readNDEF();
 
-      if (ndefUrl) {
-        ws.send(
-          JSON.stringify({
-            type: "ndef-read",
-            success: true,
-            data: { url: ndefUrl },
-          }),
-        );
-      } else {
-        ws.send(
-          JSON.stringify({
-            type: "ndef-read",
-            success: true,
-            data: {
-              url: null,
-              message: "No NDEF data found or invalid format",
-            },
-          }),
-        );
-      }
+      ws.send(
+        JSON.stringify({
+          type: "ndef-read",
+          success: true,
+          data: ndefUrl
+            ? { url: ndefUrl }
+            : { url: null, message: "No NDEF data found or invalid format" },
+        }),
+      );
     } catch (error) {
       console.error("NDEF read error:", error);
       this.sendError(ws, `Failed to read NDEF: ${error.message}`);
@@ -317,18 +227,8 @@ class NFCServer {
   }
 
   async writeNDEF(ws, data) {
-    if (!this.nfcManager.getReader()) {
-      this.sendError(
-        ws,
-        "No NFC reader available. Make sure reader is connected.",
-      );
-      return;
-    }
-
-    const { url } = data;
-
     try {
-      const urlToWrite = await this.ndefOps.writeNDEF(url);
+      const urlToWrite = await this.ndefOps.writeNDEF(data.url);
 
       ws.send(
         JSON.stringify({
@@ -343,33 +243,24 @@ class NFCServer {
     }
   }
 
-  sendStatus(ws) {
+  _buildStatusObject() {
     const reader = this.nfcManager.getReader();
-    const readerName = reader ? reader.reader.name : "No reader";
-    ws.send(
-      JSON.stringify({
-        type: "status",
-        data: {
-          readerConnected: !!reader,
-          chipPresent: this.nfcManager.isChipPresent(),
-          readerName,
-        },
-      }),
-    );
-  }
-
-  broadcastStatus() {
-    const reader = this.nfcManager.getReader();
-    const readerName = reader ? reader.reader.name : "No reader";
-    const status = JSON.stringify({
+    return {
       type: "status",
       data: {
         readerConnected: !!reader,
         chipPresent: this.nfcManager.isChipPresent(),
-        readerName,
+        readerName: reader ? reader.reader.name : "No reader",
       },
-    });
+    };
+  }
 
+  sendStatus(ws) {
+    ws.send(JSON.stringify(this._buildStatusObject()));
+  }
+
+  broadcastStatus() {
+    const status = JSON.stringify(this._buildStatusObject());
     this.clients.forEach((client) => {
       if (client.readyState === 1) {
         client.send(status);
@@ -385,6 +276,17 @@ class NFCServer {
       }),
     );
   }
+
+  _normalizeKeyId(keyId) {
+    if (keyId !== undefined && (keyId < 1 || keyId > 255)) {
+      throw new Error("Invalid key ID (must be 1-255)");
+    }
+    return keyId || 1;
+  }
+
+  _isAIDError(error) {
+    return error?.message?.includes("AID was not set");
+  }
 }
 
 const server = new NFCServer();
@@ -392,7 +294,7 @@ const server = new NFCServer();
 // Handle the specific nfc-pcsc AID error to prevent server crashes
 // This is necessary because nfc-pcsc auto-processes ISO 14443-4 cards even with autoProcessing = false
 process.on("uncaughtException", (err) => {
-  if (err.message && err.message.includes("AID was not set")) {
+  if (server._isAIDError(err)) {
     console.log(
       "NFC: Ignoring AID error (nfc-pcsc library issue with existing cards)",
     );
@@ -402,12 +304,11 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
-process.on("unhandledRejection", (reason, promise) => {
-  if (reason && reason.message && reason.message.includes("AID was not set")) {
+process.on("unhandledRejection", (reason) => {
+  if (server._isAIDError(reason)) {
     console.log(
       "NFC: Ignoring AID rejection (nfc-pcsc library issue with existing cards)",
     );
-    // Since we got an AID error, a card must be present. Manually trigger card detection.
     if (!server.nfcManager.isChipPresent()) {
       console.log("NFC: Manually triggering card detection due to AID error");
       server.nfcManager.currentCard = {
@@ -420,10 +321,9 @@ process.on("unhandledRejection", (reason, promise) => {
     }
     return;
   }
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+  console.error("Unhandled Rejection:", reason);
 });
 
 server.start();
 
-console.log("NFC Server ready (using nfc-pcsc for all operations)");
-console.log("Place chip on reader 2 to detect");
+console.log("NFC Server ready. Place chip on reader 2 to detect");
