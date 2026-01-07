@@ -6,6 +6,8 @@ struct NFTViewSwiftUI: View {
     let imageData: Data?
     let ownerAddress: String?
     let isClaimed: Bool
+    let contractId: String
+    let tokenId: UInt64
     
     var body: some View {
         ScrollView {
@@ -68,6 +70,17 @@ struct NFTViewSwiftUI: View {
         }
         .navigationTitle("NFT Details")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                ShareLink(item: nftURL) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+            }
+        }
+    }
+    
+    private var nftURL: URL {
+        URL(string: "https://nft.chimpdao.xyz/\(contractId)/\(tokenId)")!
     }
     
     @ViewBuilder

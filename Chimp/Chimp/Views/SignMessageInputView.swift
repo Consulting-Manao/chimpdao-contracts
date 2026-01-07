@@ -65,6 +65,8 @@ struct SignMessageInputView: View {
                     .disabled(messageText.isEmpty)
                 }
             }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
     

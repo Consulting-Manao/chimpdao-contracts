@@ -3,7 +3,7 @@ import Combine
 
 @MainActor
 class HomeViewModel: ObservableObject {
-    private let walletService = WalletService()
+    private let walletService = WalletService.shared
     
     @Published var isLoading = false
     @Published var errorMessage: String? {
@@ -19,6 +19,8 @@ class HomeViewModel: ObservableObject {
         }
     }
     @Published var showingTransferAlert = false
+    @Published var transferTokenId: UInt64?
+    @Published var transferRecipient: String?
     @Published var showingSignAlert = false
     @Published var showingNFTView = false
     @Published var loadedNFTContractId: String?
@@ -139,29 +141,6 @@ class HomeViewModel: ObservableObject {
         errorMessage = nil
     }
     
-    // Get retry action for transient errors
-    func getRetryAction(for error: String) -> (() -> Void)? {
-        let lowercased = error.lowercased()
-        if lowercased.contains("network") || lowercased.contains("timeout") || lowercased.contains("failed to connect") {
-            // Determine which operation to retry based on context
-            // For now, return nil - can be enhanced to track last operation
-            return nil
-        }
-        return nil
-    }
-    
-    // Get check settings action for configuration errors
-    func getCheckSettingsAction(for error: String) -> (() -> Void)? {
-        let lowercased = error.lowercased()
-        if lowercased.contains("contract") || lowercased.contains("settings") || lowercased.contains("configuration") {
-            // This would need to be handled by the view to navigate to settings
-            // Return a placeholder that the view can use
-            return {
-                // View will handle navigation to settings
-            }
-        }
-        return nil
-    }
     
     private func startErrorTimeout() {
         // Cancel any existing timer
@@ -207,13 +186,8 @@ class HomeViewModel: ObservableObject {
             return
         }
         
-        guard !AppConfig.shared.contractId.isEmpty else {
-            errorMessage = "Please set the contract ID in Settings"
-            return
-        }
-        
+        // Contract ID is read from chip NDEF, not Settings
         errorMessage = nil
-        // Start NFC operation immediately - no modal
         nfcCoordinator.claimNFT { success, error in
             // Results handled via callbacks
         }
@@ -225,17 +199,33 @@ class HomeViewModel: ObservableObject {
             return
         }
         
-        guard !AppConfig.shared.contractId.isEmpty else {
-            errorMessage = "Please set the contract ID in Settings"
+        // Reset state
+        transferTokenId = nil
+        transferRecipient = nil
+        errorMessage = nil
+        
+        // Start NFC scan to read token ID from chip
+        nfcCoordinator.readNFTForTransfer { [weak self] success, tokenId, error in
+            guard let self = self else { return }
+            if success, let tokenId = tokenId {
+                self.transferTokenId = tokenId
+                self.showingTransferAlert = true
+            } else if let error = error {
+                self.errorMessage = error
+            }
+        }
+    }
+    
+    func executeTransfer(recipient: String) {
+        guard let tokenId = transferTokenId else {
+            errorMessage = "Token ID not available"
             return
         }
         
-        showingTransferAlert = true
-    }
-    
-    func transferNFT(recipient: String, tokenId: UInt64) {
+        transferRecipient = recipient
         errorMessage = nil
-        // Start NFC operation immediately - no modal
+        
+        // Start NFC operation to complete transfer
         nfcCoordinator.transferNFT(recipientAddress: recipient, tokenId: tokenId) { success, error in
             // Results handled via callbacks
         }

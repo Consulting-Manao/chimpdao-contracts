@@ -64,13 +64,15 @@ struct HelpView: View {
         }
         .navigationTitle("Help & Support")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
+            .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Done") {
                     dismiss()
                 }
             }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 

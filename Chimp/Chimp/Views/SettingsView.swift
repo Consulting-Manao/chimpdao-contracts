@@ -4,22 +4,19 @@ import OSLog
 
 struct SettingsView: View {
     @ObservedObject var walletState: WalletState
+    @ObservedObject private var config = AppConfig.shared
     @State private var contractId: String = AppConfig.shared.contractId
     @State private var originalContractId: String = ""
     @State private var showLogoutAlert = false
     @State private var showResetAlert = false
-    @State private var contractCopied = false
+    @State private var showLogoutErrorAlert = false
+    @State private var logoutErrorMessage: String?
     @State private var saveStatus: String?
     @State private var showHelp = false
     @State private var isAdminMode: Bool = AppConfig.shared.isAdminMode
     @Environment(\.openURL) private var openURL
     
-    private let walletService = WalletService()
-    private var currentNetwork: AppNetwork {
-        AppConfig.shared.currentNetwork
-    }
-    
-    private var config = AppConfig.shared
+    private let walletService = WalletService.shared
     
     init(walletState: WalletState) {
         self.walletState = walletState
@@ -45,7 +42,7 @@ struct SettingsView: View {
                     Section(header: Text("Account")) {
                         WalletAddressCard(
                             address: wallet.address,
-                            network: currentNetwork
+                            network: config.currentNetwork
                         )
                     }
                 }
@@ -54,18 +51,18 @@ struct SettingsView: View {
                 if isAdminMode {
                     Section(header: Text("Admin Settings")) {
                         // Network Configuration (admin only)
-                        Picker("Network", selection: Binding(
-                            get: { currentNetwork },
-                            set: { newNetwork in
-                                config.currentNetwork = newNetwork
-                            }
-                        )) {
+                        Picker("Network", selection: $config.currentNetwork) {
                             Text("Testnet").tag(AppNetwork.testnet)
                             Text("Mainnet").tag(AppNetwork.mainnet)
                         }
                         .pickerStyle(.menu)
                         .accessibilityLabel("Network selection")
                         .accessibilityHint("Select between testnet and mainnet")
+                        .onChange(of: config.currentNetwork) { oldValue, newValue in
+                            // Persist network change and reload contract ID for new network
+                            config.setNetwork(newValue)
+                            loadCurrentSettings()
+                        }
                         
                         // Contract Configuration
                         VStack(alignment: .leading, spacing: 4) {
@@ -96,19 +93,14 @@ struct SettingsView: View {
                         
                         if !contractId.isEmpty {
                             HStack(spacing: 12) {
-                                Button(action: copyContractId) {
-                                    Label("Copy", systemImage: contractCopied ? "checkmark" : "doc.on.doc")
-                                        .font(.system(size: 15, weight: .medium))
-                                        .foregroundColor(contractCopied ? .green : .chimpYellow)
-                                }
-                                .buttonStyle(PlainButtonStyle())
+                                CopyButton(contractId)
                                 
                                 Button(action: openContractStellarExpert) {
                                     Label("View on Stellar.Expert", systemImage: "arrow.up.right.square")
-                                        .font(.system(size: 15, weight: .medium))
+                                        .font(.subheadline.weight(.medium))
                                         .foregroundColor(.chimpYellow)
                                 }
-                                .buttonStyle(PlainButtonStyle())
+                                .buttonStyle(.plain)
                                 
                                 Spacer()
                             }
@@ -171,7 +163,7 @@ struct SettingsView: View {
                     logout()
                 }
             } message: {
-                Text("Are you sure you want to logout? Your wallet will be disconnected and your private key will be removed from this device. You will need to enter your secret key again to reconnect.")
+                Text("Your private key will be removed from this device.")
             }
             .alert("Reset to Default", isPresented: $showResetAlert) {
                 Button("Cancel", role: .cancel) {}
@@ -180,6 +172,11 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("This will reset the contract address to the build configuration default. Any custom contract address you've entered will be lost. This action cannot be undone.")
+            }
+            .alert("Logout Failed", isPresented: $showLogoutErrorAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(logoutErrorMessage ?? "An error occurred while logging out. Please try again.")
             }
             .onAppear {
                 loadCurrentSettings()
@@ -215,7 +212,7 @@ struct SettingsView: View {
         guard !contractId.isEmpty else { return }
         
         let baseUrl: String
-        switch currentNetwork {
+        switch config.currentNetwork {
         case .testnet:
             baseUrl = "https://stellar.expert/explorer/testnet/contract"
         case .mainnet:
@@ -228,29 +225,14 @@ struct SettingsView: View {
         openURL(url)
     }
     
-    private func copyContractId() {
-        guard !contractId.isEmpty else { return }
-        
-        UIPasteboard.general.string = contractId
-        
-        withAnimation {
-            contractCopied = true
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation {
-                contractCopied = false
-            }
-        }
-    }
-    
     private func logout() {
         do {
             try walletService.logout()
             walletState.checkWalletState()
-            } catch {
-            // Error handling could be improved with an alert
+        } catch {
             Logger.logError("Logout error: \(error.localizedDescription)", category: .ui)
+            logoutErrorMessage = error.localizedDescription
+            showLogoutErrorAlert = true
         }
     }
 }

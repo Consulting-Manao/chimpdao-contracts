@@ -3,11 +3,10 @@ import SwiftUI
 struct LoginView: View {
     @ObservedObject var walletState: WalletState
     @State private var secretKey: String = ""
-    @State private var isSecure: Bool = true
     @State private var isLoading: Bool = false
     @State private var errorMessage: String?
     
-    private let walletService = WalletService()
+    private let walletService = WalletService.shared
 
     var body: some View {
         NavigationStack {
@@ -45,37 +44,12 @@ struct LoginView: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.secondary)
                         
-                        HStack {
-                            if isSecure {
-                                SecureField("Enter your Stellar secret key (S...)", text: $secretKey)
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .autocapitalization(.none)
-                                    .disableAutocorrection(true)
-                            } else {
-                                TextField("Enter your Stellar secret key (S...)", text: $secretKey)
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .autocapitalization(.none)
-                                    .disableAutocorrection(true)
-                            }
-                            
-                            Button(action: { isSecure.toggle() }) {
-                                Image(systemName: isSecure ? "eye.slash.fill" : "eye.fill")
-                                    .foregroundColor(.secondary)
-                            }
-                            .accessibilityLabel(isSecure ? "Show secret key" : "Hide secret key")
-                        }
-                        
-                        if !secretKey.isEmpty {
-                            let isValid = secretKey.hasPrefix("S") && secretKey.count >= 56
-                            HStack(spacing: 4) {
-                                Image(systemName: isValid ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .font(.caption)
-                                    .foregroundColor(isValid ? .green : .orange)
-                                Text(isValid ? "Valid format" : "Should start with S and be 56 characters")
-                                    .font(.caption)
-                                    .foregroundColor(isValid ? .green : .orange)
-                            }
-                        }
+                        SecureField("Enter your Stellar secret key (S...)", text: $secretKey)
+                            .textFieldStyle(.roundedBorder)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .accessibilityLabel("Secret key input")
+                            .accessibilityHint("Enter your 56-character Stellar secret key starting with S")
                     }
                     .padding(.horizontal, 20)
                     
@@ -109,7 +83,7 @@ struct LoginView: View {
                     Spacer()
                 }
             }
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
     

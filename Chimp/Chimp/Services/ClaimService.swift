@@ -16,7 +16,7 @@ struct ClaimResult {
 
 final class ClaimService {
     private let blockchainService = BlockchainService()
-    private let walletService = WalletService()
+    private let walletService = WalletService.shared
     private let config = AppConfig.shared
     
     /// Execute claim flow
@@ -70,10 +70,9 @@ final class ClaimService {
         
         // Step 2: Get source keypair for transaction building
         let secureStorage = SecureKeyStorage()
-        guard let privateKey = try secureStorage.loadPrivateKey() else {
-            throw AppError.wallet(.keyLoadFailed)
-        }
-        let sourceKeyPair = try KeyPair(secretSeed: privateKey)
+        let sourceKeyPair = try secureStorage.withPrivateKey(reason: "Authenticate to sign the transaction", work: { key in
+            try KeyPair(secretSeed: key)
+        })
         Logger.logDebug("Source account: \(sourceKeyPair.accountId)", category: .blockchain)
         
         // Step 3: Get nonce from contract

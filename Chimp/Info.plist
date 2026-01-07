@@ -26,6 +26,8 @@
 	<true/>
 	<key>NFCReaderUsageDescription</key>
 	<string>This app uses NFC to read and write data to blockchain-enabled NFC chips for NFT claiming, transferring, and minting operations.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Chimp uses Face ID to protect your wallet private key.</string>
 	<key>STELLAR_CONTRACT_ID_MAINNET</key>
 	<string>$(STELLAR_CONTRACT_ID_MAINNET)</string>
 	<key>STELLAR_CONTRACT_ID_TESTNET</key>

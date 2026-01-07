@@ -365,7 +365,7 @@ final class NDEFReader {
     /// Expected format: [protocol]://[domain]/[contractID]/[token_id] or [protocol]://[domain]/[contractID]
     /// - Parameter url: NDEF URL string
     /// - Returns: Contract ID if found and valid, nil otherwise
-    static func parseContractIdFromNDEFUrl(_ url: String) -> String? {
+    nonisolated static func parseContractIdFromNDEFUrl(_ url: String) -> String? {
         // Remove protocol if present
         var urlPath = url
         if urlPath.hasPrefix("http://") {
@@ -388,6 +388,27 @@ final class NDEFReader {
         }
         
         return contractId
+    }
+    
+    /// Parse token ID from NDEF URL
+    /// Expected format: https://nft.chimpdao.xyz/{contractId}/{tokenId}
+    nonisolated static func parseTokenIdFromNDEFUrl(_ url: String) -> UInt64? {
+        // Remove protocol if present
+        var urlPath = url
+        if urlPath.hasPrefix("http://") {
+            urlPath = String(urlPath.dropFirst(7))
+        } else if urlPath.hasPrefix("https://") {
+            urlPath = String(urlPath.dropFirst(8))
+        }
+        
+        // Split by '/' and expect token ID as third component
+        let components = urlPath.split(separator: "/", omittingEmptySubsequences: true)
+        guard components.count >= 3 else {
+            return nil
+        }
+        
+        let tokenIdString = String(components[2])
+        return UInt64(tokenIdString)
     }
 }
 

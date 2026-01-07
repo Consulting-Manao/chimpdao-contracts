@@ -4,7 +4,7 @@ import Combine
 @MainActor
 class WalletState: ObservableObject {
     @Published var hasWallet: Bool = false
-    private let walletService = WalletService()
+    private let walletService = WalletService.shared
     
     init() {
         checkWalletState()

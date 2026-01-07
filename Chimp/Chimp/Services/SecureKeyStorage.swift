@@ -1,16 +1,76 @@
 /**
  * Secure Key Storage Service
- * Manages private key storage using iOS Keychain with Secure Enclave protection
+ * Manages private key storage using iOS Keychain with biometric protection
  */
 
 import Foundation
 import Security
+import LocalAuthentication
 
 final class SecureKeyStorage {
+    /// Cache LAContext for a short period to avoid repeated biometric prompts within the same session.
+    private static var cachedContext: (context: LAContext, timestamp: Date)?
+    private static let contextTTL: TimeInterval = 300 // 5 minutes
+
+    /// Provide access to the private key while ensuring a single biometric prompt.
+    /// - Parameters:
+    ///   - reason: The localized reason displayed in the Face ID prompt.
+    ///   - work: Closure receiving the private key string. Must not store the key beyond the closure scope.
+    /// - Returns: Generic value returned by the closure.
+    /// - Throws: Rethrows errors from Keychain access or the closure.
+    func withPrivateKey<T>(reason: String = "Authenticate to access your wallet", work: (String) throws -> T) throws -> T {
+        guard let privateKey = try loadPrivateKey(using: context(for: reason)) else {
+            throw AppError.wallet(.noWallet)
+        }
+        // Ensure key is wiped from memory after use
+        defer {
+            // Overwrite temporary buffer
+            var buffer = Data(privateKey.utf8)
+            buffer.resetBytes(in: 0..<buffer.count)
+        }
+        return try work(privateKey)
+    }
+
+    // MARK: - Private helpers
+    private func context(for reason: String) -> LAContext {
+        // Re-use context if it is still fresh
+        if let cached = SecureKeyStorage.cachedContext,
+           Date().timeIntervalSince(cached.timestamp) < SecureKeyStorage.contextTTL {
+            return cached.context
+        }
+        let ctx = LAContext()
+        ctx.localizedReason = reason
+        SecureKeyStorage.cachedContext = (ctx, Date())
+        return ctx
+    }
+
+    /// Internal helper to load the key using a prepared LAContext (avoids creating new contexts repeatedly).
+    private func loadPrivateKey(using context: LAContext) throws -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: context
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        if status == errSecUserCanceled || status == errSecAuthFailed {
+            throw AppError.secureStorage(.authenticationRequired)
+        }
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let secretKey = String(data: data, encoding: .utf8) else {
+            throw AppError.secureStorage(.retrievalFailed(keychainErrorMessage(for: status)))
+        }
+        return secretKey
+    }
     private let keychainService = "com.stellarmerchshop.chimp.privatekey"
     private let keychainAccount = "wallet_key"
     
-    /// Store private key in Keychain
+    /// Store private key in Keychain with biometric protection
     /// - Parameter secretKey: Stellar secret key to store
     /// - Throws: AppError if storage fails
     func storePrivateKey(_ secretKey: String) throws {
@@ -26,13 +86,26 @@ final class SecureKeyStorage {
         ]
         SecItemDelete(deleteQuery as CFDictionary)
         
-        // Add new key
+        // Create access control requiring biometric authentication
+        // .biometryCurrentSet invalidates the key if biometrics are changed
+        var error: Unmanaged<CFError>?
+        guard let accessControl = SecAccessControlCreateWithFlags(
+            nil,
+            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            .biometryCurrentSet,
+            &error
+        ) else {
+            let errorMessage = error?.takeRetainedValue().localizedDescription ?? "Failed to create access control"
+            throw AppError.secureStorage(.storageFailed(errorMessage))
+        }
+        
+        // Add new key with biometric protection
         let addQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
             kSecAttrAccount as String: keychainAccount,
             kSecValueData as String: privateKeyData,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            kSecAttrAccessControl as String: accessControl
         ]
         
         let status = SecItemAdd(addQuery as CFDictionary, nil)
@@ -42,27 +115,42 @@ final class SecureKeyStorage {
         }
     }
     
-    /// Load private key from Keychain
-    /// - Returns: Stellar secret key if found, nil otherwise
-    /// - Throws: AppError if retrieval fails
+    /// Legacy method kept for backward compatibility within the service. Prefer `withPrivateKey`.
+    @available(*, deprecated, message: "Use withPrivateKey(reason:_:) instead to avoid multiple prompts")
     func loadPrivateKey() throws -> String? {
+        // Create LAContext for biometric prompt customization
+        let context = LAContext()
+        context.localizedReason = "Authenticate to access your wallet"
+        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
             kSecAttrAccount as String: keychainAccount,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: context
         ]
         
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         
+        if status == errSecItemNotFound {
+            return nil
+        }
+        
+        // Handle user cancellation gracefully
+        if status == errSecUserCanceled {
+            throw AppError.secureStorage(.authenticationRequired)
+        }
+        
+        // Handle biometric authentication failure
+        if status == errSecAuthFailed {
+            throw AppError.secureStorage(.authenticationRequired)
+        }
+        
         guard status == errSecSuccess,
               let data = result as? Data,
               let secretKey = String(data: data, encoding: .utf8) else {
-            if status == errSecItemNotFound {
-                return nil
-            }
             let errorMessage = keychainErrorMessage(for: status)
             throw AppError.secureStorage(.retrievalFailed(errorMessage))
         }
@@ -86,14 +174,23 @@ final class SecureKeyStorage {
         }
     }
     
-    /// Check if a private key is stored
+    /// Check if a private key is stored (does not require authentication)
     /// - Returns: true if key exists, false otherwise
     func hasStoredKey() -> Bool {
-        do {
-            return try loadPrivateKey() != nil
-        } catch {
-            return false
-        }
+        // Use LAContext with interactionNotAllowed to check existence without prompting
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecUseAuthenticationContext as String: context
+        ]
+        
+        let status = SecItemCopyMatching(query as CFDictionary, nil)
+        // Key exists if we get success or auth would be required
+        return status == errSecSuccess || status == errSecInteractionNotAllowed
     }
     
     /// Get user-friendly error message for keychain status code
@@ -108,9 +205,11 @@ final class SecureKeyStorage {
         case errSecDuplicateItem:
             return "Item already exists in keychain"
         case errSecAuthFailed:
-            return "Authentication failed - device may be locked"
+            return "Authentication failed"
+        case errSecUserCanceled:
+            return "Authentication was canceled"
         case errSecInteractionNotAllowed:
-            return "Interaction not allowed - device may be locked"
+            return "Authentication required"
         case errSecNotAvailable:
             return "Keychain services are not available"
         case errSecReadOnly:
@@ -128,4 +227,3 @@ final class SecureKeyStorage {
         }
     }
 }
-

@@ -6,7 +6,7 @@ import OSLog
 
 /// Coordinator to bridge SwiftUI to existing UIKit NFC functionality
 class NFCOperationCoordinator: NSObject {
-    private let walletService = WalletService()
+    private let walletService = WalletService.shared
     private let claimService = ClaimService()
     private let transferService = TransferService()
     private let mintService = MintService()
@@ -64,6 +64,7 @@ class NFCOperationCoordinator: NSObject {
     // Store NFCHelper instances to prevent deallocation
     private var claimNFCHelper: NFCHelper?
     private var transferNFCHelper: NFCHelper?
+    private var transferReadNFCHelper: NFCHelper?
     private var mintNFCHelper: NFCHelper?
     
     // MARK: - Claim NFT
@@ -73,10 +74,7 @@ class NFCOperationCoordinator: NSObject {
             return
         }
         
-        guard !AppConfig.shared.contractId.isEmpty else {
-            completion(false, "Please set the contract ID in Settings")
-            return
-        }
+        // Contract ID is read from chip NDEF, not from Settings
         
         guard NFCTagReaderSession.readingAvailable else {
             completion(false, "NFC is not available on this device")
@@ -114,8 +112,8 @@ class NFCOperationCoordinator: NSObject {
                             self.onClaimSuccess?(claimResult.tokenId)
                         }
                         
-                        // Wait for confetti animation, then invalidate session
-                        try await Task.sleep(nanoseconds: 3_000_000_000)
+                        // Brief delay before dismissing NFC session
+                        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                         
                         await MainActor.run {
                             session.invalidate()
@@ -142,17 +140,80 @@ class NFCOperationCoordinator: NSObject {
         claimNFCHelper?.BeginSession()
     }
     
-    // MARK: - Transfer NFT
+    // MARK: - Read NFT for Transfer (first scan to get token ID)
+    func readNFTForTransfer(completion: @escaping (Bool, UInt64?, String?) -> Void) {
+        guard walletService.getStoredWallet() != nil else {
+            completion(false, nil, "Please login first")
+            return
+        }
+        
+        guard NFCTagReaderSession.readingAvailable else {
+            completion(false, nil, "NFC is not available on this device")
+            return
+        }
+        
+        // Store helper as property to prevent deallocation
+        transferReadNFCHelper = NFCHelper()
+        transferReadNFCHelper?.OnTagEvent = { [weak self] success, tag, session, error in
+            guard let self = self else { return }
+            if success, let tag = tag, let session = session {
+                Task { @MainActor in
+                    session.alertMessage = "Reading chip information..."
+                }
+                
+                Task.detached {
+                    do {
+                        // Read NDEF to get contract ID and token ID
+                        let ndefUrl = try await NDEFReader.readNDEFUrl(tag: tag, session: session)
+                        guard let ndefUrl = ndefUrl else {
+                            throw AppError.validation("No NDEF data found on chip")
+                        }
+                        
+                        let tokenId = NDEFReader.parseTokenIdFromNDEFUrl(ndefUrl)
+                        guard let tokenId = tokenId else {
+                            throw AppError.validation("Token ID not found on chip. This NFT may not be claimed yet.")
+                        }
+                        
+                        await MainActor.run {
+                            session.alertMessage = "Chip read successfully!"
+                            session.invalidate()
+                            completion(true, tokenId, nil)
+                            self.transferReadNFCHelper = nil
+                        }
+                    } catch let error as AppError {
+                        await MainActor.run {
+                            session.alertMessage = error.localizedDescription
+                            session.invalidate(errorMessage: error.localizedDescription)
+                            completion(false, nil, error.localizedDescription)
+                            self.transferReadNFCHelper = nil
+                        }
+                    } catch {
+                        let message = "Error reading chip: \(error.localizedDescription)"
+                        await MainActor.run {
+                            session.alertMessage = message
+                            session.invalidate(errorMessage: message)
+                            completion(false, nil, message)
+                            self.transferReadNFCHelper = nil
+                        }
+                    }
+                }
+            } else if let error = error {
+                completion(false, nil, error)
+                self.transferReadNFCHelper = nil
+            }
+        }
+        
+        transferReadNFCHelper?.BeginSession()
+    }
+    
+    // MARK: - Transfer NFT (second scan to complete transfer)
     func transferNFT(recipientAddress: String, tokenId: UInt64, completion: @escaping (Bool, String?) -> Void) {
         guard walletService.getStoredWallet() != nil else {
             completion(false, "Please login first")
             return
         }
         
-        guard !AppConfig.shared.contractId.isEmpty else {
-            completion(false, "Please set the contract ID in Settings")
-            return
-        }
+        // Contract ID is read from chip NDEF, not from Settings
         
         guard NFCTagReaderSession.readingAvailable else {
             completion(false, "NFC is not available on this device")
@@ -187,9 +248,15 @@ class NFCOperationCoordinator: NSObject {
                         // Success - update UI on main thread
                         await MainActor.run {
                             session.alertMessage = "NFT transferred successfully!"
-                            session.invalidate()
                             completion(true, nil)
                             self.onTransferSuccess?()
+                        }
+                        
+                        // Brief delay before dismissing NFC session
+                        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                        
+                        await MainActor.run {
+                            session.invalidate()
                             self.transferNFCHelper = nil
                         }
                     } catch {
@@ -285,8 +352,8 @@ class NFCOperationCoordinator: NSObject {
                             self.onMintSuccess?(mintResult.tokenId)
                         }
                         
-                        // Wait for confetti animation, then invalidate session
-                        try await Task.sleep(nanoseconds: 3_000_000_000)
+                        // Brief delay before dismissing NFC session
+                        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
                         
                         await MainActor.run {
                             session.invalidate()
@@ -557,12 +624,13 @@ extension NFCOperationCoordinator: NFCTagReaderSessionDelegate {
     }
     
     private func getTokenIdForChip(contractId: String, publicKey: Data) async throws -> UInt64 {
-        guard walletService.getStoredWallet() != nil,
-              let privateKey = try SecureKeyStorage().loadPrivateKey() else {
+        guard walletService.getStoredWallet() != nil else {
             throw AppError.wallet(.noWallet)
         }
         
-        let keyPair = try KeyPair(secretSeed: privateKey)
+        let keyPair = try SecureKeyStorage().withPrivateKey(reason: "Authenticate to read chip information", work: { key in
+            try KeyPair(secretSeed: key)
+        })
         return try await blockchainService.getTokenId(contractId: contractId, publicKey: publicKey, sourceKeyPair: keyPair)
     }
 }

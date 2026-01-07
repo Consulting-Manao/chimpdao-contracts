@@ -15,7 +15,7 @@ struct TransferResult {
 
 final class TransferService {
     private let blockchainService = BlockchainService()
-    private let walletService = WalletService()
+    private let walletService = WalletService.shared
     private let config = AppConfig.shared
 
     /// Execute transfer flow
@@ -81,10 +81,9 @@ final class TransferService {
 
         // Step 2: Get source keypair for transaction building
         let secureStorage = SecureKeyStorage()
-        guard let privateKey = try secureStorage.loadPrivateKey() else {
-            throw AppError.wallet(.noWallet)
-        }
-        let sourceKeyPair = try KeyPair(secretSeed: privateKey)
+        let sourceKeyPair = try secureStorage.withPrivateKey(reason: "Authenticate to sign the transaction", work: { key in
+            try KeyPair(secretSeed: key)
+        })
 
         // Step 3: Validate that the chip's public key corresponds to the token ID
         progressCallback?("Validating chip ownership...")

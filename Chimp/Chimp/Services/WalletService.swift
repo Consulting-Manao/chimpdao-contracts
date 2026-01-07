@@ -13,6 +13,8 @@ struct WalletConnection {
 }
 
 final class WalletService {
+    static let shared = WalletService()
+    
     private let secureKeyStorage = SecureKeyStorage()
     private let addressKey = "wallet_address"
     
@@ -81,11 +83,9 @@ final class WalletService {
     /// - Parameter transaction: Transaction object to sign (will be modified)
     /// - Throws: AppError if signing fails
     func signTransaction(_ transaction: Transaction) async throws {
-        guard let privateKeyString = try secureKeyStorage.loadPrivateKey() else {
-            throw AppError.wallet(.noWallet)
-        }
-        
-        let keyPair = try KeyPair(secretSeed: privateKeyString)
+        let keyPair = try secureKeyStorage.withPrivateKey(reason: "Authenticate to sign the transaction", work: { key in
+            try KeyPair(secretSeed: key)
+        })
         
         Logger.logDebug("Validating transaction before signing...", category: .blockchain)
         

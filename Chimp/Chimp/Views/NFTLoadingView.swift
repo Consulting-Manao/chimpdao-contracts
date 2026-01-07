@@ -14,7 +14,7 @@ struct NFTLoadingView: View {
     
     private let blockchainService = BlockchainService()
     private let ipfsService = IPFSService()
-    private let walletService = WalletService()
+    private let walletService = WalletService.shared
     
     var body: some View {
         Group {
@@ -59,11 +59,13 @@ struct NFTLoadingView: View {
                 .padding()
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else if let metadata = metadata {
-                NFTDisplayView(
+                NFTViewSwiftUI(
                     metadata: metadata,
                     imageData: imageData,
                     ownerAddress: ownerAddress,
-                    isClaimed: isClaimed
+                    isClaimed: isClaimed,
+                    contractId: contractId,
+                    tokenId: tokenId
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
@@ -78,8 +80,7 @@ struct NFTLoadingView: View {
     private func loadNFT() {
         Task {
             do {
-                guard let _ = walletService.getStoredWallet(),
-                      let privateKey = try SecureKeyStorage().loadPrivateKey() else {
+                guard let _ = walletService.getStoredWallet() else {
                     await MainActor.run {
                         errorMessage = "No wallet found"
                         isLoading = false
@@ -87,7 +88,9 @@ struct NFTLoadingView: View {
                     return
                 }
                 
-                let keyPair = try KeyPair(secretSeed: privateKey)
+                let keyPair = try SecureKeyStorage().withPrivateKey(reason: "Authenticate to load NFT details", work: { key in
+                    try KeyPair(secretSeed: key)
+                })
                 
                 // Try to get the owner - if this succeeds, the NFT is claimed
                 do {

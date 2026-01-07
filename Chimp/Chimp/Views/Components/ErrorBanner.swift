@@ -27,18 +27,19 @@ struct ErrorBanner: View {
     
     var body: some View {
         VStack(spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.subheadline)
-                        .foregroundColor(.red)
-                    
-                    Text(error)
-                        .font(.subheadline)
-                        .foregroundColor(.red)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .accessibilityLabel("Error: \(error)")
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.subheadline)
+                    .foregroundColor(.red)
+                    .frame(width: 20, height: 20)
+                    .alignmentGuide(.top) { d in d[.top] + 2 }
+                
+                Text(error)
+                    .font(.subheadline)
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel("Error: \(error)")
                 
                 Button(action: onDismiss) {
                     Image(systemName: "xmark.circle.fill")

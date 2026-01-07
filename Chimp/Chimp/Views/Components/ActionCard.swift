@@ -4,15 +4,11 @@ import UIKit
 struct ActionCard: View {
     let icon: String
     let title: String
-    let description: String
     let color: Color
     let action: () -> Void
     
-    @State private var isPressed = false
-    
     var body: some View {
         Button(action: {
-            // Haptic feedback
             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
             impactFeedback.impactOccurred()
             action()
@@ -30,17 +26,9 @@ struct ActionCard: View {
                 }
                 
                 // Text
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    Text(description)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                }
+                Text(title)
+                    .font(.headline)
+                    .foregroundColor(.primary)
                 
                 Spacer()
                 
@@ -54,22 +42,20 @@ struct ActionCard: View {
                     .fill(Color(.systemBackground))
                     .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
             )
-            .scaleEffect(isPressed ? 0.97 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
         }
-        .buttonStyle(PlainButtonStyle())
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    isPressed = true
-                }
-                .onEnded { _ in
-                    isPressed = false
-                }
-        )
-        .accessibilityLabel("\(title). \(description)")
+        .buttonStyle(ActionCardButtonStyle())
+        .accessibilityLabel(title)
         .accessibilityHint("Double tap to \(title.lowercased())")
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// Custom button style that provides press feedback without breaking scroll
+struct ActionCardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 

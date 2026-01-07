@@ -22,33 +22,4 @@ struct PrimaryButtonStyle: ButtonStyle {
     }
 }
 
-/// Secondary button style
-struct SecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.headline)
-            .foregroundColor(.primary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
-    }
-}
-
-/// Destructive button style
-struct DestructiveButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.headline)
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(Color.red)
-            .cornerRadius(12)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
-    }
-}
 

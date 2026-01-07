@@ -5,7 +5,6 @@ struct SignatureDisplayView: View {
     let keyCounter: UInt32
     let derSignature: String
     @Binding var isPresented: Bool
-    @State private var copied = false
     
     var body: some View {
         NavigationStack {
@@ -30,15 +29,15 @@ struct SignatureDisplayView: View {
                         
                         Button(action: copySignature) {
                             HStack {
-                                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                                Text(copied ? "Copied!" : "Copy Signature")
+                                Image(systemName: "doc.on.doc")
+                                Text("Copy All")
                             }
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
-                        .accessibilityLabel(copied ? "Signature copied" : "Copy signature")
-                        .accessibilityHint("Copies the signature to your clipboard")
+                        .accessibilityLabel("Copy signature")
+                        .accessibilityHint("Copies the signature details to your clipboard")
                     }
                     .padding(.vertical, 20)
                 }
@@ -52,22 +51,14 @@ struct SignatureDisplayView: View {
                     }
                 }
             }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
     
     private func copySignature() {
         let signatureText = "Global Counter: \(globalCounter)\nKey Counter: \(keyCounter)\nDER Signature: \(derSignature)"
         UIPasteboard.general.string = signatureText
-        
-        withAnimation {
-            copied = true
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation {
-                copied = false
-            }
-        }
     }
 }
 

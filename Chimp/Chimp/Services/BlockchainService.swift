@@ -10,10 +10,29 @@ import OSLog
 final class BlockchainService {
     private let config = AppConfig.shared
 
-    /// Shared RPC client instance to avoid recreation overhead
-    private lazy var rpcClient: SorobanServer = {
-        SorobanServer(endpoint: config.rpcUrl)
-    }()
+    /// RPC client instance that gets recreated when network changes
+    private var rpcClient: SorobanServer
+    
+    init() {
+        self.rpcClient = SorobanServer(endpoint: config.rpcUrl)
+        
+        // Observe network changes and recreate RPC client
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleNetworkChange),
+            name: .networkDidChange,
+            object: nil
+        )
+    }
+    
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc private func handleNetworkChange() {
+        self.rpcClient = SorobanServer(endpoint: config.rpcUrl)
+        Logger.logDebug("RPC client recreated for network: \(config.currentNetwork.rawValue)", category: .blockchain)
+    }
     
     /// Get owner of a token from the contract
     /// - Parameters:

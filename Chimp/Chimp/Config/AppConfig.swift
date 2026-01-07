@@ -12,6 +12,10 @@ enum AppNetwork: String {
     case mainnet = "mainnet"
 }
 
+extension Notification.Name {
+    static let networkDidChange = Notification.Name("networkDidChange")
+}
+
 final class AppConfig: ObservableObject {
     static let shared = AppConfig()
     
@@ -26,8 +30,20 @@ final class AppConfig: ObservableObject {
     private let buildAdminModeKey = "ADMIN_MODE"
     
     @Published private var _isAdminMode: Bool = false
+    @Published var currentNetwork: AppNetwork = .mainnet
     
     private init() {
+        // Initialize currentNetwork from UserDefaults or build config
+        if let networkString = UserDefaults.standard.string(forKey: networkKey),
+           let network = AppNetwork(rawValue: networkString) {
+            self.currentNetwork = network
+        } else if let buildNetwork = Bundle.main.infoDictionary?[buildNetworkKey] as? String,
+                  let network = AppNetwork(rawValue: buildNetwork.lowercased()) {
+            self.currentNetwork = network
+        } else {
+            self.currentNetwork = .mainnet
+        }
+        
         // Initialize isAdminMode from UserDefaults or default to false
         if UserDefaults.standard.object(forKey: adminModeKey) != nil {
             _isAdminMode = UserDefaults.standard.bool(forKey: adminModeKey)
@@ -36,28 +52,12 @@ final class AppConfig: ObservableObject {
         }
     }
     
-    /// Current network setting
-    /// First checks UserDefaults (runtime override), then build configuration
-    var currentNetwork: AppNetwork {
-        get {
-            // Check for runtime override in UserDefaults
-            if let networkString = UserDefaults.standard.string(forKey: networkKey),
-               let network = AppNetwork(rawValue: networkString) {
-                return network
-            }
-            
-            // Fall back to build configuration
-            if let buildNetwork = Bundle.main.infoDictionary?[buildNetworkKey] as? String,
-               let network = AppNetwork(rawValue: buildNetwork.lowercased()) {
-                return network
-            }
-            
-            return .mainnet // Default to mainnet
-        }
-        set {
-            // Store in UserDefaults for runtime override
-            UserDefaults.standard.set(newValue.rawValue, forKey: networkKey)
-        }
+    /// Update network and persist to UserDefaults
+    func setNetwork(_ network: AppNetwork) {
+        currentNetwork = network
+        UserDefaults.standard.set(network.rawValue, forKey: networkKey)
+        // Notify observers that network changed
+        NotificationCenter.default.post(name: .networkDidChange, object: nil)
     }
     
     /// Contract ID for current network
