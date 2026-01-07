@@ -40,12 +40,12 @@ struct HelpView: View {
             Section {
                 HelpFAQ(
                     question: "Chip not detected?",
-                    answer: "Hold your phone steady near the chip. Try moving slightly if it doesn't respond."
+                    answer: "Hold your phone steady near the chip. Try moving slightly if it doesn't respond. While scanning, the window dismiss providing some feedback."
                 )
                 
                 HelpFAQ(
                     question: "Operation failed?",
-                    answer: "Ensure you have a stable internet connection and try again."
+                    answer: "Ensure you have a stable internet connection and try again. Check you have enough balance on your address."
                 )
                 
                 HelpFAQ(

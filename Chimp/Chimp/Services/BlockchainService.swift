@@ -34,21 +34,21 @@ final class BlockchainService {
         Logger.logDebug("RPC client recreated for network: \(config.currentNetwork.rawValue)", category: .blockchain)
     }
     
-    /// Get owner of a token from the contract
+    /// Get owner of a token from the contract (read-only, no private key needed)
     /// - Parameters:
     ///   - contractId: Contract ID
     ///   - tokenId: Token ID
-    ///   - sourceKeyPair: Source account keypair (must exist on network)
+    ///   - accountId: Public account address for simulation (starts with 'G')
     /// - Returns: Owner address string
     /// - Throws: AppError if call fails
-    func getTokenOwner(contractId: String, tokenId: UInt64, sourceKeyPair: KeyPair) async throws -> String {
+    func getTokenOwner(contractId: String, tokenId: UInt64, accountId: String) async throws -> String {
         let args: [SCValXDR] = [SCValXDR.u64(tokenId)]
         
-        let (_, returnValue) = try await BlockchainHelpers.buildAndSimulate(
+        let returnValue = try await BlockchainHelpers.buildAndSimulateReadOnly(
             contractId: contractId,
             method: "owner_of",
             arguments: args,
-            sourceKeyPair: sourceKeyPair,
+            accountId: accountId,
             rpcClient: rpcClient
         )
         
@@ -63,14 +63,14 @@ final class BlockchainService {
         return ownerAddress
     }
 
-    /// Get token ID for a given chip public key from the contract
+    /// Get token ID for a given chip public key from the contract (read-only, no private key needed)
     /// - Parameters:
     ///   - contractId: Contract ID
     ///   - publicKey: Chip's public key (65 bytes, uncompressed SEC1 format)
-    ///   - sourceKeyPair: Source account keypair (must exist on network)
+    ///   - accountId: Public account address for simulation (starts with 'G')
     /// - Returns: Token ID
     /// - Throws: AppError if call fails
-    func getTokenId(contractId: String, publicKey: Data, sourceKeyPair: KeyPair) async throws -> UInt64 {
+    func getTokenId(contractId: String, publicKey: Data, accountId: String) async throws -> UInt64 {
         guard publicKey.count == 65 else {
             throw AppError.validation("Invalid public key length: \(publicKey.count), expected 65")
         }
@@ -78,11 +78,11 @@ final class BlockchainService {
         let args: [SCValXDR] = [SCValXDR.bytes(publicKey)]
         
         do {
-            let (_, returnValue) = try await BlockchainHelpers.buildAndSimulate(
+            let returnValue = try await BlockchainHelpers.buildAndSimulateReadOnly(
                 contractId: contractId,
                 method: "token_id",
                 arguments: args,
-                sourceKeyPair: sourceKeyPair,
+                accountId: accountId,
                 rpcClient: rpcClient
             )
             
@@ -115,21 +115,21 @@ final class BlockchainService {
         }
     }
 
-    /// Get token URI for a given token ID from the contract
+    /// Get token URI for a given token ID from the contract (read-only, no private key needed)
     /// - Parameters:
     ///   - contractId: Contract ID
     ///   - tokenId: Token ID
-    ///   - sourceKeyPair: Source account keypair (must exist on network)
+    ///   - accountId: Public account address for simulation (starts with 'G')
     /// - Returns: Token URI string (IPFS URL)
     /// - Throws: AppError if call fails
-    func getTokenUri(contractId: String, tokenId: UInt64, sourceKeyPair: KeyPair) async throws -> String {
+    func getTokenUri(contractId: String, tokenId: UInt64, accountId: String) async throws -> String {
         let args: [SCValXDR] = [SCValXDR.u64(tokenId)]
         
-        let (_, returnValue) = try await BlockchainHelpers.buildAndSimulate(
+        let returnValue = try await BlockchainHelpers.buildAndSimulateReadOnly(
             contractId: contractId,
             method: "token_uri",
             arguments: args,
-            sourceKeyPair: sourceKeyPair,
+            accountId: accountId,
             rpcClient: rpcClient
         )
         
@@ -153,22 +153,22 @@ final class BlockchainService {
         return cleanedUri
     }
 
-    /// Get nonce for a public key from the contract
+    /// Get nonce for a public key from the contract (read-only, no private key needed)
     /// - Parameters:
     ///   - contractId: Contract ID
     ///   - publicKey: Public key as Data (65 bytes, uncompressed)
-    ///   - sourceKeyPair: Source account keypair (must exist on network)
+    ///   - accountId: Public account address for simulation (starts with 'G')
     /// - Returns: Current nonce value
     /// - Throws: AppError if call fails (throws instead of returning 0)
-    func getNonce(contractId: String, publicKey: Data, sourceKeyPair: KeyPair) async throws -> UInt32 {
+    func getNonce(contractId: String, publicKey: Data, accountId: String) async throws -> UInt32 {
         let args: [SCValXDR] = [SCValXDR.bytes(publicKey)]
         
         do {
-            let (_, returnValue) = try await BlockchainHelpers.buildAndSimulate(
+            let returnValue = try await BlockchainHelpers.buildAndSimulateReadOnly(
                 contractId: contractId,
                 method: "get_nonce",
                 arguments: args,
-                sourceKeyPair: sourceKeyPair,
+                accountId: accountId,
                 rpcClient: rpcClient
             )
             

@@ -606,14 +606,16 @@ extension NFCOperationCoordinator: NFCTagReaderSessionDelegate {
     }
     
     private func getTokenIdForChip(contractId: String, publicKey: Data) async throws -> UInt64 {
-        guard walletService.getStoredWallet() != nil else {
+        guard let wallet = walletService.getStoredWallet() else {
             throw AppError.wallet(.noWallet)
         }
         
-        let keyPair = try SecureKeyStorage().withPrivateKey(reason: "Authenticate to read chip information", work: { key in
-            try KeyPair(secretSeed: key)
-        })
-        return try await blockchainService.getTokenId(contractId: contractId, publicKey: publicKey, sourceKeyPair: keyPair)
+        // Use public address only - no private key needed for read-only queries
+        return try await blockchainService.getTokenId(
+            contractId: contractId,
+            publicKey: publicKey,
+            accountId: wallet.address
+        )
     }
 }
 

@@ -79,20 +79,17 @@ final class TransferService {
             throw AppError.crypto(.invalidKey("Invalid public key format from chip. Please ensure you're using a compatible NFC chip."))
         }
 
-        // Step 2: Get source keypair for transaction building
-        let secureStorage = SecureKeyStorage()
-        let sourceKeyPair = try secureStorage.withPrivateKey(reason: "Authenticate to sign the transaction", work: { key in
-            try KeyPair(secretSeed: key)
-        })
+        // Use wallet address for read-only queries (no private key needed)
+        let accountId = wallet.address
 
-        // Step 3: Validate that the chip's public key corresponds to the token ID
+        // Step 2: Validate that the chip's public key corresponds to the token ID
         progressCallback?("Validating chip ownership...")
         Logger.logDebug("Validating that chip corresponds to token ID \(tokenId)", category: .blockchain)
         do {
             let expectedTokenId = try await blockchainService.getTokenId(
                 contractId: contractId,
                 publicKey: publicKeyData,
-                sourceKeyPair: sourceKeyPair
+                accountId: accountId
             )
             guard expectedTokenId == tokenId else {
                 throw AppError.validation("This NFC chip does not correspond to token ID \(tokenId). Expected token ID: \(expectedTokenId)")
@@ -107,7 +104,7 @@ final class TransferService {
             }
         }
 
-        // Step 4: Get nonce from contract
+        // Step 3: Get nonce from contract (read-only, no private key needed)
         progressCallback?("Preparing transaction...")
         Logger.logDebug("Getting nonce for contract: \(contractId)", category: .blockchain)
         let currentNonce: UInt32
@@ -115,7 +112,7 @@ final class TransferService {
             currentNonce = try await blockchainService.getNonce(
                 contractId: contractId,
                 publicKey: publicKeyData,
-                sourceKeyPair: sourceKeyPair
+                accountId: accountId
             )
         } catch let appError as AppError {
             // Re-throw contract errors as-is so ViewController can handle them specifically
@@ -183,7 +180,13 @@ final class TransferService {
         let signatureHex = signature.map { String(format: "%02x", $0) }.joined()
         Logger.logDebug("Final signature (r+s, hex): \(signatureHex)", category: .crypto)
 
-        // Step 8: Determine recovery ID offline
+        // Step 8: Get keypair for transaction building and signing (requires biometric auth)
+        let secureStorage = SecureKeyStorage()
+        let sourceKeyPair = try secureStorage.withPrivateKey(reason: "Authenticate to sign the transaction", work: { key in
+            try KeyPair(secretSeed: key)
+        })
+        
+        // Step 9: Determine recovery ID offline
         progressCallback?("Preparing transaction...")
         Logger.logDebug("Determining recovery ID offline...", category: .blockchain)
         let recoveryId: UInt32
@@ -203,7 +206,7 @@ final class TransferService {
             throw AppError.crypto(.verificationFailed)
         }
 
-        // Step 9: Build transaction with the correct recovery ID
+        // Step 10: Build transaction with the correct recovery ID
         progressCallback?("Building transaction...")
         Logger.logDebug("Building transaction with recovery ID \(recoveryId)...", category: .blockchain)
         let transaction: Transaction

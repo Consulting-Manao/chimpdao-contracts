@@ -23,10 +23,10 @@ struct LoginView: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 100, height: 100)
                         .padding(.bottom, 16)
-                        .accessibilityLabel("Chimp logo")
+                        .accessibilityLabel("Chi//mp logo")
                     
                     // Title
-                    Text("Welcome to Chimp")
+                    Text("Welcome to Chi//mp")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .foregroundColor(.primary)

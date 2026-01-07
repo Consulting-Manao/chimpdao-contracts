@@ -107,7 +107,7 @@ struct HomeView: View {
                 .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 8)
                 .padding(.top, 20)
                 .padding(.bottom, 20)
-                .accessibilityLabel("Chimp logo")
+                .accessibilityLabel("Chi//mp logo")
         }
     }
     

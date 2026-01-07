@@ -36,6 +36,29 @@ final class BlockchainHelpers {
         )
     }
     
+    /// Create ClientOptions for read-only contract calls (no private key needed)
+    /// - Parameters:
+    ///   - contractId: Contract ID
+    ///   - accountId: Public account address (starts with 'G')
+    /// - Returns: ClientOptions instance
+    /// - Throws: AppError if contract ID or account ID is invalid
+    static func createReadOnlyClientOptions(contractId: String, accountId: String) throws -> ClientOptions {
+        // Validate contract ID format
+        guard config.validateContractId(contractId) else {
+            throw AppError.blockchain(.invalidResponse)
+        }
+        
+        // Create KeyPair from public key only (no private key needed for simulation)
+        let keyPair = try KeyPair(accountId: accountId)
+        
+        return ClientOptions(
+            sourceAccountKeyPair: keyPair,
+            contractId: contractId,
+            network: getNetwork(),
+            rpcUrl: config.rpcUrl
+        )
+    }
+    
     /// Validate contract ID format
     /// - Parameter contractId: Contract ID to validate
     /// - Returns: true if valid, false otherwise
@@ -135,6 +158,50 @@ final class BlockchainHelpers {
         let returnValue = try await simulateAndDecode(transaction: rawTx, rpcClient: rpcClient)
         
         return (assembledTx, returnValue)
+    }
+    
+    /// Build and simulate a read-only contract call (no private key needed)
+    /// Use this for queries that don't modify state and don't require signing
+    /// - Parameters:
+    ///   - contractId: Contract ID
+    ///   - method: Method name to call
+    ///   - arguments: Method arguments
+    ///   - accountId: Public account address (starts with 'G')
+    ///   - rpcClient: SorobanServer instance
+    /// - Returns: SCValXDR result from simulation
+    /// - Throws: AppError if building or simulation fails
+    static func buildAndSimulateReadOnly(
+        contractId: String,
+        method: String,
+        arguments: [SCValXDR],
+        accountId: String,
+        rpcClient: SorobanServer
+    ) async throws -> SCValXDR {
+        let clientOptions = try createReadOnlyClientOptions(contractId: contractId, accountId: accountId)
+        
+        let assembledOptions = AssembledTransactionOptions(
+            clientOptions: clientOptions,
+            methodOptions: MethodOptions(),
+            method: method,
+            arguments: arguments
+        )
+        
+        let assembledTx: AssembledTransaction
+        do {
+            assembledTx = try await AssembledTransaction.build(options: assembledOptions)
+        } catch {
+            // Check if it's a contract error
+            if let contractError = extractContractError(from: error) {
+                throw contractError
+            }
+            throw AppError.blockchain(.invalidResponse)
+        }
+        
+        guard let rawTx = assembledTx.raw else {
+            throw AppError.blockchain(.invalidResponse)
+        }
+        
+        return try await simulateAndDecode(transaction: rawTx, rpcClient: rpcClient)
     }
     
     /// Build a transaction without simulating (for write operations)

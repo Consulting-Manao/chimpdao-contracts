@@ -65,14 +65,11 @@ final class MintService {
             throw AppError.crypto(.invalidKey("Invalid public key format from chip. Please ensure you're using a compatible NFC chip."))
         }
 
-        // Step 2: Get source keypair for transaction building
-        let secureStorage = SecureKeyStorage()
-        let sourceKeyPair = try secureStorage.withPrivateKey(reason: "Authenticate to sign the transaction", work: { key in
-            try KeyPair(secretSeed: key)
-        })
-        Logger.logDebug("Source account: \(sourceKeyPair.accountId)", category: .blockchain)
+        // Use wallet address for read-only queries (no private key needed)
+        let accountId = wallet.address
+        Logger.logDebug("Source account: \(accountId)", category: .blockchain)
 
-        // Step 3: Get nonce from contract
+        // Step 2: Get nonce from contract (read-only, no private key needed)
         progressCallback?("Preparing transaction...")
         Logger.logDebug("Getting nonce for contract: \(config.contractId)", category: .blockchain)
         let currentNonce: UInt32
@@ -80,7 +77,7 @@ final class MintService {
             currentNonce = try await blockchainService.getNonce(
                 contractId: config.contractId,
                 publicKey: publicKeyData,
-                sourceKeyPair: sourceKeyPair
+                accountId: accountId
             )
         } catch let appError as AppError {
             // Re-throw contract errors as-is so ViewController can handle them specifically
@@ -148,7 +145,13 @@ final class MintService {
         let signatureHex = signature.map { String(format: "%02x", $0) }.joined()
         Logger.logDebug("Final signature (r+s, hex): \(signatureHex)", category: .crypto)
 
-        // Step 8: Determine recovery ID offline
+        // Step 8: Get keypair for transaction building and signing (requires biometric auth)
+        let secureStorage = SecureKeyStorage()
+        let sourceKeyPair = try secureStorage.withPrivateKey(reason: "Authenticate to sign the transaction", work: { key in
+            try KeyPair(secretSeed: key)
+        })
+        
+        // Step 9: Determine recovery ID offline
         progressCallback?("Preparing transaction...")
         Logger.logDebug("Determining recovery ID offline...", category: .blockchain)
         let recoveryId: UInt32

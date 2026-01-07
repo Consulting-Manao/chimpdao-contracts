@@ -1,5 +1,4 @@
 import SwiftUI
-import stellarsdk
 
 struct NFTLoadingView: View {
     let contractId: String
@@ -80,7 +79,7 @@ struct NFTLoadingView: View {
     private func loadNFT() {
         Task {
             do {
-                guard let _ = walletService.getStoredWallet() else {
+                guard let wallet = walletService.getStoredWallet() else {
                     await MainActor.run {
                         errorMessage = "No wallet found"
                         isLoading = false
@@ -88,16 +87,15 @@ struct NFTLoadingView: View {
                     return
                 }
                 
-                let keyPair = try SecureKeyStorage().withPrivateKey(reason: "Authenticate to load NFT details", work: { key in
-                    try KeyPair(secretSeed: key)
-                })
+                // Use public address only - no private key needed for read-only queries
+                let accountId = wallet.address
                 
                 // Try to get the owner - if this succeeds, the NFT is claimed
                 do {
                     let owner = try await blockchainService.getTokenOwner(
                         contractId: contractId,
                         tokenId: tokenId,
-                        sourceKeyPair: keyPair
+                        accountId: accountId
                     )
                     await MainActor.run {
                         ownerAddress = owner
@@ -117,7 +115,7 @@ struct NFTLoadingView: View {
                 let ipfsUrl = try await blockchainService.getTokenUri(
                     contractId: contractId,
                     tokenId: tokenId,
-                    sourceKeyPair: keyPair
+                    accountId: accountId
                 )
                 
                 // Convert IPFS URL to HTTP gateway URL
