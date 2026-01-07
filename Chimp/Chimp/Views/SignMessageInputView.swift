@@ -46,6 +46,8 @@ struct SignMessageInputView: View {
                         Text(error)
                             .foregroundColor(.red)
                             .font(.subheadline)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, alignment: .center)
                             .accessibilityLabel("Error: \(error)")
                     }
                 }

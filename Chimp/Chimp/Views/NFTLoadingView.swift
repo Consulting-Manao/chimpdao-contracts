@@ -31,6 +31,8 @@ struct NFTLoadingView: View {
                 .accessibilityLabel("Loading NFT")
             } else if let error = errorMessage {
                 VStack(spacing: 20) {
+                    Spacer()
+                    
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 50))
                         .foregroundColor(.red)
@@ -45,7 +47,7 @@ struct NFTLoadingView: View {
                         .font(.body)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                        .padding(.horizontal, 32)
                         .accessibilityLabel("Error: \(error)")
                     
                     Button("Close") {
@@ -54,7 +56,10 @@ struct NFTLoadingView: View {
                     .buttonStyle(PrimaryButtonStyle())
                     .padding(.horizontal, 40)
                     .padding(.top, 8)
+                    
+                    Spacer()
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else if let metadata = metadata {

@@ -23,7 +23,13 @@ struct NFTViewSwiftUI: View {
     }
     
     private var nftURL: URL {
-        URL(string: "https://nft.chimpdao.xyz/\(contractId)/\(tokenId)")!
+        // Contract IDs are validated base32, so this should always succeed
+        // Using URL components for safety
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "nft.chimpdao.xyz"
+        components.path = "/\(contractId)/\(tokenId)"
+        return components.url ?? URL(string: "https://nft.chimpdao.xyz")!
     }
     
     private var shareMessage: String {
@@ -32,13 +38,24 @@ struct NFTViewSwiftUI: View {
     }
     
     private var twitterShareURL: URL {
-        let text = shareMessage.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        return URL(string: "https://twitter.com/intent/tweet?text=\(text)")!
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "twitter.com"
+        components.path = "/intent/tweet"
+        components.queryItems = [URLQueryItem(name: "text", value: shareMessage)]
+        return components.url ?? URL(string: "https://twitter.com")!
     }
     
     private var telegramShareURL: URL {
-        let text = shareMessage.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        return URL(string: "https://t.me/share/url?url=\(nftURL.absoluteString)&text=\(text)")!
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "t.me"
+        components.path = "/share/url"
+        components.queryItems = [
+            URLQueryItem(name: "url", value: nftURL.absoluteString),
+            URLQueryItem(name: "text", value: shareMessage)
+        ]
+        return components.url ?? URL(string: "https://t.me")!
     }
     
     var body: some View {

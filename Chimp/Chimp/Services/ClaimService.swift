@@ -12,6 +12,7 @@ import OSLog
 struct ClaimResult {
     let transactionHash: String
     let tokenId: UInt64
+    let contractId: String
 }
 
 final class ClaimService {
@@ -234,7 +235,7 @@ final class ClaimService {
             // Don't fail the claim operation if NDEF update fails - the token was successfully claimed
         }
 
-        return ClaimResult(transactionHash: txHash, tokenId: tokenId)
+        return ClaimResult(transactionHash: txHash, tokenId: tokenId, contractId: contractId)
     }
     
 }

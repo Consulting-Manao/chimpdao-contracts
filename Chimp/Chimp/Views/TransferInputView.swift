@@ -5,6 +5,7 @@ struct TransferInputView: View {
     @State private var recipientAddress: String = ""
     @State private var errorMessage: String?
     @State private var showConfirmation = false
+    @FocusState private var isAddressFocused: Bool
     
     let tokenId: UInt64
     let onTransfer: (String) -> Void
@@ -34,6 +35,13 @@ struct TransferInputView: View {
                             .font(.custom("SFMono-Regular", size: 14))
                             .autocapitalization(.none)
                             .disableAutocorrection(true)
+                            .focused($isAddressFocused)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                if isRecipientValid {
+                                    validateAndShowConfirmation()
+                                }
+                            }
                             .accessibilityLabel("Recipient address")
                             .accessibilityHint("Enter the Stellar address starting with G")
                         
@@ -55,10 +63,13 @@ struct TransferInputView: View {
                         Text(error)
                             .foregroundColor(.red)
                             .font(.subheadline)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, alignment: .center)
                             .accessibilityLabel("Error: \(error)")
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Transfer NFT")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -72,6 +83,14 @@ struct TransferInputView: View {
                         validateAndShowConfirmation()
                     }
                     .disabled(!isRecipientValid)
+                }
+                ToolbarItem(placement: .keyboard) {
+                    HStack {
+                        Spacer()
+                        Button("Done") {
+                            isAddressFocused = false
+                        }
+                    }
                 }
             }
             .alert("Confirm Transfer", isPresented: $showConfirmation) {

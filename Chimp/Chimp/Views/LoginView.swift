@@ -5,6 +5,7 @@ struct LoginView: View {
     @State private var secretKey: String = ""
     @State private var isLoading: Bool = false
     @State private var errorMessage: String?
+    @FocusState private var isSecretKeyFocused: Bool
     
     private let walletService = WalletService.shared
 
@@ -13,6 +14,9 @@ struct LoginView: View {
             ZStack {
                 Color.chimpBackground
                     .ignoresSafeArea()
+                    .onTapGesture {
+                        isSecretKeyFocused = false
+                    }
                 
                 VStack(spacing: 24) {
                     Spacer()
@@ -48,6 +52,13 @@ struct LoginView: View {
                             .textFieldStyle(.roundedBorder)
                             .autocapitalization(.none)
                             .disableAutocorrection(true)
+                            .focused($isSecretKeyFocused)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                if !secretKey.isEmpty {
+                                    login()
+                                }
+                            }
                             .accessibilityLabel("Secret key input")
                             .accessibilityHint("Enter your 56-character Stellar secret key starting with S")
                     }
@@ -58,6 +69,8 @@ struct LoginView: View {
                         Text(error)
                             .font(.subheadline)
                             .foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
                             .padding(.horizontal, 20)
                             .accessibilityLabel("Error: \(error)")
                             .accessibilityAddTraits(.updatesFrequently)

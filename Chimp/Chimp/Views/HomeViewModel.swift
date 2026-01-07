@@ -60,15 +60,15 @@ class HomeViewModel: ObservableObject {
             }
         }
         
-        nfcCoordinator.onClaimSuccess = { [weak self] tokenId in
+        nfcCoordinator.onClaimSuccess = { [weak self] tokenId, contractId in
             DispatchQueue.main.async {
                 // Reset coordinator state first to ensure clean state
                 self?.nfcCoordinator.resetState()
                 // Show confetti briefly, then load NFT
                 self?.showConfetti(message: "Claim successful!")
-                // After confetti, load the NFT
+                // After confetti, load the NFT using contract ID from chip
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-                    self?.loadedNFTContractId = AppConfig.shared.contractId
+                    self?.loadedNFTContractId = contractId
                     self?.loadedNFTTokenId = tokenId
                     self?.showingNFTView = true
                 }
@@ -145,7 +145,8 @@ class HomeViewModel: ObservableObject {
         // Cancel any existing timer
         errorTimeoutTimer?.invalidate()
         
-        // Create new timer for 5-second auto-dismiss on main run loop
+        // Create new timer for 5-second auto-dismiss
+        // scheduledTimer already adds to the current (main) run loop
         errorTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
             guard let self = self else { return }
             // Timer is on main run loop, so we can safely access main actor properties
@@ -153,8 +154,6 @@ class HomeViewModel: ObservableObject {
                 self.errorMessage = nil
             }
         }
-        // Ensure timer is on main run loop
-        RunLoop.main.add(errorTimeoutTimer!, forMode: .common)
     }
     
     func loadNFT() {

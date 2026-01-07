@@ -18,7 +18,7 @@ class NFCOperationCoordinator: NSObject {
     // Callbacks
     var onLoadNFTSuccess: ((String, UInt64) -> Void)?
     var onLoadNFTError: ((String) -> Void)?
-    var onClaimSuccess: ((UInt64) -> Void)? // tokenId
+    var onClaimSuccess: ((UInt64, String) -> Void)? // tokenId, contractId
     var onClaimError: ((String) -> Void)?
     var onTransferSuccess: (() -> Void)?
     var onTransferError: ((String) -> Void)?
@@ -110,7 +110,7 @@ class NFCOperationCoordinator: NSObject {
                             session.invalidate()
                             completion(true, nil)
                             // Trigger callback with tokenId for NFT loading
-                            self.onClaimSuccess?(claimResult.tokenId)
+                            self.onClaimSuccess?(claimResult.tokenId, claimResult.contractId)
                             self.claimNFCHelper = nil
                         }
                     } catch {

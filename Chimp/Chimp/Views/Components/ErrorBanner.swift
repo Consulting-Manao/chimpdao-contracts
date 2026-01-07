@@ -27,12 +27,10 @@ struct ErrorBanner: View {
     
     var body: some View {
         VStack(spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.subheadline)
                     .foregroundColor(.red)
-                    .frame(width: 20, height: 20)
-                    .alignmentGuide(.top) { d in d[.top] + 2 }
                 
                 Text(error)
                     .font(.subheadline)
@@ -43,12 +41,10 @@ struct ErrorBanner: View {
                 
                 Button(action: onDismiss) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 20))
+                        .font(.subheadline)
                         .foregroundColor(.red.opacity(0.7))
                 }
                 .buttonStyle(PlainButtonStyle())
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
                 .accessibilityLabel("Dismiss error")
             }
             
