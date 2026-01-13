@@ -62,7 +62,7 @@ final class SecureKeyStorage {
         }
         return secretKey
     }
-    private let keychainService = "com.stellarmerchshop.chimp.privatekey"
+    private let keychainService = "com.consulting-manao.chimp.privatekey"
     private let keychainAccount = "wallet_key"
     
     /// Store private key in Keychain with biometric protection

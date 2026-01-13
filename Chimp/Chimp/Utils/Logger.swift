@@ -17,7 +17,7 @@ enum LogCategory: String {
 
 /// Centralized logger using OSLog
 final class Logger {
-    private static let subsystem = "com.stellarmerchshop.chimp"
+    private static let subsystem = "com.consulting-manao.chimp"
     
     /// Get logger for a specific category
     /// - Parameter category: Log category

@@ -87,7 +87,7 @@ struct HelpView: View {
     }
     
     private func openContactPage() {
-        guard let url = URL(string: "https://stellarmerchshop.com/pages/contact") else { return }
+        guard let url = URL(string: "https://chimpdao.xyz/pages/contact") else { return }
         openURL(url)
     }
 }

@@ -31,7 +31,7 @@ final class NFCHelper: NSObject, NFCTagReaderSessionDelegate {
     let TAG: String = "NFCHelper"
     
     /// Background queue for NFC delegate callbacks (per Apple best practices)
-    private let nfcQueue = DispatchQueue(label: "com.stellarmerch.nfc", qos: .userInitiated)
+    private let nfcQueue = DispatchQueue(label: "com.consulting-manao.chimp.nfc", qos: .userInitiated)
     
     /// Stores the reader session handle
     var reader_session: NFCTagReaderSession?
