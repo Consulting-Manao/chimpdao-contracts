@@ -181,9 +181,9 @@ Consulting Manao GmbH
 FN 571029z  
 Email: legal@consulting-manao.com
 
-**Related Documents**: For information about data privacy, please see our Privacy Policy for the Chimp iOS App and our Privacy Policy for the nft.chimpdao.xyz Website.
+**Related Documents**: For information about data privacy, please see our Privacy Policy.
 
-## 2. Your Rights in a Nutshell
+## 2. License Overview
 
 When you own a ChimpDAO NFT, you hold a limited license to use the NFT and associated artwork for both personal and commercial purposes, subject to the terms and restrictions outlined below. This license is granted only while you own the NFT on the Stellar blockchain.
 
@@ -211,9 +211,7 @@ You are granted a limited, worldwide, non-exclusive license to use your specific
 
 ## 4. Commercial Use
 
-We encourage ChimpDAO NFT holders to build businesses, create products, and develop services using their NFTs. We support holder-driven projects and community building. The commercial use rights below are designed to empower you to build and create while maintaining necessary protections for the ChimpDAO brand and community.
-
-Subject to the restrictions below, you may use your specific NFT and associated artwork for commercial purposes, including:
+Commercial use rights are granted subject to the restrictions set forth below. Holders may use their NFT and associated artwork for commercial purposes, including:
 
 - Creating and selling physical merchandise featuring your NFT artwork
 - Creating and selling digital products featuring your NFT artwork
@@ -363,5 +361,9 @@ For questions about these guidelines or to report potential violations, please c
 ## 15. Acknowledgment
 
 By purchasing, claiming, or using a ChimpDAO NFT, you acknowledge that you have read, understood, and agree to be bound by these Intellectual Property Rights and Licensing Guidelines.
+
+---
+
+© 2026 Consulting Manao GmbH. All rights reserved.
 """
 }
