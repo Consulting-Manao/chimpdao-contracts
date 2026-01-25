@@ -61,8 +61,6 @@ class HomeViewModel: ObservableObject {
         }
         
         nfcCoordinator.onClaimSuccess = { [weak self] tokenId, contractId in
-            // Reset coordinator state first to ensure clean state
-            self?.nfcCoordinator.resetState()
             // Show confetti briefly, then load NFT
             self?.showConfetti(message: "Claim successful!")
             // After confetti, load the NFT using contract ID from chip
@@ -78,8 +76,7 @@ class HomeViewModel: ObservableObject {
         }
         
         nfcCoordinator.onTransferSuccess = { [weak self] in
-            // Reset coordinator state and show confetti
-            self?.nfcCoordinator.resetState()
+            // Show confetti
             self?.showConfetti(message: "Transfer successful!")
         }
         
@@ -97,8 +94,6 @@ class HomeViewModel: ObservableObject {
         }
         
         nfcCoordinator.onMintSuccess = { [weak self] tokenId in
-            // Reset coordinator state first to ensure clean state
-            self?.nfcCoordinator.resetState()
             // Show confetti briefly - no need for extra alert since NFC session already showed success
             self?.showConfetti(message: "Mint successful! Token ID: \(tokenId)")
         }
@@ -130,9 +125,7 @@ class HomeViewModel: ObservableObject {
         errorTimeoutTimer?.invalidate()
         
         errorTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-            Task { @MainActor in
-                self?.errorMessage = nil
-            }
+            self?.errorMessage = nil
         }
     }
     
@@ -141,9 +134,6 @@ class HomeViewModel: ObservableObject {
             errorMessage = "Please login first"
             return
         }
-        
-        // Reset coordinator state first to ensure clean state
-        nfcCoordinator.resetState()
         
         isLoading = true
         errorMessage = nil
