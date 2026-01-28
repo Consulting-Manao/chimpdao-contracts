@@ -19,10 +19,7 @@ export default defineConfig(() => {
     ],
     resolve: {
       alias: {
-        stellar_merch_shop: path.resolve(
-          __dirname,
-          "./packages/stellar_merch_shop/dist/index.js",
-        ),
+        nfc_nft: path.resolve(__dirname, "./packages/nfc_nft/dist/index.js"),
       },
     },
     build: {

@@ -1,5 +1,5 @@
 [package]
-name = "stellar-merch-shop"
+name = "collection"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

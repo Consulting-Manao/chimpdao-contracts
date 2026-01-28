@@ -39,7 +39,7 @@ use alloc::vec::Vec;
 use soroban_sdk::{crypto::Hash, testutils::Address as _, Address, Bytes, BytesN, Env, String};
 use soroban_sdk::xdr::ToXdr;
 
-use crate::{StellarMerchShop, StellarMerchShopClient};
+use crate::{NFCtoNFT, NFCtoNFTClient};
 
 struct TestSignature {
     nonce: u32,
@@ -420,9 +420,9 @@ fn test_print_message_hash_for_signing() {
     assert!(true);
 }
 
-fn create_client<'a>(e: &Env, admin: &Address) -> StellarMerchShopClient<'a> {
+fn create_client<'a>(e: &Env, admin: &Address) -> NFCtoNFTClient<'a> {
     let address = e.register(
-        StellarMerchShop,
+        NFCtoNFT,
         (
             admin,
             &String::from_str(e, "TestNFT"),
@@ -431,7 +431,7 @@ fn create_client<'a>(e: &Env, admin: &Address) -> StellarMerchShopClient<'a> {
             &10_000u64, // max_tokens
         ),
     );
-    StellarMerchShopClient::new(e, &address)
+    NFCtoNFTClient::new(e, &address)
 }
 
 #[test]

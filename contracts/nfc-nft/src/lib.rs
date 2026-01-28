@@ -3,7 +3,7 @@
 
 use soroban_sdk::{contract, contractmeta, Env, Address, String, BytesN, Bytes};
 
-contractmeta!(key = "Description", val = "Stellar Merch Shop");
+contractmeta!(key = "Description", val = "ChimpDAO NFC-NFT");
 
 mod contract;
 
@@ -13,9 +13,9 @@ mod errors;
 mod events;
 
 #[contract]
-pub struct StellarMerchShop;
+pub struct NFCtoNFT;
 
-pub trait NFCtoNFTContract {
+pub trait NFCtoNFTTrait {
 
     fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String, max_tokens: u64);
 

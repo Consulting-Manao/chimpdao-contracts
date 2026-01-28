@@ -3,10 +3,10 @@ members = ["contracts/*"]
 resolver = "2"
 
 [workspace.package]
-authors = ["Stellar Merch Shop"]
+authors = ["ChimpDAO"]
 edition = "2024"
 license = "BSD-3"
-repository = "https://github.com/tupui/stellar-merch-shop"
+repository = "https://github.com/consulting-manao/chimpdao"
 version = "1.0.0"
 
 [workspace.dependencies.soroban-sdk]

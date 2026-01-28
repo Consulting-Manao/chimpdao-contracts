@@ -1,4 +1,4 @@
-.PHONY: help install contract_build contract_test contract_deploy contract_help
+.PHONY: help install contract_build contract_test contract_bindings contract_deploy_collection contract_deploy_nft contract_help
 .DEFAULT_GOAL := help
 SHELL:=/bin/bash
 
@@ -11,7 +11,11 @@ ifndef admin
 endif
 
 ifndef wasm
-override wasm = target/wasm32v1-none/release/stellar_merch_shop.wasm
+override wasm = target/wasm32v1-none/release/nfc_nft.wasm
+endif
+
+ifndef wasm_collection
+override wasm_collection = target/wasm32v1-none/release/collection.wasm
 endif
 
 # Add help text after each target name starting with '\#\#'
@@ -45,9 +49,19 @@ contract_bindings: contract_build  ## Create bindings
 	stellar contract bindings typescript \
 		--network $(network) \
 		--wasm $(wasm) \
-		--output-dir packages/stellar_merch_shop \
+		--output-dir packages/nfc_nft \
 		--overwrite && \
-	cd packages/stellar_merch_shop && \
+	cd packages/nfc_nft && \
+	bun install --latest && \
+	bun run build && \
+	cd ../.. && \
+	bun format && \
+	stellar contract bindings typescript \
+		--network $(network) \
+		--wasm $(wasm_collection) \
+		--output-dir packages/collection \
+		--overwrite && \
+	cd packages/collection && \
 	bun install --latest && \
 	bun run build && \
 	cd ../.. && \
@@ -55,23 +69,33 @@ contract_bindings: contract_build  ## Create bindings
 
 # --salt $(shell printf cmp1 | openssl sha256 | cut -d " " -f2) \
 
-contract_deploy:  ## Deploy Soroban contract to testnet
+contract_deploy_collection:  ## Deploy Soroban contract collection to testnet
+	stellar contract deploy \
+  		--wasm $(wasm_collection) \
+  		--source-account me \
+  		--network $(network) \
+  		-- \
+  		--admin me \
+  		> .config/stellar/collection_$(network)_id && \
+  	cat .config/stellar/collection_$(network)_id
+
+contract_deploy_nft:  ## Deploy Soroban contract NFT to testnet
 	stellar contract deploy \
   		--wasm $(wasm) \
   		--source-account me \
   		--network $(network) \
   		-- \
   		--admin me \
-  		--name shirt --symbol cmp1 --max_tokens 100 \
-  		--uri ipfs://QmWXJXRdExse2YHRY21Wvh4pjRxNRQcWVhcKw4DLVnqGqs \
-  		> .config/stellar/stellar_merch_shop_$(network)_id && \
-  	cat .config/stellar/stellar_merch_shop_$(network)_id
+  		--name "Palta Chimpy" --symbol chi1 --max_tokens 100 \
+  		--uri ipfs://bafybeiafq44zqj626slkz72c3xe2c2cnqnygmiev7uz33jbxoxd3trrw34 \
+  		> .config/stellar/nfc_nft_$(network)_id && \
+  	cat .config/stellar/nfc_nft_$(network)_id
 
 contract_uri:
 	stellar contract invoke \
 		--source-account me \
 		--network $(network) \
-		--id $(shell cat .config/stellar/stellar_merch_shop_$(network)_id) \
+		--id $(shell cat .config/stellar/nfc_nft_$(network)_id) \
 		-- \
 		token_uri \
 		--token_id 1

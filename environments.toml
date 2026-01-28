@@ -8,12 +8,18 @@ run-locally = true
 name = "me"
 default = true
 
-[development.contracts.stellar_merch_shop]
+[development.contracts.nfc_nft]
 client = true
-
 
 constructor_args = """
 --admin me --name paltashirt --symbol smps --uri ipfs://fdfdsqrewfdfsdf --max_tokens 100
+"""
+
+[development.contracts.collection]
+client = true
+
+constructor_args = """
+--admin me
 """
 
 ### Staging environment configuration

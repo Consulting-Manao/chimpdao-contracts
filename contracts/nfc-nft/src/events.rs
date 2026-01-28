@@ -19,26 +19,6 @@ pub struct Transfer {
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Approve {
-    #[topic]
-    pub approver: Address,
-    #[topic]
-    pub token_id: u64,
-    pub approved: Address,
-    pub live_until_ledger: u32,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ApproveForAll {
-    #[topic]
-    pub owner: Address,
-    pub operator: Address,
-    pub live_until_ledger: u32,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Mint {
     #[topic]
     pub token_id: u64,

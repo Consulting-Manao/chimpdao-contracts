@@ -2,7 +2,7 @@
 
 use soroban_sdk::{contractimpl, contracttype, panic_with_error, Address, Bytes, BytesN, Env, String};
 use soroban_sdk::xdr::ToXdr;
-use crate::{errors, events, NFCtoNFTContract, StellarMerchShop, StellarMerchShopArgs, StellarMerchShopClient};
+use crate::{errors, events, NFCtoNFT, NFCtoNFTArgs, NFCtoNFTClient, NFCtoNFTTrait};
 
 #[contracttype]
 pub enum DataKey {
@@ -24,7 +24,7 @@ pub enum NFTStorageKey {
 }
 
 #[contractimpl]
-impl NFCtoNFTContract for StellarMerchShop {
+impl NFCtoNFTTrait for NFCtoNFT {
 
     fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String, max_tokens: u64) {
         e.storage().instance().set(&DataKey::Admin, &admin);
