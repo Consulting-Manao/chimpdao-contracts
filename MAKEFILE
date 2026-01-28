@@ -67,7 +67,7 @@ contract_bindings: contract_build  ## Create bindings
 	cd ../.. && \
 	bun format
 
-# --salt $(shell printf cmp1 | openssl sha256 | cut -d " " -f2) \
+# --salt $(shell printf chi1 | openssl sha256 | cut -d " " -f2) \
 
 contract_deploy_collection:  ## Deploy Soroban contract collection to testnet
 	stellar contract deploy \
@@ -98,4 +98,4 @@ contract_uri:
 		--id $(shell cat .config/stellar/nfc_nft_$(network)_id) \
 		-- \
 		token_uri \
-		--token_id 1
+		--token_id 0
