@@ -14,14 +14,14 @@ pub struct Transfer {
     pub from: Address,
     #[topic]
     pub to: Address,
-    pub token_id: u64,
+    pub token_id: u32,
 }
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Mint {
     #[topic]
-    pub token_id: u64,
+    pub token_id: u32,
 }
 
 #[contractevent]
@@ -29,5 +29,5 @@ pub struct Mint {
 pub struct Claim {
     #[topic]
     pub claimant: Address,
-    pub token_id: u64,
+    pub token_id: u32,
 }

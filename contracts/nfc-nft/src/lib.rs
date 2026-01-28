@@ -17,7 +17,7 @@ pub struct NFCtoNFT;
 
 pub trait NFCtoNFTTrait {
 
-    fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String, max_tokens: u64);
+    fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String, max_tokens: u32);
 
     fn upgrade(e: &Env, wasm_hash: BytesN<32>);
 
@@ -25,7 +25,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// This function verifies that the provided signature was created by an Infineon
     /// NFC chip by recovering the chip's public key. The public key is converted to
-    /// a SEP-50 compliant u64 token_id.
+    /// a SEP-50 compliant u32 token_id.
     ///
     /// # Arguments
     ///
@@ -39,14 +39,14 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Returns
     ///
-    /// The u64 token_id (SEP-50 compliant) if signature is valid.
-    fn mint(e: &Env, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32) -> u64;
+    /// The u32 token_id (SEP-50 compliant) if signature is valid.
+    fn mint(e: &Env, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32) -> u32;
 
     /// Claim NFT using NFC chip signature.
     ///
     /// This function verifies that the provided signature was created by an Infineon
     /// NFC chip by recovering the chip's public key. The public key is converted to
-    /// a SEP-50 compliant u64 token_id.
+    /// a SEP-50 compliant u32 token_id.
     ///
     /// # Arguments
     ///
@@ -60,8 +60,8 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Returns
     ///
-    /// The u64 token_id (SEP-50 compliant) if signature is valid.
-    fn claim(e: &Env, claimant: Address, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32) -> u64;
+    /// The u32 token_id (SEP-50 compliant) if signature is valid.
+    fn claim(e: &Env, claimant: Address, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32) -> u32;
 
     /// Transfers `token_id` token from `from` to `to` using NFC chip signature.
     ///
@@ -88,7 +88,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// * topics - `["transfer", from: Address, to: Address]`
     /// * data - `[token_id: BytesN<65>]`
-    fn transfer(e: &Env, from: Address, to: Address, token_id: u64, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32);
+    fn transfer(e: &Env, from: Address, to: Address, token_id: u32, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32);
 
     /// Returns the current nonce for the given `public_key`.
     ///
@@ -120,7 +120,7 @@ pub trait NFCtoNFTTrait {
     /// # Notes
     ///
     /// If the token does not exist, this function is expected to panic.
-    fn owner_of(e: &Env, token_id: u64) -> Address;
+    fn owner_of(e: &Env, token_id: u32) -> Address;
 
     /// Returns the token collection name.
     ///
@@ -146,7 +146,7 @@ pub trait NFCtoNFTTrait {
     /// # Notes
     ///
     /// If the token does not exist, this function is expected to panic.
-    fn token_uri(e: &Env, token_id: u64) -> String;
+    fn token_uri(e: &Env, token_id: u32) -> String;
 
     /// Returns the token ID for the given chip public key.
     ///
@@ -158,7 +158,7 @@ pub trait NFCtoNFTTrait {
     /// # Returns
     ///
     /// The token ID associated with this public key, or panics if not found.
-    fn token_id(e: &Env, public_key: BytesN<65>) -> u64;
+    fn token_id(e: &Env, public_key: BytesN<65>) -> u32;
 
     /// Returns the chip public key for the given token ID.
     ///
@@ -174,5 +174,5 @@ pub trait NFCtoNFTTrait {
     /// # Notes
     ///
     /// If the token does not exist, this function is expected to panic.
-    fn public_key(e: &Env, token_id: u64) -> BytesN<65>;
+    fn public_key(e: &Env, token_id: u32) -> BytesN<65>;
 }

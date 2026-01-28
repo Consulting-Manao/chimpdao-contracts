@@ -428,7 +428,7 @@ fn create_client<'a>(e: &Env, admin: &Address) -> NFCtoNFTClient<'a> {
             &String::from_str(e, "TestNFT"),
             &String::from_str(e, "TNFT"),
             &String::from_str(e, "ipfs://abcd"),
-            &10_000u64, // max_tokens
+            &10_000u32, // max_tokens
         ),
     );
     NFCtoNFTClient::new(e, &address)
@@ -467,7 +467,7 @@ fn test_claim() {
     let public_key = BytesN::from_array(&e, &mint_sig.public_key);
 
     let token_id = client.mint(&message, &mint_signature, &mint_recovery_id, &public_key, &mint_sig.nonce);
-    assert_eq!(token_id, 0u64);
+    assert_eq!(token_id, 0u32);
 
     // Verify token is unclaimed after mint
     let owner_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -524,7 +524,7 @@ fn test_nonce_reuse_prevention() {
 fn test_u64_to_decimal_bytes() {
     let e = Env::default();
 
-    let test_cases: &[(u64, &str)] = &[
+    let test_cases: &[(u32, &str)] = &[
         (0, "0"),
         (1, "1"),
         (9, "9"),
@@ -542,7 +542,7 @@ fn test_u64_to_decimal_bytes() {
     ];
 
     for (value, expected_str) in test_cases.iter() {
-        let result = crate::contract::u64_to_decimal_bytes(&e, *value);
+        let result = crate::contract::u32_to_decimal_bytes(&e, *value);
         assert_eq!(result, Bytes::from_slice(&e, expected_str.as_bytes()));
     }
 }
@@ -564,7 +564,7 @@ fn test_transfer() {
     let message = Bytes::from_slice(&e, mint_sig.message);
     let public_key = BytesN::from_array(&e, &mint_sig.public_key);
     let token_id = client.mint(&message, &mint_signature, &mint_recovery_id, &public_key, &mint_sig.nonce);
-    assert_eq!(token_id, 0u64);
+    assert_eq!(token_id, 0u32);
 
     // Chip 1, nonce 2 (claim)
     let claim_sig = &TEST_SIGNATURES[1];
@@ -617,7 +617,7 @@ fn test_multiple_chips_and_nfts() {
     let message = Bytes::from_slice(&e, mint1_sig.message);
     let public_key_1 = BytesN::from_array(&e, &mint1_sig.public_key);
     let token_id_1 = client.mint(&message, &mint1_signature, &mint1_recovery_id, &public_key_1, &mint1_sig.nonce);
-    assert_eq!(token_id_1, 0u64);
+    assert_eq!(token_id_1, 0u32);
 
     let claim1_sig = &TEST_SIGNATURES[1];
     let claim1_message_hash = calculate_message_hash(&e, claim1_sig.message, claim1_sig.nonce);
@@ -633,7 +633,7 @@ fn test_multiple_chips_and_nfts() {
     let message = Bytes::from_slice(&e, mint2_sig.message);
     let public_key_2 = BytesN::from_array(&e, &mint2_sig.public_key);
     let token_id_2 = client.mint(&message, &mint2_signature, &mint2_recovery_id, &public_key_2, &mint2_sig.nonce);
-    assert_eq!(token_id_2, 1u64, "Second token should have ID 1");
+    assert_eq!(token_id_2, 1u32, "Second token should have ID 1");
 
     let claim2_sig = &TEST_SIGNATURES[4];
     let claim2_message_hash = calculate_message_hash(&e, claim2_sig.message, claim2_sig.nonce);

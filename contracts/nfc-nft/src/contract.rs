@@ -14,8 +14,8 @@ pub enum DataKey {
 #[contracttype]
 pub enum NFTStorageKey {
     ChipNonceByPublicKey(BytesN<65>),
-    Owner(u64),
-    PublicKey(u64),
+    Owner(u32),
+    PublicKey(u32),
     TokenIdByPublicKey(BytesN<65>),
     Balance(Address),
     Name,
@@ -26,7 +26,7 @@ pub enum NFTStorageKey {
 #[contractimpl]
 impl NFCtoNFTTrait for NFCtoNFT {
 
-    fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String, max_tokens: u64) {
+    fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String, max_tokens: u32) {
         e.storage().instance().set(&DataKey::Admin, &admin);
 
         e.storage().instance().set(&NFTStorageKey::Name, &name);
@@ -34,7 +34,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
         e.storage().instance().set(&NFTStorageKey::URI, &uri);
 
         e.storage().instance().set(&DataKey::MaxTokens, &max_tokens);
-        e.storage().instance().set(&DataKey::NextTokenId, &0u64);
+        e.storage().instance().set(&DataKey::NextTokenId, &0u32);
     }
 
     fn upgrade(e: &Env, wasm_hash: BytesN<32>) {
@@ -53,7 +53,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
         recovery_id: u32,
         public_key: BytesN<65>,
         nonce: u32,
-    ) -> u64 {
+    ) -> u32 {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
 
@@ -64,12 +64,12 @@ impl NFCtoNFTTrait for NFCtoNFT {
             panic_with_error!(&e, &errors::NonFungibleTokenError::TokenAlreadyMinted);
         }
 
-        let token_id: u64 = e
+        let token_id: u32 = e
             .storage()
             .instance()
             .get(&DataKey::NextTokenId)
             .unwrap();
-        let max_tokens: u64 = e
+        let max_tokens: u32 = e
             .storage()
             .instance()
             .get(&DataKey::MaxTokens)
@@ -96,7 +96,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
         recovery_id: u32,
         public_key: BytesN<65>,
         nonce: u32,
-    ) -> u64 {
+    ) -> u32 {
         verify_chip_signature(e, message, signature, recovery_id, public_key.clone(), nonce);
 
         // Look up token_id from public_key
@@ -121,7 +121,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
         e: &Env,
         from: Address,
         to: Address,
-        token_id: u64,
+        token_id: u32,
         message: Bytes,
         signature: BytesN<64>,
         recovery_id: u32,
@@ -169,7 +169,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
             .unwrap_or(0u32)
     }
 
-    fn owner_of(e: &Env, token_id: u64) -> Address {
+    fn owner_of(e: &Env, token_id: u32) -> Address {
         // Verify the token exists (this will panic if it doesn't)
         Self::public_key(e, token_id);
 
@@ -193,7 +193,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
             .unwrap()
     }
 
-    fn token_uri(e: &Env, token_id: u64) -> String {
+    fn token_uri(e: &Env, token_id: u32) -> String {
         // Verify token exists (this will panic if it doesn't)
         Self::public_key(e, token_id);
 
@@ -207,20 +207,20 @@ impl NFCtoNFTTrait for NFCtoNFT {
         let mut uri_bytes = Bytes::new(e);
         uri_bytes.append(&Bytes::from(base_uri));
         uri_bytes.append(&Bytes::from_slice(e, b"/"));
-        uri_bytes.append(&u64_to_decimal_bytes(e, token_id));
+        uri_bytes.append(&u32_to_decimal_bytes(e, token_id));
 
         String::from(uri_bytes)
     }
 
-    fn token_id(e: &Env, public_key: BytesN<65>) -> u64 {
+    fn token_id(e: &Env, public_key: BytesN<65>) -> u32 {
         let public_key_lookup = NFTStorageKey::TokenIdByPublicKey(public_key);
         e.storage()
             .persistent()
-            .get::<NFTStorageKey, u64>(&public_key_lookup)
+            .get::<NFTStorageKey, u32>(&public_key_lookup)
             .unwrap_or_else(|| panic_with_error!(e, errors::NonFungibleTokenError::NonExistentToken))
     }
 
-    fn public_key(e: &Env, token_id: u64) -> BytesN<65> {
+    fn public_key(e: &Env, token_id: u32) -> BytesN<65> {
         e.storage()
             .persistent()
             .get(&NFTStorageKey::PublicKey(token_id))
@@ -228,9 +228,9 @@ impl NFCtoNFTTrait for NFCtoNFT {
     }
 }
 
-/// Convert an u64 to its decimal string representation as Bytes
+/// Convert an u32 to its decimal string representation as Bytes
 /// Implementation inspired by OpenZeppelin's token_id_to_string
-pub(crate) fn u64_to_decimal_bytes(e: &Env, mut value: u64) -> Bytes {
+pub(crate) fn u32_to_decimal_bytes(e: &Env, mut value: u32) -> Bytes {
     if value == 0 {
         return Bytes::from_slice(e, b"0");
     }
@@ -243,7 +243,7 @@ pub(crate) fn u64_to_decimal_bytes(e: &Env, mut value: u64) -> Bytes {
         temp /= 10;
     }
 
-    // Allocate buffer with max size (20 for u64)
+    // Allocate buffer with max size (20 for u32)
     let mut buffer = [0u8; 20];
 
     // Fill from right to left (most significant digit first)
