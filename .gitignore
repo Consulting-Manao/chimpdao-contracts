@@ -25,9 +25,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # environment variables
-.env
-.env.*
-!.env.example
+dapp/.env
+dapp/.env.example
+!dapp/.env.example
 
 # easy way to create temporary local-only files and folders
 *.local.*
@@ -36,8 +36,8 @@ lerna-debug.log*
 .DS_Store
 
 # generated contract client imports
-src/contracts/*
-!src/contracts/util.ts
+dapp/src/contracts/*
+!dapp/src/contracts/util.ts
 
 .idea
 .cursor
