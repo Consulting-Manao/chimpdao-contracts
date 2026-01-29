@@ -49,19 +49,18 @@ contract_bindings: contract_build  ## Create bindings
 	stellar contract bindings typescript \
 		--network $(network) \
 		--wasm $(wasm) \
-		--output-dir packages/nfc_nft \
+		--output-dir dapp/packages/nfc_nft \
 		--overwrite && \
-	cd packages/nfc_nft && \
+	cd dapp/packages/nfc_nft && \
 	bun install --latest && \
 	bun run build && \
-	cd ../.. && \
-	bun format && \
+	cd ../../.. && \
 	stellar contract bindings typescript \
 		--network $(network) \
 		--wasm $(wasm_collection) \
-		--output-dir packages/collection \
+		--output-dir dapp/packages/collection \
 		--overwrite && \
-	cd packages/collection && \
+	cd dapp/packages/collection && \
 	bun install --latest && \
 	bun run build && \
 	cd ../.. && \
@@ -87,7 +86,7 @@ contract_deploy_nft:  ## Deploy Soroban contract NFT to testnet
   		-- \
   		--admin me \
   		--name "Palta Chimpy" --symbol chi1 --max_tokens 100 \
-  		--uri ipfs://bafybeiafq44zqj626slkz72c3xe2c2cnqnygmiev7uz33jbxoxd3trrw34 \
+  		--uri https://ipfs.io/ipfs/bafybeiafq44zqj626slkz72c3xe2c2cnqnygmiev7uz33jbxoxd3trrw34 \
   		> .config/stellar/nfc_nft_$(network)_id && \
   	cat .config/stellar/nfc_nft_$(network)_id
 
