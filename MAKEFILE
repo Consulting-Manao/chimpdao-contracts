@@ -86,7 +86,7 @@ contract_deploy_nft:  ## Deploy Soroban contract NFT to testnet
   		-- \
   		--admin me \
   		--name "Palta Chimpy" --symbol chi1 --max_tokens 100 \
-  		--uri https://ipfs.io/ipfs/bafybeiafq44zqj626slkz72c3xe2c2cnqnygmiev7uz33jbxoxd3trrw34 \
+  		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna \
   		> .config/stellar/nfc_nft_$(network)_id && \
   	cat .config/stellar/nfc_nft_$(network)_id
 
