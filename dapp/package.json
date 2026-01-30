@@ -1,0 +1,64 @@
+{
+  "name": "chimpdao-admin",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun run start",
+    "start": "concurrently --kill-others-on-fail --names stellar,vite -c gray,green --pad-prefix \"stellar scaffold watch --build-clients\" \"vite\"",
+    "nfc-server": "cd ../nfc-server && node index.js",
+    "dev:with-nfc": "concurrently --kill-others-on-fail --names nfc,stellar,vite -c blue,gray,green \"bun run nfc-server\" \"stellar scaffold watch --build-clients\" \"vite\"",
+    "build": "tsc -b && vite build",
+    "install:contracts": "bun install --workspace=packages && bun run build --workspace=packages",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "format": "prettier . --write"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "dependencies": {
+    "@creit.tech/stellar-wallets-kit": "^1.9.5",
+    "@noble/secp256k1": "^3.0.0",
+    "@stellar/design-system": "^3.2.7",
+    "@stellar/stellar-sdk": "^14.5.0",
+    "@stellar/stellar-xdr-json": "^23.0.0",
+    "@tanstack/react-query": "^5.90.20",
+    "lossless-json": "^4.3.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/lodash": "^4.17.23",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
+    "@types/react-router-dom": "^5.3.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "concurrently": "^9.2.1",
+    "dotenv": "^17.2.3",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-dom": "^2.7.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "eslint-plugin-react-x": "^2.7.4",
+    "glob": "^13.0.0",
+    "globals": "^17.2.0",
+    "lint-staged": "^16.2.7",
+    "prettier": "3.8.1",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.54.0",
+    "vite": "^7.3.1",
+    "vite-plugin-node-polyfills": "^0.25.0",
+    "vite-plugin-wasm": "^3.5.0"
+  },
+  "lint-staged": {
+    "**/*": [
+      "eslint --fix --no-warn-ignored",
+      "prettier --write --ignore-unknown"
+    ]
+  }
+}

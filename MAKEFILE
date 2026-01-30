@@ -68,7 +68,7 @@ contract_bindings: contract_build  ## Create bindings
 
 # --salt $(shell printf chi1 | openssl sha256 | cut -d " " -f2) \
 
-contract_deploy_collection:  ## Deploy Soroban contract collection to testnet
+contract_deploy_collection: contract_bindings  ## Deploy Soroban contract collection to testnet
 	stellar contract deploy \
   		--wasm $(wasm_collection) \
   		--source-account me \
@@ -78,7 +78,7 @@ contract_deploy_collection:  ## Deploy Soroban contract collection to testnet
   		> .config/stellar/collection_$(network)_id && \
   	cat .config/stellar/collection_$(network)_id
 
-contract_deploy_nft:  ## Deploy Soroban contract NFT to testnet
+contract_deploy_nft: contract_bindings  ## Deploy Soroban contract NFT to testnet
 	stellar contract deploy \
   		--wasm $(wasm) \
   		--source-account me \

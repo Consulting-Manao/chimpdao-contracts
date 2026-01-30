@@ -1,0 +1,53 @@
+### Development environment configuration
+[development.network]
+rpc-url = "http://localhost:8000/rpc"
+network-passphrase = "Standalone Network ; February 2017"
+run-locally = true
+
+[[development.accounts]]
+name = "me"
+default = true
+
+[development.contracts.nfc_nft]
+client = true
+
+constructor_args = """
+--admin me --name paltashirt --symbol smps --uri ipfs://fdfdsqrewfdfsdf --max_tokens 100
+"""
+
+[development.contracts.collection]
+client = true
+
+constructor_args = """
+--admin me
+"""
+
+### Staging environment configuration
+[staging.network]
+rpc-url = "https://soroban-testnet.stellar.org"
+network-passphrase = "Test SDF Network ; September 2015"
+
+[[staging.accounts]]
+name = "testnet-user"
+default = true
+
+[staging.contracts]
+# soroban-atomic-swap-contract = { id = "C123..." }
+
+### Production environment configuration
+[production.network]
+rpc-url = "https://our-custom-rpc-provider.cool"
+network-passphrase = "Public Global Stellar Network ; September 2015"
+
+[[production.accounts]]
+name = "official-team-account"
+default = true
+
+[production.contracts]
+# soroban-atomic-swap-contract = { id = "C987..." }
+# soroban-auth-contract = { id = "C876..." }
+# soroban-errors-contract = { id = "C765..." }
+# soroban-hello-world-contract = { id = "C654..." }
+# soroban-increment-contract = { id = "C543..." }
+# soroban-token-contract = { id = "C432..." }
+# eurc = { id = "C321..." }

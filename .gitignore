@@ -26,8 +26,6 @@ lerna-debug.log*
 
 # environment variables
 dapp/.env
-dapp/.env.example
-!dapp/.env.example
 
 # easy way to create temporary local-only files and folders
 *.local.*
@@ -35,12 +33,7 @@ dapp/.env.example
 # macOS-specific files
 .DS_Store
 
-# generated contract client imports
-dapp/src/contracts/*
-!dapp/src/contracts/util.ts
-
 .idea
 .cursor
 .build
 nfc-server/scripts
-dapp
