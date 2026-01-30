@@ -219,6 +219,13 @@ impl NFCtoNFTTrait for NFCtoNFT {
             .get::<NFTStorageKey, u32>(&public_key_lookup)
             .unwrap_or_else(|| panic_with_error!(e, errors::NonFungibleTokenError::NonExistentToken))
     }
+    
+    fn next_token_id(e: &Env) -> u32 {
+            e.storage()
+            .instance()
+            .get(&DataKey::NextTokenId)
+            .unwrap()
+    }
 
     fn public_key(e: &Env, token_id: u32) -> BytesN<65> {
         e.storage()

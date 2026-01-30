@@ -160,6 +160,17 @@ pub trait NFCtoNFTTrait {
     /// The token ID associated with this public key, or panics if not found.
     fn token_id(e: &Env, public_key: BytesN<65>) -> u32;
 
+    /// Returns the next token ID to mint.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - Access to the Soroban environment.
+    ///
+    /// # Returns
+    ///
+    /// The next token ID in the enumeration.
+    fn next_token_id(e: &Env) -> u32;
+
     /// Returns the chip public key for the given token ID.
     ///
     /// # Arguments
