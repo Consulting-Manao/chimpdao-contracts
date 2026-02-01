@@ -236,46 +236,40 @@ fn create_test_signature_and_recovery_id(e: &Env, message_hash: &Hash<32>, sig: 
     panic!("No valid recovery ID found for test signature");
 }
 
-// Helper function to calculate message hash exactly as contract does
-fn calculate_message_hash(e: &Env, message: &[u8], nonce: u32) -> Hash<32> {
+// Helper function to calculate message hash exactly as contract does (message || signer || nonce)
+fn calculate_message_hash(e: &Env, message: &[u8], signer: &Address, nonce: u32) -> Hash<32> {
     let message_bytes = Bytes::from_slice(e, message);
+    let signer_xdr = signer.to_xdr(e);
+    let nonce_xdr = nonce.to_xdr(e);
     let mut builder = Bytes::new(e);
     builder.append(&message_bytes);
-    builder.append(&nonce.to_xdr(e));
+    builder.append(&signer_xdr);
+    builder.append(&nonce_xdr);
     e.crypto().sha256(&builder)
 }
 
-// Helper function to print message hash for manual signing
-fn print_message_hash_for_signing(e: &Env, message: &[u8], nonce: u32) {
+// Helper function to print message hash for manual signing (new formula: message || signer || nonce)
+fn print_message_hash_for_signing_with_signer(e: &Env, message: &[u8], signer: &Address, nonce: u32, label: &str) {
     let message_bytes = Bytes::from_slice(e, message);
+    let signer_xdr = signer.to_xdr(e);
     let nonce_xdr = nonce.to_xdr(e);
-    
+
     let mut builder = Bytes::new(e);
     builder.append(&message_bytes);
+    builder.append(&signer_xdr);
     builder.append(&nonce_xdr);
     let message_hash = e.crypto().sha256(&builder);
-    
+
     let hash_bytes: BytesN<32> = message_hash.clone().into();
     let hash_array = hash_bytes.to_array();
-    
-    let mut nonce_hex = std::string::String::new();
-    for i in 0..nonce_xdr.len() {
-        nonce_hex.push_str(&format!("{:02x}", nonce_xdr.get(i).unwrap()));
-    }
-    
-    let mut message_hex = std::string::String::new();
-    for byte in message {
-        message_hex.push_str(&format!("{:02x}", byte));
-    }
-    
+
     let mut hash_hex = std::string::String::new();
     for byte in hash_array {
         hash_hex.push_str(&format!("{:02x}", byte));
     }
-    
-    std::println!("Nonce {}:", nonce);
-    std::println!("  Message (hex): {}", message_hex);
-    std::println!("  Nonce XDR (hex): {}", nonce_hex);
+
+    std::println!("{}", label);
+    std::println!("  Nonce: {}", nonce);
     std::println!("  Message hash (hex): {}", hash_hex);
     std::println!();
 }
@@ -395,28 +389,62 @@ fn format_signature_for_rust(sig_r: [u8; 32], sig_s: [u8; 32]) -> std::string::S
 #[test]
 fn test_print_message_hash_for_signing() {
     let e = Env::default();
-    
-    std::println!("\n=== Message Hashes for Signing ===\n");
+    // Generate addresses in same order as tests (Env::default() is deterministic)
+    let admin = Address::generate(&e);       // 1st (mint signer, Chip 2 mint signer)
+    let claimant = Address::generate(&e);    // 2nd (claim/transfer signer)
+    let addr_3rd = Address::generate(&e);   // 3rd (claimant2 in test_multiple_chips)
+
+    std::println!("\n=== Message Hashes for Signing (message || signer || nonce) ===\n");
     std::println!("Message: 'test message for minting'");
-    std::println!("Message bytes (hex): 74657374206d65737361676520666f72206d696e74696e67");
     std::println!();
-    
-    // Print hashes for all nonces used in TEST_SIGNATURES
-    // Chip 1: nonces 1, 2, 3
-    // Chip 2: nonces 3, 4, 5
-    let nonces = [1, 2, 3, 4, 5];
-    
-    for nonce in nonces {
-        print_message_hash_for_signing(&e, TEST_MESSAGE, nonce);
-    }
-    
+
+    // Hash 1: Chip 1 mint (admin, nonce 1)
+    print_message_hash_for_signing_with_signer(
+        &e,
+        TEST_MESSAGE,
+        &admin,
+        1,
+        "Hash 1 - Chip 1, nonce 1 (mint): sign with Chip 1",
+    );
+    // Hash 2: Chip 1 claim (claimant = 2nd addr, nonce 2)
+    print_message_hash_for_signing_with_signer(
+        &e,
+        TEST_MESSAGE,
+        &claimant,
+        2,
+        "Hash 2 - Chip 1, nonce 2 (claim): sign with Chip 1",
+    );
+    // Hash 3: Chip 1 transfer (claimant, nonce 3)
+    print_message_hash_for_signing_with_signer(
+        &e,
+        TEST_MESSAGE,
+        &claimant,
+        3,
+        "Hash 3 - Chip 1, nonce 3 (transfer): sign with Chip 1",
+    );
+    // Hash 4: Chip 2 mint (admin, nonce 3)
+    print_message_hash_for_signing_with_signer(
+        &e,
+        TEST_MESSAGE,
+        &admin,
+        3,
+        "Hash 4 - Chip 2, nonce 3 (mint): sign with Chip 2",
+    );
+    // Hash 5: Chip 2 claim (3rd addr = claimant2 in test_multiple_chips, nonce 4)
+    print_message_hash_for_signing_with_signer(
+        &e,
+        TEST_MESSAGE,
+        &addr_3rd,
+        4,
+        "Hash 5 - Chip 2, nonce 4 (claim): sign with Chip 2",
+    );
+
     std::println!("=== End of Message Hashes ===\n");
-    std::println!("To generate signatures, run:");
-    std::println!("  uv run --with blocksec2go blocksec2go get_key_info <key_id>");
+    std::println!("Sign each message_hash above with the indicated chip:");
     std::println!("  uv run --with blocksec2go blocksec2go generate_signature <key_id> <message_hash>");
+    std::println!("Return the DER signature (hex) for each; they will be parsed and formatted for TEST_SIGNATURES.");
     std::println!();
-    
-    // This test always passes - it's just for printing
+
     assert!(true);
 }
 
@@ -461,7 +489,7 @@ fn test_claim() {
 
     // Chip 1, nonce 1 (mint)
     let mint_sig = &TEST_SIGNATURES[0];
-    let mint_message_hash = calculate_message_hash(&e, mint_sig.message, mint_sig.nonce);
+    let mint_message_hash = calculate_message_hash(&e, mint_sig.message, &admin, mint_sig.nonce);
     let (mint_signature, mint_recovery_id) = create_test_signature_and_recovery_id(&e, &mint_message_hash, mint_sig);
     let message = Bytes::from_slice(&e, mint_sig.message);
     let public_key = BytesN::from_array(&e, &mint_sig.public_key);
@@ -477,7 +505,7 @@ fn test_claim() {
 
     // Chip 1, nonce 2 (claim)
     let claim_sig = &TEST_SIGNATURES[1];
-    let claim_message_hash = calculate_message_hash(&e, claim_sig.message, claim_sig.nonce);
+    let claim_message_hash = calculate_message_hash(&e, claim_sig.message, &claimant, claim_sig.nonce);
     let (claim_signature, claim_recovery_id) = create_test_signature_and_recovery_id(&e, &claim_message_hash, claim_sig);
     let message = Bytes::from_slice(&e, claim_sig.message);
 
@@ -508,7 +536,7 @@ fn test_nonce_reuse_prevention() {
 
     // Chip 1, nonce 1
     let sig = &TEST_SIGNATURES[0];
-    let message_hash = calculate_message_hash(&e, sig.message, sig.nonce);
+    let message_hash = calculate_message_hash(&e, sig.message, &admin, sig.nonce);
     let (signature, recovery_id) = create_test_signature_and_recovery_id(&e, &message_hash, sig);
     let message = Bytes::from_slice(&e, sig.message);
     let public_key = BytesN::from_array(&e, &sig.public_key);
@@ -559,7 +587,7 @@ fn test_transfer() {
 
     // Chip 1, nonce 1 (mint)
     let mint_sig = &TEST_SIGNATURES[0];
-    let mint_message_hash = calculate_message_hash(&e, mint_sig.message, mint_sig.nonce);
+    let mint_message_hash = calculate_message_hash(&e, mint_sig.message, &admin, mint_sig.nonce);
     let (mint_signature, mint_recovery_id) = create_test_signature_and_recovery_id(&e, &mint_message_hash, mint_sig);
     let message = Bytes::from_slice(&e, mint_sig.message);
     let public_key = BytesN::from_array(&e, &mint_sig.public_key);
@@ -568,7 +596,7 @@ fn test_transfer() {
 
     // Chip 1, nonce 2 (claim)
     let claim_sig = &TEST_SIGNATURES[1];
-    let claim_message_hash = calculate_message_hash(&e, claim_sig.message, claim_sig.nonce);
+    let claim_message_hash = calculate_message_hash(&e, claim_sig.message, &claimant, claim_sig.nonce);
     let (claim_signature, claim_recovery_id) = create_test_signature_and_recovery_id(&e, &claim_message_hash, claim_sig);
     let message = Bytes::from_slice(&e, claim_sig.message);
     let claimed_token_id = client.claim(&claimant, &message, &claim_signature, &claim_recovery_id, &public_key, &claim_sig.nonce);
@@ -584,7 +612,7 @@ fn test_transfer() {
 
     // Chip 1, nonce 3 (transfer)
     let transfer_sig = &TEST_SIGNATURES[2];
-    let transfer_message_hash = calculate_message_hash(&e, transfer_sig.message, transfer_sig.nonce);
+    let transfer_message_hash = calculate_message_hash(&e, transfer_sig.message, &claimant, transfer_sig.nonce);
     let (transfer_signature, transfer_recovery_id) = create_test_signature_and_recovery_id(&e, &transfer_message_hash, transfer_sig);
     let message = Bytes::from_slice(&e, transfer_sig.message);
     client.transfer(&claimant, &recipient, &token_id, &message, &transfer_signature, &transfer_recovery_id, &public_key, &transfer_sig.nonce);
@@ -612,7 +640,7 @@ fn test_multiple_chips_and_nfts() {
 
     // Chip 1: Mint NFT 1 (nonce 1) and claim it (nonce 2)
     let mint1_sig = &TEST_SIGNATURES[0];
-    let mint1_message_hash = calculate_message_hash(&e, mint1_sig.message, mint1_sig.nonce);
+    let mint1_message_hash = calculate_message_hash(&e, mint1_sig.message, &admin, mint1_sig.nonce);
     let (mint1_signature, mint1_recovery_id) = create_test_signature_and_recovery_id(&e, &mint1_message_hash, mint1_sig);
     let message = Bytes::from_slice(&e, mint1_sig.message);
     let public_key_1 = BytesN::from_array(&e, &mint1_sig.public_key);
@@ -620,7 +648,7 @@ fn test_multiple_chips_and_nfts() {
     assert_eq!(token_id_1, 0u32);
 
     let claim1_sig = &TEST_SIGNATURES[1];
-    let claim1_message_hash = calculate_message_hash(&e, claim1_sig.message, claim1_sig.nonce);
+    let claim1_message_hash = calculate_message_hash(&e, claim1_sig.message, &claimant1, claim1_sig.nonce);
     let (claim1_signature, claim1_recovery_id) = create_test_signature_and_recovery_id(&e, &claim1_message_hash, claim1_sig);
     let message = Bytes::from_slice(&e, claim1_sig.message);
     let claimed_token_id_1 = client.claim(&claimant1, &message, &claim1_signature, &claim1_recovery_id, &public_key_1, &claim1_sig.nonce);
@@ -628,7 +656,7 @@ fn test_multiple_chips_and_nfts() {
 
     // Chip 2: Mint NFT 2 (nonce 3) and claim it (nonce 4)
     let mint2_sig = &TEST_SIGNATURES[3];
-    let mint2_message_hash = calculate_message_hash(&e, mint2_sig.message, mint2_sig.nonce);
+    let mint2_message_hash = calculate_message_hash(&e, mint2_sig.message, &admin, mint2_sig.nonce);
     let (mint2_signature, mint2_recovery_id) = create_test_signature_and_recovery_id(&e, &mint2_message_hash, mint2_sig);
     let message = Bytes::from_slice(&e, mint2_sig.message);
     let public_key_2 = BytesN::from_array(&e, &mint2_sig.public_key);
@@ -636,7 +664,7 @@ fn test_multiple_chips_and_nfts() {
     assert_eq!(token_id_2, 1u32, "Second token should have ID 1");
 
     let claim2_sig = &TEST_SIGNATURES[4];
-    let claim2_message_hash = calculate_message_hash(&e, claim2_sig.message, claim2_sig.nonce);
+    let claim2_message_hash = calculate_message_hash(&e, claim2_sig.message, &claimant2, claim2_sig.nonce);
     let (claim2_signature, claim2_recovery_id) = create_test_signature_and_recovery_id(&e, &claim2_message_hash, claim2_sig);
     let message = Bytes::from_slice(&e, claim2_sig.message);
     let claimed_token_id_2 = client.claim(&claimant2, &message, &claim2_signature, &claim2_recovery_id, &public_key_2, &claim2_sig.nonce);

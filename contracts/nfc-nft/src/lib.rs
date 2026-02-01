@@ -31,7 +31,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// * `e` - Access to the Soroban environment.
     /// * `to` - Account of the token's owner.
-    /// * `message` - The message that was signed without the nonce.
+    /// * `message` - The message that was signed (without signer and nonce).
     /// * `signature` - 64-byte ECDSA signature from NFC chip.
     /// * `recovery_id` - Recovery ID (0-3) for signature recovery.
     /// * `public_key` - The chip's public key (uncompressed SEC1 format, 65 bytes).
@@ -52,7 +52,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// * `e` - Access to the Soroban environment.
     /// * `claimant` - Account of the claimant.
-    /// * `message` - The message that was signed without the nonce.
+    /// * `message` - The message that was signed (without signer and nonce).
     /// * `signature` - 64-byte ECDSA signature from NFC chip.
     /// * `recovery_id` - Recovery ID (0-3) for signature recovery.
     /// * `public_key` - The chip's public key (uncompressed SEC1 format, 65 bytes).
@@ -65,7 +65,7 @@ pub trait NFCtoNFTTrait {
 
     /// Transfers `token_id` token from `from` to `to` using NFC chip signature.
     ///
-    /// This function verifies that the provided signature was created by an Infineon
+    /// This function verifies that the provided signature was created by a
     /// NFC chip whose public key corresponds to the token being transferred.
     ///
     /// WARNING: Note that the caller is responsible to confirm that the
@@ -78,7 +78,7 @@ pub trait NFCtoNFTTrait {
     /// * `from` - Account of the sender.
     /// * `to` - Account of the recipient.
     /// * `token_id` - Token id as a number.
-    /// * `message` - The message that was signed without the nonce.
+    /// * `message` - The message that was signed (without signer and nonce).
     /// * `signature` - 64-byte ECDSA signature from NFC chip.
     /// * `recovery_id` - Recovery ID (0-3) for signature recovery.
     /// * `public_key` - The chip's public key (uncompressed SEC1 format, 65 bytes).

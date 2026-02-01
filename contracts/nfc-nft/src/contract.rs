@@ -57,18 +57,14 @@ impl NFCtoNFTTrait for NFCtoNFT {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
 
-        verify_chip_signature(e, message, signature, recovery_id, public_key.clone(), nonce);
+        verify_chip_signature(e, admin.to_xdr(&e), message, signature, recovery_id, public_key.clone(), nonce);
 
         let public_key_lookup = NFTStorageKey::TokenIdByPublicKey(public_key.clone());
         if e.storage().persistent().has(&public_key_lookup) {
             panic_with_error!(&e, &errors::NonFungibleTokenError::TokenAlreadyMinted);
         }
 
-        let token_id: u32 = e
-            .storage()
-            .instance()
-            .get(&DataKey::NextTokenId)
-            .unwrap();
+        let token_id: u32 = Self::next_token_id(e);
         let max_tokens: u32 = e
             .storage()
             .instance()
@@ -97,12 +93,12 @@ impl NFCtoNFTTrait for NFCtoNFT {
         public_key: BytesN<65>,
         nonce: u32,
     ) -> u32 {
-        verify_chip_signature(e, message, signature, recovery_id, public_key.clone(), nonce);
+        claimant.require_auth();
 
-        // Look up token_id from public_key
+        verify_chip_signature(e, claimant.clone().to_xdr(&e), message, signature, recovery_id, public_key.clone(), nonce);
+
         let token_id = Self::token_id(e, public_key.clone());
 
-        // Verify token is not already claimed
         if e.storage().persistent().has(&NFTStorageKey::Owner(token_id)) {
             panic_with_error!(e, &errors::NonFungibleTokenError::TokenAlreadyMinted);
         }
@@ -130,7 +126,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
     ) {
         from.require_auth();
 
-        verify_chip_signature(e, message, signature, recovery_id, public_key.clone(), nonce);
+        verify_chip_signature(e, from.clone().to_xdr(&e), message, signature, recovery_id, public_key.clone(), nonce);
 
         // Verify the chip public_key corresponds to that specific token_id
         let token_id_public_key: BytesN<65> = Self::public_key(e, token_id);
@@ -219,7 +215,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
             .get::<NFTStorageKey, u32>(&public_key_lookup)
             .unwrap_or_else(|| panic_with_error!(e, errors::NonFungibleTokenError::NonExistentToken))
     }
-    
+
     fn next_token_id(e: &Env) -> u32 {
             e.storage()
             .instance()
@@ -269,6 +265,7 @@ pub(crate) fn u32_to_decimal_bytes(e: &Env, mut value: u32) -> Bytes {
 /// Also handles nonce verification and updates the stored nonce for the public_key
 fn verify_chip_signature(
     e: &Env,
+    signer: Bytes,
     message: Bytes,
     signature: BytesN<64>,
     recovery_id: u32,
@@ -289,6 +286,7 @@ fn verify_chip_signature(
     // Build message hash with nonce
     let mut builder: Bytes = Bytes::new(&e);
     builder.append(&message.clone());
+    builder.append(&signer.clone());
     builder.append(&nonce.clone().to_xdr(&e));
     let message_hash = e.crypto().sha256(&builder);
 
