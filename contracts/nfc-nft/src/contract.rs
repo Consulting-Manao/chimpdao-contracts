@@ -100,7 +100,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
         let token_id = Self::token_id(e, public_key.clone());
 
         if e.storage().persistent().has(&NFTStorageKey::Owner(token_id)) {
-            panic_with_error!(e, &errors::NonFungibleTokenError::TokenAlreadyMinted);
+            panic_with_error!(e, &errors::NonFungibleTokenError::TokenAlreadyClaimed);
         }
 
         e.storage().persistent().set(&NFTStorageKey::Owner(token_id), &claimant);
