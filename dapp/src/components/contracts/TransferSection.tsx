@@ -164,13 +164,14 @@ export const TransferSection = ({
       // Use next nonce (must be greater than stored)
       const nonce = currentNonce + 1;
 
-      // Create SEP-53 message for transfer
+      // Create SEP-53 message for transfer (signer = from = wallet address)
       const { message, messageHash } = await createSEP53Message(
         contractId,
         "transfer",
         [address, recipientAddress.trim(), tokenIdNum.toString()],
         nonce,
         networkPassphraseToUse,
+        address,
       );
 
       // Authenticate with chip

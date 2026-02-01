@@ -140,13 +140,14 @@ export const ClaimSection = ({ keyId, contractId }: ClaimSectionProps) => {
       // Use next nonce (must be greater than stored)
       const nonce = currentNonce + 1;
 
-      // Create SEP-53 message for claim
+      // Create SEP-53 message for claim (signer = claimant = wallet address)
       const { message, messageHash } = await createSEP53Message(
         contractId,
         "claim",
         [address],
         nonce,
         networkPassphraseToUse,
+        address,
       );
 
       // Authenticate with chip

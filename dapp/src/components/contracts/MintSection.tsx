@@ -130,13 +130,14 @@ export const MintSection = ({ keyId, contractId }: MintSectionProps) => {
       );
       const nonce = 1; // Mint uses nonce = 1
 
-      // Create SEP-53 message
+      // Create SEP-53 message (signer = admin = wallet address)
       const { message, messageHash } = await createSEP53Message(
         contractId,
         "mint",
         [address],
         nonce,
         networkPassphraseToUse,
+        address,
       );
 
       // Proceed with chip operations

@@ -3,6 +3,8 @@
  * Provides SHA-256 hashing and signature format conversion for Soroban
  */
 
+import { Address, StrKey } from "@stellar/stellar-sdk";
+
 /**
  * Convert hex string to Uint8Array
  */
@@ -56,9 +58,12 @@ export interface SEP53AuthEntry {
 }
 
 /**
- * Create SEP-53 compliant auth message (without nonce)
- * The nonce is appended to the message before hashing for signature
- * Returns both the message (without nonce) and the hash of (message + nonce)
+ * Create SEP-53 compliant auth message (without signer and nonce).
+ * The contract reconstructs the signed payload as message || signer_xdr || nonce_xdr.
+ * Returns the logical message (without signer and nonce) and the hash of (message || signer_xdr || nonce_xdr)
+ * for the chip to sign (matches contract verification).
+ *
+ * @param signerAddress - Stellar account address that authorizes the call (admin for mint, claimant for claim, from for transfer)
  */
 export async function createSEP53Message(
   contractId: string,
@@ -66,31 +71,38 @@ export async function createSEP53Message(
   args: unknown[],
   nonce: number,
   networkPassphrase: string,
+  signerAddress: string,
 ): Promise<{ message: Uint8Array; messageHash: Uint8Array }> {
-  // SEP-53 format (without nonce):
-  // network_id || contract_id || function_name || args
-  // Nonce is appended separately before hashing
-
+  // SEP-53 logical message (no signer, no nonce): network_id || contract_id || function_name || args
   const encoder = new TextEncoder();
   const parts: Uint8Array[] = [];
 
-  // Network passphrase hash (32 bytes)
   const networkHash = await sha256(encoder.encode(networkPassphrase));
   parts.push(networkHash);
 
-  // Contract ID (32 bytes for Stellar addresses)
-  const contractIdBytes = hexToBytes(contractId);
+  // Contract ID: 32 bytes from hex (64 chars) or strkey (C...)
+  const contractIdBytes = (() => {
+    if (
+      contractId.length === 64 &&
+      /^[0-9a-fA-F]+$/.test(contractId)
+    ) {
+      return hexToBytes(contractId);
+    }
+    if (StrKey.isValidContract(contractId)) {
+      return new Uint8Array(StrKey.decodeContract(contractId));
+    }
+    throw new Error(
+      "contractId must be 64 hex chars or a valid Stellar contract strkey (C...).",
+    );
+  })();
   parts.push(contractIdBytes);
 
-  // Function name
   const functionNameBytes = encoder.encode(functionName);
   parts.push(functionNameBytes);
 
-  // Args (serialized)
   const argsBytes = encoder.encode(JSON.stringify(args));
   parts.push(argsBytes);
 
-  // Concatenate all parts (without nonce)
   const totalLength = parts.reduce((sum, part) => sum + part.length, 0);
   const message = new Uint8Array(totalLength);
   let offset = 0;
@@ -99,18 +111,29 @@ export async function createSEP53Message(
     offset += part.length;
   }
 
+  // Signer as Soroban Address XDR bytes (same as contract's signer.to_xdr)
+  const signerScAddress = Address.fromString(signerAddress).toScAddress();
+  const signerXdrOutput = signerScAddress.toXDR();
+  const signerXdrBytes =
+    typeof signerXdrOutput === "string"
+      ? new Uint8Array(Buffer.from(signerXdrOutput, "base64"))
+      : new Uint8Array(signerXdrOutput as ArrayBuffer);
+
+  // u32 nonce XDR (type tag 3 + value, 8 bytes)
   const nonceXdrBytes = new Uint8Array(8);
   const view = new DataView(nonceXdrBytes.buffer);
   view.setUint32(0, 3, false);
   view.setUint32(4, nonce, false);
 
-  const messageWithNonce = new Uint8Array(
-    message.length + nonceXdrBytes.length,
+  // Signed payload: message || signer_xdr || nonce_xdr (matches contract)
+  const signedPayload = new Uint8Array(
+    message.length + signerXdrBytes.length + nonceXdrBytes.length,
   );
-  messageWithNonce.set(message, 0);
-  messageWithNonce.set(nonceXdrBytes, message.length);
+  signedPayload.set(message, 0);
+  signedPayload.set(signerXdrBytes, message.length);
+  signedPayload.set(nonceXdrBytes, message.length + signerXdrBytes.length);
 
-  const messageHash = await sha256(messageWithNonce);
+  const messageHash = await sha256(signedPayload);
 
   return {
     message,
