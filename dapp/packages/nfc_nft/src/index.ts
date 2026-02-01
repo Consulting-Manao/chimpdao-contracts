@@ -47,42 +47,34 @@ export type NFTStorageKey =
 
 export const NonFungibleTokenError = {
   /**
+   * Indicates an invalid signature
+   */
+  200: { message: "InvalidSignature" },
+  /**
    * Indicates a non-existent `token_id`.
    */
-  200: { message: "NonExistentToken" },
+  201: { message: "NonExistentToken" },
   /**
    * Indicates an error related to the ownership over a particular token.
    * Used in transfers.
    */
-  201: { message: "IncorrectOwner" },
-  /**
-   * Indicates overflow when adding two values
-   */
-  205: { message: "MathOverflow" },
+  202: { message: "IncorrectOwner" },
   /**
    * Indicates all possible `token_id`s are already in use.
    */
-  206: { message: "TokenIDsAreDepleted" },
-  /**
-   * Indicates an invalid amount to batch mint in `consecutive` extension.
-   */
-  207: { message: "InvalidAmount" },
+  203: { message: "TokenIDsAreDepleted" },
   /**
    * Indicates the token was already minted.
    */
   210: { message: "TokenAlreadyMinted" },
   /**
-   * Indicates the royalty amount is higher than 10_000 (100%) basis points.
+   * Indicates the token was already claimed.
    */
-  212: { message: "InvalidRoyaltyAmount" },
-  /**
-   * Indicates an invalid signature
-   */
-  214: { message: "InvalidSignature" },
+  211: { message: "TokenAlreadyClaimed" },
   /**
    * Indicates the token exists but has not been claimed yet
    */
-  215: { message: "TokenNotClaimed" },
+  212: { message: "TokenNotClaimed" },
 };
 
 export interface Client {
@@ -278,7 +270,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAAIdG9rZW5faWQAAAABAAAAAAAAAApwdWJsaWNfa2V5AAAAAAPuAAAAQQAAAAEAAAAE",
         "AAAAAAAAAAAAAAANbmV4dF90b2tlbl9pZAAAAAAAAAAAAAABAAAABA==",
         "AAAAAAAAAAAAAAAKcHVibGljX2tleQAAAAAAAQAAAAAAAAAIdG9rZW5faWQAAAAEAAAAAQAAA+4AAABB",
-        "AAAABAAAAAAAAAAAAAAAFU5vbkZ1bmdpYmxlVG9rZW5FcnJvcgAAAAAAAAkAAAAkSW5kaWNhdGVzIGEgbm9uLWV4aXN0ZW50IGB0b2tlbl9pZGAuAAAAEE5vbkV4aXN0ZW50VG9rZW4AAADIAAAAV0luZGljYXRlcyBhbiBlcnJvciByZWxhdGVkIHRvIHRoZSBvd25lcnNoaXAgb3ZlciBhIHBhcnRpY3VsYXIgdG9rZW4uClVzZWQgaW4gdHJhbnNmZXJzLgAAAAAOSW5jb3JyZWN0T3duZXIAAAAAAMkAAAApSW5kaWNhdGVzIG92ZXJmbG93IHdoZW4gYWRkaW5nIHR3byB2YWx1ZXMAAAAAAAAMTWF0aE92ZXJmbG93AAAAzQAAADZJbmRpY2F0ZXMgYWxsIHBvc3NpYmxlIGB0b2tlbl9pZGBzIGFyZSBhbHJlYWR5IGluIHVzZS4AAAAAABNUb2tlbklEc0FyZURlcGxldGVkAAAAAM4AAABFSW5kaWNhdGVzIGFuIGludmFsaWQgYW1vdW50IHRvIGJhdGNoIG1pbnQgaW4gYGNvbnNlY3V0aXZlYCBleHRlbnNpb24uAAAAAAAADUludmFsaWRBbW91bnQAAAAAAADPAAAAJ0luZGljYXRlcyB0aGUgdG9rZW4gd2FzIGFscmVhZHkgbWludGVkLgAAAAASVG9rZW5BbHJlYWR5TWludGVkAAAAAADSAAAAR0luZGljYXRlcyB0aGUgcm95YWx0eSBhbW91bnQgaXMgaGlnaGVyIHRoYW4gMTBfMDAwICgxMDAlKSBiYXNpcyBwb2ludHMuAAAAABRJbnZhbGlkUm95YWx0eUFtb3VudAAAANQAAAAeSW5kaWNhdGVzIGFuIGludmFsaWQgc2lnbmF0dXJlAAAAAAAQSW52YWxpZFNpZ25hdHVyZQAAANYAAAA3SW5kaWNhdGVzIHRoZSB0b2tlbiBleGlzdHMgYnV0IGhhcyBub3QgYmVlbiBjbGFpbWVkIHlldAAAAAAPVG9rZW5Ob3RDbGFpbWVkAAAAANc=",
+        "AAAABAAAAAAAAAAAAAAAFU5vbkZ1bmdpYmxlVG9rZW5FcnJvcgAAAAAAAAcAAAAeSW5kaWNhdGVzIGFuIGludmFsaWQgc2lnbmF0dXJlAAAAAAAQSW52YWxpZFNpZ25hdHVyZQAAAMgAAAAkSW5kaWNhdGVzIGEgbm9uLWV4aXN0ZW50IGB0b2tlbl9pZGAuAAAAEE5vbkV4aXN0ZW50VG9rZW4AAADJAAAAV0luZGljYXRlcyBhbiBlcnJvciByZWxhdGVkIHRvIHRoZSBvd25lcnNoaXAgb3ZlciBhIHBhcnRpY3VsYXIgdG9rZW4uClVzZWQgaW4gdHJhbnNmZXJzLgAAAAAOSW5jb3JyZWN0T3duZXIAAAAAAMoAAAA2SW5kaWNhdGVzIGFsbCBwb3NzaWJsZSBgdG9rZW5faWRgcyBhcmUgYWxyZWFkeSBpbiB1c2UuAAAAAAATVG9rZW5JRHNBcmVEZXBsZXRlZAAAAADLAAAAJ0luZGljYXRlcyB0aGUgdG9rZW4gd2FzIGFscmVhZHkgbWludGVkLgAAAAASVG9rZW5BbHJlYWR5TWludGVkAAAAAADSAAAAKEluZGljYXRlcyB0aGUgdG9rZW4gd2FzIGFscmVhZHkgY2xhaW1lZC4AAAATVG9rZW5BbHJlYWR5Q2xhaW1lZAAAAADTAAAAN0luZGljYXRlcyB0aGUgdG9rZW4gZXhpc3RzIGJ1dCBoYXMgbm90IGJlZW4gY2xhaW1lZCB5ZXQAAAAAD1Rva2VuTm90Q2xhaW1lZAAAAADU",
         "AAAABQAAAAAAAAAAAAAAB1VwZ3JhZGUAAAAAAQAAAAd1cGdyYWRlAAAAAAIAAAAAAAAABWFkbWluAAAAAAAAEwAAAAAAAAAAAAAACXdhc21faGFzaAAAAAAAAA4AAAAAAAAAAg==",
         "AAAABQAAAAAAAAAAAAAACFRyYW5zZmVyAAAAAQAAAAh0cmFuc2ZlcgAAAAMAAAAAAAAABGZyb20AAAATAAAAAQAAAAAAAAACdG8AAAAAABMAAAABAAAAAAAAAAh0b2tlbl9pZAAAAAQAAAAAAAAAAg==",
         "AAAABQAAAAAAAAAAAAAABE1pbnQAAAABAAAABG1pbnQAAAABAAAAAAAAAAh0b2tlbl9pZAAAAAQAAAABAAAAAg==",

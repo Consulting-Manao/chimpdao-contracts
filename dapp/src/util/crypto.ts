@@ -47,17 +47,6 @@ export async function sha256(data: string | Uint8Array): Promise<Uint8Array> {
 }
 
 /**
- * SEP-53: Standard Contract Authentication
- * Creates a standard message for contract function authorization
- */
-export interface SEP53AuthEntry {
-  contractAddress: string;
-  functionName: string;
-  args: unknown[];
-  nonce: number;
-}
-
-/**
  * Create SEP-53 compliant auth message (without signer and nonce).
  * The contract reconstructs the signed payload as message || signer_xdr || nonce_xdr.
  * Returns the logical message (without signer and nonce) and the hash of (message || signer_xdr || nonce_xdr)
@@ -82,10 +71,7 @@ export async function createSEP53Message(
 
   // Contract ID: 32 bytes from hex (64 chars) or strkey (C...)
   const contractIdBytes = (() => {
-    if (
-      contractId.length === 64 &&
-      /^[0-9a-fA-F]+$/.test(contractId)
-    ) {
+    if (contractId.length === 64 && /^[0-9a-fA-F]+$/.test(contractId)) {
       return hexToBytes(contractId);
     }
     if (StrKey.isValidContract(contractId)) {

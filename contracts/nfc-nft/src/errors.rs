@@ -4,19 +4,19 @@ use soroban_sdk::contracterror;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum NonFungibleTokenError {
+    /// Indicates an invalid signature
+    InvalidSignature = 200,
     /// Indicates a non-existent `token_id`.
-    NonExistentToken = 200,
+    NonExistentToken = 201,
     /// Indicates an error related to the ownership over a particular token.
     /// Used in transfers.
-    IncorrectOwner = 201,
+    IncorrectOwner = 202,
     /// Indicates all possible `token_id`s are already in use.
-    TokenIDsAreDepleted = 206,
+    TokenIDsAreDepleted = 203,
     /// Indicates the token was already minted.
     TokenAlreadyMinted = 210,
     /// Indicates the token was already claimed.
-    TokenAlreadyClaimed = 212,
-    /// Indicates an invalid signature
-    InvalidSignature = 214,
+    TokenAlreadyClaimed = 211,
     /// Indicates the token exists but has not been claimed yet
-    TokenNotClaimed = 215,
+    TokenNotClaimed = 212,
 }
