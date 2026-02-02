@@ -83,3 +83,7 @@ blocksec2go get_key_info 1
 # Sign 32-byte hash (key index 1)
 blocksec2go generate_signature 1 <32-byte-hex>
 ```
+
+### Regenerating NFC test signatures
+
+To update the 5 test signatures and chip public keys in `contracts/nfc-nft` (e.g. after changing the message hash or rotating chips), follow the one-shot instructions in **[dapp/scripts/REGENERATE_NFC_TEST_SIGS.md](dapp/scripts/REGENERATE_NFC_TEST_SIGS.md)**.

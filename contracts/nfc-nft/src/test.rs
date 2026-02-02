@@ -1,26 +1,14 @@
 //! Test utilities for NFC chip signature handling
 //!
-//! ## Generating New Test Signatures
+//! ## Regenerating test signatures (one shot)
 //!
-//! To generate new test signatures for different nonces or chips:
+//! **Canonical instructions:** [dapp/scripts/REGENERATE_NFC_TEST_SIGS.md](../../../dapp/scripts/REGENERATE_NFC_TEST_SIGS.md)
 //!
-//! 1. Generate message hash:
-//!    cargo test test_print_message_hash_for_signing -- --nocapture
-//!    This prints message hashes for all (signer, nonce) pairs used in tests.
-//!
-//! 2. Get public key from chip:
-//!    uv run --with blocksec2go blocksec2go get_key_info <key_id>
-//!    Where <key_id> is 1 for Chip 1, 2 for Chip 2, etc.
-//!
-//! 3. Generate signature:
-//!    uv run --with blocksec2go blocksec2go generate_signature <key_id> <message_hash>
-//!    Use the message hash from step 1.
-//!
-//! 4. Parse DER signature:
-//!    Use the parse_der_signature() helper function to extract R and S components.
-//!
-//! 5. Format for Rust:
-//!    Use the format_signature_for_rust() helper function to format as Rust constants.
+//! Summary: (1) Get hashes via `cargo test -p nfc-nft test_print_message_hash_for_signing -- --nocapture`.
+//! (2) Sign hash 1–3 with Chip 1, 4–5 with Chip 2. (3) Paste the 5 DER hex strings into `DER_SIGS` in
+//! `dapp/scripts/recover-test-sigs.cjs`. (4) From repo root run `node dapp/scripts/recover-test-sigs.cjs`.
+//! (5) Paste the script output into this file: replace `CHIP1_PUBLIC_KEY`, `CHIP2_PUBLIC_KEY`, and in each of the
+//! 5 `TestSignature` entries replace only the `sig_r` and `sig_s` arrays. Verify with `cargo test -p nfc-nft`.
 //!
 //! ## Important Notes
 //!
