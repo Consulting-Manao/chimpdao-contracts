@@ -42,8 +42,6 @@ impl NFCtoNFTTrait for NFCtoNFT {
         admin.require_auth();
 
         e.deployer().update_current_contract_wasm(wasm_hash.clone());
-
-        events::Upgrade { admin, wasm_hash: wasm_hash.into() }.publish(e);
     }
 
     fn mint(
@@ -283,7 +281,7 @@ fn verify_chip_signature(
         panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
     }
 
-    // Build message hash with nonce
+    // Build message hash with signer and nonce
     let mut builder: Bytes = Bytes::new(&e);
     builder.append(&message.clone());
     builder.append(&signer.clone());

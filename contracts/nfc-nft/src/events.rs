@@ -1,11 +1,4 @@
-use soroban_sdk::{Address, contractevent, Bytes};
-
-#[contractevent]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Upgrade {
-    pub admin: Address,
-    pub wasm_hash: Bytes,
-}
+use soroban_sdk::{Address, contractevent};
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
