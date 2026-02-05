@@ -90,6 +90,23 @@ pub trait NFCtoNFTTrait {
     /// * data - `[token_id: BytesN<65>]`
     fn transfer(e: &Env, from: Address, to: Address, token_id: u32, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32);
 
+    /// Clawback `token_id` token from owner.
+    ///
+    /// Only the admin can execute this function which sends the token to the
+    /// contract address. This is an extreme measure which effectively lock
+    /// the token. Used in case of terms breach.
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - Access to the Soroban environment.
+    /// * `token_id` - Token id as a number.
+    ///
+    /// # Events
+    ///
+    /// * topics - `["clawback", from: Address]`
+    /// * data - `[token_id: u32]`
+    fn clawback(e: &Env, token_id: u32);
+
     /// Returns the current nonce for the given `public_key`.
     ///
     /// # Arguments

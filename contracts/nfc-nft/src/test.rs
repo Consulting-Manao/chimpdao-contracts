@@ -360,8 +360,7 @@ fn format_signature_for_rust(sig_r: [u8; 32], sig_s: [u8; 32]) -> std::string::S
     result
 }
 
-#[test]
-fn test_print_message_hash_for_signing() {
+fn print_message_hash_for_signing() {
     let e = Env::default();
     // Generate addresses in same order as tests (Env::default() is deterministic)
     let admin = Address::generate(&e);       // 1st (mint signer, Chip 2 mint signer)
@@ -494,6 +493,13 @@ fn test_claim() {
     // Verify claimant's balance was updated
     let claimant_balance = client.balance(&claimant);
     assert_eq!(claimant_balance, 1u32, "Claimant should have balance of 1 after claiming");
+
+    // Verify clawback
+    client.clawback(&token_id);
+    let claimant_balance = client.balance(&claimant);
+    assert_eq!(claimant_balance, 0u32, "Claimant should have balance of 0 after clawback");
+    let owner = client.owner_of(&token_id);
+    assert_eq!(owner, client.address, "Token should be owned by the contract");
 
     let token_uri = client.token_uri(&0);
     assert_eq!(token_uri, String::from_str(&e, "ipfs://abcd/0"));

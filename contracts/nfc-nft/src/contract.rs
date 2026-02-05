@@ -149,6 +149,21 @@ impl NFCtoNFTTrait for NFCtoNFT {
         events::Transfer { from, to, token_id }.publish(e);
     }
 
+    fn clawback(e: &Env, token_id: u32) {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        let from = Self::owner_of(e, token_id);
+        let to = e.current_contract_address();
+
+        e.storage().persistent().set(&NFTStorageKey::Owner(token_id), &to);
+
+        let from_balance = Self::balance(e, from.clone());
+        e.storage().persistent().set(&NFTStorageKey::Balance(from.clone()), &(from_balance - 1));
+        let to_balance = Self::balance(e, to.clone());
+        e.storage().persistent().set(&NFTStorageKey::Balance(to.clone()), &(to_balance + 1));
+    }
+
     fn get_nonce(e: &Env, public_key: BytesN<65>) -> u32 {
         let nonce_key = NFTStorageKey::ChipNonceByPublicKey(public_key);
         e.storage()
