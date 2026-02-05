@@ -23,7 +23,7 @@ function getHashesFromTest() {
   try {
     const out = execSync(
       "cargo test -p nfc-nft test_print_message_hash_for_signing -- --nocapture 2>&1",
-      { cwd: REPO_ROOT, encoding: "utf-8", maxBuffer: 1024 * 1024 }
+      { cwd: REPO_ROOT, encoding: "utf-8", maxBuffer: 1024 * 1024 },
     );
     const lines = out.split("\n");
     const hashes = [];
@@ -46,7 +46,9 @@ const FALLBACK_HASHES = [
 const hashesFromTest = getHashesFromTest();
 const HASHES_HEX = hashesFromTest || FALLBACK_HASHES;
 if (!hashesFromTest) {
-  console.error("Warning: could not get hashes from test; using fallback. Run from repo root: node dapp/scripts/recover-test-sigs.cjs\n");
+  console.error(
+    "Warning: could not get hashes from test; using fallback. Run from repo root: node dapp/scripts/recover-test-sigs.cjs\n",
+  );
 }
 
 const DER_SIGS = [
@@ -92,20 +94,23 @@ function parseDer(derHex) {
 }
 
 const CURVE_ORDER = Buffer.from([
-  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-  0xff, 0xff, 0xff, 0xfe, 0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b,
-  0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xfe, 0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b, 0xbf, 0xd2,
+  0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41,
 ]);
 const HALF_ORDER = Buffer.from([
-  0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-  0x5d, 0x57, 0x6e, 0x73, 0x57, 0xa4, 0x50, 0x1d,
+  0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x5d, 0x57,
+  0x6e, 0x73, 0x57, 0xa4, 0x50, 0x1d,
 ]);
 
 function normalizeS(s) {
   let gt = false;
   for (let i = 0; i < 32; i++) {
-    if (s[i] > HALF_ORDER[i]) { gt = true; break; }
+    if (s[i] > HALF_ORDER[i]) {
+      gt = true;
+      break;
+    }
     if (s[i] < HALF_ORDER[i]) break;
   }
   if (!gt) return Buffer.from(s);
@@ -113,7 +118,10 @@ function normalizeS(s) {
   let borrow = 0;
   for (let i = 31; i >= 0; i--) {
     let diff = CURVE_ORDER[i] - s[i] - borrow;
-    if (diff < 0) { diff += 256; borrow = 1; } else borrow = 0;
+    if (diff < 0) {
+      diff += 256;
+      borrow = 1;
+    } else borrow = 0;
     out[i] = diff;
   }
   return out;
@@ -125,7 +133,9 @@ function recoverPubKeyWithRid(messageHashBytes, sigR, sigS, recoveryId) {
   sig[0] = recoveryId;
   sigR.copy(sig, 1);
   sigS.copy(sig, 33);
-  const compressed = recoverPublicKey(sig, messageHashBytes, { prehash: false });
+  const compressed = recoverPublicKey(sig, messageHashBytes, {
+    prehash: false,
+  });
   const point = Point.fromBytes(compressed);
   return Buffer.from(point.toBytes(false));
 }
@@ -155,14 +165,23 @@ function fmt65Rust(arr) {
   const parts = [];
   for (let i = 0; i < 65; i += 16) {
     const chunk = arr.slice(i, Math.min(i + 16, 65));
-    parts.push("    " + Array.from(chunk).map((b) => "0x" + b.toString(16).padStart(2, "0")).join(", ") + ",");
+    parts.push(
+      "    " +
+        Array.from(chunk)
+          .map((b) => "0x" + b.toString(16).padStart(2, "0"))
+          .join(", ") +
+        ",",
+    );
   }
   return parts.join("\n");
 }
 
 const hashes = HASHES_HEX.map((h) => {
   const hex = h.replace(/[^0-9a-fA-F]/g, "").slice(0, 64);
-  if (hex.length !== 64) throw new Error(`Hash must be 64 hex chars, got ${hex.length}: ${hex.slice(0, 20)}...`);
+  if (hex.length !== 64)
+    throw new Error(
+      `Hash must be 64 hex chars, got ${hex.length}: ${hex.slice(0, 20)}...`,
+    );
   return Buffer.from(hex, "hex");
 });
 const parsed = DER_SIGS.map((der) => {
@@ -179,13 +198,25 @@ function findChip1Key() {
     const others = indices.filter((i) => i !== anchor);
     for (let rid = 0; rid <= 3; rid++) {
       try {
-        const P = recoverPubKeyWithRid(hashes[anchor], parsed[anchor].sigR, parsed[anchor].sigS, rid);
+        const P = recoverPubKeyWithRid(
+          hashes[anchor],
+          parsed[anchor].sigR,
+          parsed[anchor].sigS,
+          rid,
+        );
         let allMatch = true;
         for (const i of others) {
           let match = false;
           for (let r = 0; r <= 3; r++) {
             try {
-              if (recoverPubKeyWithRid(hashes[i], parsed[i].sigR, parsed[i].sigS, r).equals(P)) {
+              if (
+                recoverPubKeyWithRid(
+                  hashes[i],
+                  parsed[i].sigR,
+                  parsed[i].sigS,
+                  r,
+                ).equals(P)
+              ) {
                 match = true;
                 break;
               }
@@ -203,7 +234,10 @@ function findChip1Key() {
   return null;
 }
 const chip1 = findChip1Key();
-if (!chip1) throw new Error("Could not find Chip 1 public key consistent with sigs 0, 1, 2");
+if (!chip1)
+  throw new Error(
+    "Could not find Chip 1 public key consistent with sigs 0, 1, 2",
+  );
 
 // Empirically find Chip 2 key: try sig 3 or sig 4 as anchor; for each recovery ID get P and check the other recovers to P.
 function findChip2Key() {
@@ -211,10 +245,23 @@ function findChip2Key() {
     const other = anchor === 3 ? 4 : 3;
     for (let rid = 0; rid <= 3; rid++) {
       try {
-        const P = recoverPubKeyWithRid(hashes[anchor], parsed[anchor].sigR, parsed[anchor].sigS, rid);
+        const P = recoverPubKeyWithRid(
+          hashes[anchor],
+          parsed[anchor].sigR,
+          parsed[anchor].sigS,
+          rid,
+        );
         for (let r = 0; r <= 3; r++) {
           try {
-            if (recoverPubKeyWithRid(hashes[other], parsed[other].sigR, parsed[other].sigS, r).equals(P)) return P;
+            if (
+              recoverPubKeyWithRid(
+                hashes[other],
+                parsed[other].sigR,
+                parsed[other].sigS,
+                r,
+              ).equals(P)
+            )
+              return P;
           } catch (_) {}
         }
       } catch (_) {}
@@ -223,9 +270,12 @@ function findChip2Key() {
   return null;
 }
 const chip2 = findChip2Key();
-if (!chip2) throw new Error("Could not find Chip 2 public key consistent with sigs 3, 4");
+if (!chip2)
+  throw new Error("Could not find Chip 2 public key consistent with sigs 3, 4");
 
-console.log("// Recovered Chip 1 and Chip 2 public keys and normalized sig_r/sig_s");
+console.log(
+  "// Recovered Chip 1 and Chip 2 public keys and normalized sig_r/sig_s",
+);
 console.log("// Paste into contracts/nfc-nft/src/test.rs\n");
 console.log("const CHIP1_PUBLIC_KEY: [u8; 65] = [");
 console.log(fmt65Rust(chip1));
@@ -234,7 +284,9 @@ console.log("const CHIP2_PUBLIC_KEY: [u8; 65] = [");
 console.log(fmt65Rust(chip2));
 console.log("];\n");
 
-console.log("// For each of the 5 TestSignature entries, replace sig_r and sig_s:\n");
+console.log(
+  "// For each of the 5 TestSignature entries, replace sig_r and sig_s:\n",
+);
 for (let i = 0; i < 5; i++) {
   console.log(`// --- Signature ${i + 1} ---`);
   console.log("        sig_r: [");
@@ -245,4 +297,6 @@ for (let i = 0; i < 5; i++) {
   console.log("        ],");
   console.log("");
 }
-console.log("// → Paste into contracts/nfc-nft/src/test.rs. See dapp/scripts/REGENERATE_NFC_TEST_SIGS.md for exact replacement rules.");
+console.log(
+  "// → Paste into contracts/nfc-nft/src/test.rs. See dapp/scripts/REGENERATE_NFC_TEST_SIGS.md for exact replacement rules.",
+);

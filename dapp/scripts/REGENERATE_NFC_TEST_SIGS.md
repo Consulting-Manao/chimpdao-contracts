@@ -11,22 +11,26 @@ Single source of truth for updating the 5 test signatures and chip public keys u
 ## One-shot steps
 
 1. **Get the 5 message hashes** (same order as tests use):
+
    ```bash
    cargo test -p nfc-nft test_print_message_hash_for_signing -- --nocapture
    ```
+
    Copy the five lines like `Message hash (hex): <64 hex chars>` (hash 1 = Chip 1 mint, 2 = Chip 1 claim, 3 = Chip 1 transfer, 4 = Chip 2 mint, 5 = Chip 2 claim).
 
 2. **Sign each hash** with the correct chip:
    - Hash 1, 2, 3 → Chip 1 (e.g. `uv run --with blocksec2go blocksec2go generate_signature 1 <hash_hex>`).
    - Hash 4, 5 → Chip 2 (e.g. `generate_signature 2 <hash_hex>`).
-   You get 5 DER signatures (hex strings).
+     You get 5 DER signatures (hex strings).
 
 3. **Paste the 5 DER signatures** into `dapp/scripts/recover-test-sigs.cjs`: replace the array `DER_SIGS` so it contains exactly 5 hex strings (order: sig for hash 1, 2, 3, 4, 5).
 
 4. **Run the recovery script from repo root**:
+
    ```bash
    node dapp/scripts/recover-test-sigs.cjs
    ```
+
    The script fetches the current hashes from the nfc-nft test (so hashes stay in sync). It prints Rust code.
 
 5. **Paste the script output into `contracts/nfc-nft/src/test.rs`**:
@@ -42,10 +46,10 @@ Single source of truth for updating the 5 test signatures and chip public keys u
 
 ## Files involved
 
-| File | Role |
-|------|------|
-| `dapp/scripts/recover-test-sigs.cjs` | Only recovery script. Input: `DER_SIGS`. Fetches hashes from test. Output: Rust for `test.rs`. |
-| `contracts/nfc-nft/src/test.rs` | Holds `CHIP1_PUBLIC_KEY`, `CHIP2_PUBLIC_KEY`, and `TEST_SIGNATURES` (5 entries with `sig_r`/`sig_s`). |
+| File                                 | Role                                                                                                  |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `dapp/scripts/recover-test-sigs.cjs` | Only recovery script. Input: `DER_SIGS`. Fetches hashes from test. Output: Rust for `test.rs`.        |
+| `contracts/nfc-nft/src/test.rs`      | Holds `CHIP1_PUBLIC_KEY`, `CHIP2_PUBLIC_KEY`, and `TEST_SIGNATURES` (5 entries with `sig_r`/`sig_s`). |
 
 ## If the script fails
 
