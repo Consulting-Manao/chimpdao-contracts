@@ -40,6 +40,11 @@ pub trait NFCtoNFTTrait {
     /// # Returns
     ///
     /// The u32 token_id (SEP-50 compliant) if signature is valid.
+    ///
+    /// # Events
+    ///
+    /// * topics - `["mint", to: Address]`
+    /// * data - `[token_id: u32]`
     fn mint(e: &Env, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32) -> u32;
 
     /// Claim NFT using NFC chip signature.
@@ -61,6 +66,11 @@ pub trait NFCtoNFTTrait {
     /// # Returns
     ///
     /// The u32 token_id (SEP-50 compliant) if signature is valid.
+    ///
+    /// # Events
+    ///
+    /// * topics - `["claim", claimant: Address]`
+    /// * data - `[token_id: u32]`
     fn claim(e: &Env, claimant: Address, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32) -> u32;
 
     /// Transfers `token_id` token from `from` to `to` using NFC chip signature.
@@ -87,7 +97,7 @@ pub trait NFCtoNFTTrait {
     /// # Events
     ///
     /// * topics - `["transfer", from: Address, to: Address]`
-    /// * data - `[token_id: BytesN<65>]`
+    /// * data - `[token_id: u32]`
     fn transfer(e: &Env, from: Address, to: Address, token_id: u32, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32);
 
     /// Clawback `token_id` token from owner.
