@@ -77,7 +77,8 @@ impl NFCtoNFTTrait for NFCtoNFT {
         e.storage().persistent().set(&public_key_lookup, &token_id);
         e.storage().persistent().set(&NFTStorageKey::PublicKey(token_id), &public_key);
 
-        events::Mint { token_id }.publish(&e);
+        let contract_address = e.current_contract_address();
+        events::Mint { to: contract_address, token_id }.publish(&e);
 
         token_id
     }
