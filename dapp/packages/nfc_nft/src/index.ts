@@ -226,6 +226,28 @@ export interface Client {
     { token_id }: { token_id: u32 },
     options?: MethodOptions,
   ) => Promise<AssembledTransaction<Buffer>>;
+
+  /**
+   * Construct and simulate a verify_chip_signature transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   */
+  verify_chip_signature: (
+    {
+      signer,
+      message,
+      signature,
+      recovery_id,
+      public_key,
+      nonce,
+    }: {
+      signer: Buffer;
+      message: Buffer;
+      signature: Buffer;
+      recovery_id: u32;
+      public_key: Buffer;
+      nonce: u32;
+    },
+    options?: MethodOptions,
+  ) => Promise<AssembledTransaction<null>>;
 }
 export class Client extends ContractClient {
   static async deploy<T = Client>(
@@ -279,6 +301,7 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAAIdG9rZW5faWQAAAABAAAAAAAAAApwdWJsaWNfa2V5AAAAAAPuAAAAQQAAAAEAAAAE",
         "AAAAAAAAAAAAAAANbmV4dF90b2tlbl9pZAAAAAAAAAAAAAABAAAABA==",
         "AAAAAAAAAAAAAAAKcHVibGljX2tleQAAAAAAAQAAAAAAAAAIdG9rZW5faWQAAAAEAAAAAQAAA+4AAABB",
+        "AAAAAAAAAAAAAAAVdmVyaWZ5X2NoaXBfc2lnbmF0dXJlAAAAAAAABgAAAAAAAAAGc2lnbmVyAAAAAAAOAAAAAAAAAAdtZXNzYWdlAAAAAA4AAAAAAAAACXNpZ25hdHVyZQAAAAAAA+4AAABAAAAAAAAAAAtyZWNvdmVyeV9pZAAAAAAEAAAAAAAAAApwdWJsaWNfa2V5AAAAAAPuAAAAQQAAAAAAAAAFbm9uY2UAAAAAAAAEAAAAAA==",
         "AAAABAAAAAAAAAAAAAAAFU5vbkZ1bmdpYmxlVG9rZW5FcnJvcgAAAAAAAAcAAAAeSW5kaWNhdGVzIGFuIGludmFsaWQgc2lnbmF0dXJlAAAAAAAQSW52YWxpZFNpZ25hdHVyZQAAAMgAAAAkSW5kaWNhdGVzIGEgbm9uLWV4aXN0ZW50IGB0b2tlbl9pZGAuAAAAEE5vbkV4aXN0ZW50VG9rZW4AAADJAAAAV0luZGljYXRlcyBhbiBlcnJvciByZWxhdGVkIHRvIHRoZSBvd25lcnNoaXAgb3ZlciBhIHBhcnRpY3VsYXIgdG9rZW4uClVzZWQgaW4gdHJhbnNmZXJzLgAAAAAOSW5jb3JyZWN0T3duZXIAAAAAAMoAAAA2SW5kaWNhdGVzIGFsbCBwb3NzaWJsZSBgdG9rZW5faWRgcyBhcmUgYWxyZWFkeSBpbiB1c2UuAAAAAAATVG9rZW5JRHNBcmVEZXBsZXRlZAAAAADLAAAAJ0luZGljYXRlcyB0aGUgdG9rZW4gd2FzIGFscmVhZHkgbWludGVkLgAAAAASVG9rZW5BbHJlYWR5TWludGVkAAAAAADSAAAAKEluZGljYXRlcyB0aGUgdG9rZW4gd2FzIGFscmVhZHkgY2xhaW1lZC4AAAATVG9rZW5BbHJlYWR5Q2xhaW1lZAAAAADTAAAAN0luZGljYXRlcyB0aGUgdG9rZW4gZXhpc3RzIGJ1dCBoYXMgbm90IGJlZW4gY2xhaW1lZCB5ZXQAAAAAD1Rva2VuTm90Q2xhaW1lZAAAAADU",
         "AAAABQAAAAAAAAAAAAAACFRyYW5zZmVyAAAAAQAAAAh0cmFuc2ZlcgAAAAMAAAAAAAAABGZyb20AAAATAAAAAQAAAAAAAAACdG8AAAAAABMAAAABAAAAAAAAAAh0b2tlbl9pZAAAAAQAAAAAAAAAAg==",
         "AAAABQAAAAAAAAAAAAAABE1pbnQAAAABAAAABG1pbnQAAAACAAAAAAAAAAJ0bwAAAAAAEwAAAAEAAAAAAAAACHRva2VuX2lkAAAABAAAAAAAAAAC",
@@ -303,5 +326,6 @@ export class Client extends ContractClient {
     token_id: this.txFromJSON<u32>,
     next_token_id: this.txFromJSON<u32>,
     public_key: this.txFromJSON<Buffer>,
+    verify_chip_signature: this.txFromJSON<null>,
   };
 }

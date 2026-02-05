@@ -29,7 +29,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     /// * `to` - Account of the token's owner.
     /// * `message` - The message that was signed (without signer and nonce).
     /// * `signature` - 64-byte ECDSA signature from NFC chip.
@@ -40,6 +40,13 @@ pub trait NFCtoNFTTrait {
     /// # Returns
     ///
     /// The u32 token_id (SEP-50 compliant) if signature is valid.
+    ///
+    /// # Panics
+    ///
+    /// * If the caller is not the admin.
+    /// * If the signature is invalid.
+    /// * If the token was already minted.
+    /// * If there are no more tokens to be minted.
     ///
     /// # Events
     ///
@@ -55,7 +62,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     /// * `claimant` - Account of the claimant.
     /// * `message` - The message that was signed (without signer and nonce).
     /// * `signature` - 64-byte ECDSA signature from NFC chip.
@@ -66,6 +73,13 @@ pub trait NFCtoNFTTrait {
     /// # Returns
     ///
     /// The u32 token_id (SEP-50 compliant) if signature is valid.
+    ///
+    /// # Panics
+    ///
+    /// * If the claimant is not the signer.
+    /// * If the signature is invalid.
+    /// * If the token was not yet minted.
+    /// * If the token was already claimed.
     ///
     /// # Events
     ///
@@ -84,7 +98,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     /// * `from` - Account of the sender.
     /// * `to` - Account of the recipient.
     /// * `token_id` - Token id as a number.
@@ -93,6 +107,14 @@ pub trait NFCtoNFTTrait {
     /// * `recovery_id` - Recovery ID (0-3) for signature recovery.
     /// * `public_key` - The chip's public key (uncompressed SEC1 format, 65 bytes).
     /// * `nonce` - A nonce to prevent replay attacks.
+    ///
+    /// # Panics
+    ///
+    /// * If the caller is not the owner of the token.
+    /// * If the token was not claimed.
+    /// * If the signature is invalid.
+    /// * If the token was not yet minted.
+    /// * If the token was already claimed.
     ///
     /// # Events
     ///
@@ -108,7 +130,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     /// * `token_id` - Token id as a number.
     ///
     /// # Events
@@ -121,7 +143,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     /// * `public_key` - The chip's public key (uncompressed SEC1 format, 65 bytes).
     ///
     /// # Returns
@@ -133,7 +155,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     /// * `owner` - Account of the token's owner.
     fn balance(e: &Env, owner: Address) -> u32;
 
@@ -141,7 +163,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     /// * `token_id` - Token id as a number.
     ///
     /// # Notes
@@ -153,21 +175,21 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     fn name(e: &Env) -> String;
 
     /// Returns the token collection symbol.
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     fn symbol(e: &Env) -> String;
 
     /// Returns the Uniform Resource Identifier (URI) for `token_id` token.
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     /// * `token_id` - Token id as a number.
     ///
     /// # Notes
@@ -179,7 +201,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     /// * `public_key` - The chip's public key (uncompressed SEC1 format, 65 bytes).
     ///
     /// # Returns
@@ -191,7 +213,7 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     ///
     /// # Returns
     ///
@@ -202,15 +224,39 @@ pub trait NFCtoNFTTrait {
     ///
     /// # Arguments
     ///
-    /// * `e` - Access to the Soroban environment.
+    /// * `e` - The environment object.
     /// * `token_id` - Token id as a number.
     ///
     /// # Returns
     ///
     /// The chip's public key associated with this token ID.
     ///
-    /// # Notes
+    /// # Panics
     ///
-    /// If the token does not exist, this function is expected to panic.
+    /// * If the token does not exist.
     fn public_key(e: &Env, token_id: u32) -> BytesN<65>;
+
+    /// Verify the chip signature.
+    ///
+    /// Verifies that the signature was created by the chip with the given public_key
+    /// Also handles nonce verification and updates the stored nonce for the `public_key`
+    ///
+    /// # Arguments
+    ///
+    /// * `e` - The environment object.
+    /// * `signer` - Address of the signer of the message.
+    /// * `message` - The message that was signed (without signer and nonce).
+    /// * `signature` - 64-byte ECDSA signature from NFC chip.
+    /// * `recovery_id` - Recovery ID (0-3) for signature recovery.
+    /// * `public_key` - The chip's public key (uncompressed SEC1 format, 65 bytes).
+    /// * `nonce` - A nonce to prevent replay attacks.
+    fn verify_chip_signature(
+        e: &Env,
+        signer: Bytes,
+        message: Bytes,
+        signature: BytesN<64>,
+        recovery_id: u32,
+        public_key: BytesN<65>,
+        nonce: u32,
+    );
 }

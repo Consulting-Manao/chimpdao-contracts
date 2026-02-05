@@ -55,7 +55,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
 
-        verify_chip_signature(e, admin.to_xdr(&e), message, signature, recovery_id, public_key.clone(), nonce);
+        Self::verify_chip_signature(e, admin.to_xdr(&e), message, signature, recovery_id, public_key.clone(), nonce);
 
         let public_key_lookup = NFTStorageKey::TokenIdByPublicKey(public_key.clone());
         if e.storage().persistent().has(&public_key_lookup) {
@@ -94,7 +94,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
     ) -> u32 {
         claimant.require_auth();
 
-        verify_chip_signature(e, claimant.clone().to_xdr(&e), message, signature, recovery_id, public_key.clone(), nonce);
+        Self::verify_chip_signature(e, claimant.clone().to_xdr(&e), message, signature, recovery_id, public_key.clone(), nonce);
 
         let token_id = Self::token_id(e, public_key.clone());
 
@@ -125,7 +125,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
     ) {
         from.require_auth();
 
-        verify_chip_signature(e, from.clone().to_xdr(&e), message, signature, recovery_id, public_key.clone(), nonce);
+        Self::verify_chip_signature(e, from.clone().to_xdr(&e), message, signature, recovery_id, public_key.clone(), nonce);
 
         // Verify the chip public_key corresponds to that specific token_id
         let token_id_public_key: BytesN<65> = Self::public_key(e, token_id);
@@ -243,6 +243,43 @@ impl NFCtoNFTTrait for NFCtoNFT {
             .get(&NFTStorageKey::PublicKey(token_id))
             .unwrap_or_else(|| panic_with_error!(e, errors::NonFungibleTokenError::NonExistentToken))
     }
+
+    fn verify_chip_signature(
+        e: &Env,
+        signer: Bytes,
+        message: Bytes,
+        signature: BytesN<64>,
+        recovery_id: u32,
+        public_key: BytesN<65>,
+        nonce: u32,
+    ) {
+        let nonce_key = NFTStorageKey::ChipNonceByPublicKey(public_key.clone());
+        let stored_nonce: u32 = e.storage()
+            .persistent()
+            .get(&nonce_key)
+            .unwrap_or(0u32);
+
+        // Verify nonce is monotonic increasing
+        if nonce <= stored_nonce {
+            panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
+        }
+
+        // Build message hash with signer and nonce
+        let mut builder: Bytes = Bytes::new(&e);
+        builder.append(&message.clone());
+        builder.append(&signer.clone());
+        builder.append(&nonce.clone().to_xdr(&e));
+        let message_hash = e.crypto().sha256(&builder);
+
+        // Verify signature recovers to the public_key
+        let recovered = e.crypto().secp256k1_recover(&message_hash, &signature, recovery_id);
+        if recovered != public_key {
+            panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
+        }
+
+        // Update stored nonce for this public_key
+        e.storage().persistent().set(&nonce_key, &nonce);
+    }
 }
 
 /// Convert an u32 to its decimal string representation as Bytes
@@ -272,44 +309,4 @@ pub(crate) fn u32_to_decimal_bytes(e: &Env, mut value: u32) -> Bytes {
     }
 
     Bytes::from_slice(e, &buffer[..length])
-}
-
-/// Common function to verify chip signature
-/// Verifies that the signature was created by the chip with the given public_key
-/// Also handles nonce verification and updates the stored nonce for the public_key
-fn verify_chip_signature(
-    e: &Env,
-    signer: Bytes,
-    message: Bytes,
-    signature: BytesN<64>,
-    recovery_id: u32,
-    public_key: BytesN<65>,
-    nonce: u32,
-) {
-    let nonce_key = NFTStorageKey::ChipNonceByPublicKey(public_key.clone());
-    let stored_nonce: u32 = e.storage()
-        .persistent()
-        .get(&nonce_key)
-        .unwrap_or(0u32);
-
-    // Verify nonce is monotonic increasing
-    if nonce <= stored_nonce {
-        panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
-    }
-
-    // Build message hash with signer and nonce
-    let mut builder: Bytes = Bytes::new(&e);
-    builder.append(&message.clone());
-    builder.append(&signer.clone());
-    builder.append(&nonce.clone().to_xdr(&e));
-    let message_hash = e.crypto().sha256(&builder);
-
-    // Verify signature recovers to the public_key
-    let recovered = e.crypto().secp256k1_recover(&message_hash, &signature, recovery_id);
-    if recovered != public_key {
-        panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
-    }
-    
-    // Update stored nonce for this public_key
-    e.storage().persistent().set(&nonce_key, &nonce);
 }
