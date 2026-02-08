@@ -7,7 +7,11 @@ ifndef network
 endif
 
 ifndef admin
-   override admin = me
+	ifeq ($(network),testnet)
+		   override admin = me
+	else
+		   override admin = chimpdao_nft
+	endif
 endif
 
 ifndef wasm
@@ -66,25 +70,25 @@ contract_bindings: contract_build  ## Create bindings
 	cd ../.. && \
 	bun format
 
-# --salt $(shell printf chi1 | openssl sha256 | cut -d " " -f2) \
-
 contract_deploy_collection: contract_bindings  ## Deploy Soroban contract collection to testnet
 	stellar contract deploy \
   		--wasm $(wasm_collection) \
-  		--source-account me \
+  		--source-account $(admin) \
   		--network $(network) \
+  		--salt $(shell printf chi_collection | openssl sha256 | cut -d " " -f2) \
   		-- \
-  		--admin me \
+  		--admin $(admin) \
   		> .config/stellar/collection_$(network)_id && \
   	cat .config/stellar/collection_$(network)_id
 
 contract_deploy_nft: contract_bindings  ## Deploy Soroban contract NFT to testnet
 	stellar contract deploy \
   		--wasm $(wasm) \
-  		--source-account me \
+  		--source-account $(admin) \
   		--network $(network) \
+  		--salt $(shell printf chi1 | openssl sha256 | cut -d " " -f2) \
   		-- \
-  		--admin me \
+  		--admin $(admin) \
   		--name "Palta Chimpy" --symbol chi1 --max_tokens 100 \
   		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna \
   		> .config/stellar/nfc_nft_$(network)_id && \
@@ -92,7 +96,7 @@ contract_deploy_nft: contract_bindings  ## Deploy Soroban contract NFT to testne
 
 contract_uri:
 	stellar contract invoke \
-		--source-account me \
+		--source-account $(admin) \
 		--network $(network) \
 		--id $(shell cat .config/stellar/nfc_nft_$(network)_id) \
 		-- \
