@@ -125,7 +125,7 @@ pub trait NFCtoNFTTrait {
     /// Clawback `token_id` token from owner.
     ///
     /// Only the admin can execute this function which sends the token to the
-    /// contract address. This is an extreme measure which effectively lock
+    /// admin address. This is an extreme measure which quarantines
     /// the token. Used in case of terms breach.
     ///
     /// # Arguments

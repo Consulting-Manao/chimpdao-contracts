@@ -154,7 +154,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
         admin.require_auth();
 
         let from = Self::owner_of(e, token_id);
-        let to = e.current_contract_address();
+        let to = admin.clone();
 
         e.storage().persistent().set(&NFTStorageKey::Owner(token_id), &to);
 
