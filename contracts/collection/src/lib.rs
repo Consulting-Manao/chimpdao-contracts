@@ -1,7 +1,7 @@
 #![no_std]
 #![allow(dead_code)]
 
-use soroban_sdk::{contract, contractmeta, Env, Address, String, BytesN, Bytes, Vec};
+use soroban_sdk::{contract, contractmeta, Env, Address, String, BytesN, Vec};
 
 contractmeta!(key = "Description", val = "ChimpDAO Collection");
 
@@ -21,7 +21,7 @@ pub trait CollectionTrait {
 
     fn upgrade(e: &Env, wasm_hash: BytesN<32>);
 
-    fn create_collection(e: &Env, wasm_hash: BytesN<32>, name: String, symbol: String, uri: String, max_tokens: u32);
+    fn create_collection(e: &Env, wasm_hash: BytesN<32>, name: String, symbol: String, uri: String, max_tokens: u32) -> Address;
 
     fn assign_collectible(e: &Env, collection: Address, to: Address, token_id: u32);
 
