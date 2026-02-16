@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, contractevent, Bytes};
+use soroban_sdk::{Address, Bytes, contractevent};
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]

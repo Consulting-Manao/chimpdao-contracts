@@ -1,23 +1,29 @@
 #![no_std]
 #![allow(dead_code)]
 
-use soroban_sdk::{contract, contractmeta, Env, Address, String, BytesN, Bytes};
+use soroban_sdk::{Address, Bytes, BytesN, Env, String, contract, contractmeta};
 
 contractmeta!(key = "Description", val = "ChimpDAO NFC-NFT");
 
 mod contract;
 
-#[cfg(test)]
-mod test;
 mod errors;
 mod events;
+#[cfg(test)]
+mod test;
 
 #[contract]
 pub struct NFCtoNFT;
 
 pub trait NFCtoNFTTrait {
-
-    fn __constructor(e: &Env, admin: Address, name: String, symbol: String, uri: String, max_tokens: u32);
+    fn __constructor(
+        e: &Env,
+        admin: Address,
+        name: String,
+        symbol: String,
+        uri: String,
+        max_tokens: u32,
+    );
 
     fn upgrade(e: &Env, wasm_hash: BytesN<32>);
 
@@ -52,7 +58,14 @@ pub trait NFCtoNFTTrait {
     ///
     /// * topics - `["mint", to: Address]`
     /// * data - `[token_id: u32]`
-    fn mint(e: &Env, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32) -> u32;
+    fn mint(
+        e: &Env,
+        message: Bytes,
+        signature: BytesN<64>,
+        recovery_id: u32,
+        public_key: BytesN<65>,
+        nonce: u32,
+    ) -> u32;
 
     /// Claim NFT using NFC chip signature.
     ///
@@ -85,7 +98,15 @@ pub trait NFCtoNFTTrait {
     ///
     /// * topics - `["claim", claimant: Address]`
     /// * data - `[token_id: u32]`
-    fn claim(e: &Env, claimant: Address, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32) -> u32;
+    fn claim(
+        e: &Env,
+        claimant: Address,
+        message: Bytes,
+        signature: BytesN<64>,
+        recovery_id: u32,
+        public_key: BytesN<65>,
+        nonce: u32,
+    ) -> u32;
 
     /// Transfers `token_id` token from `from` to `to` using NFC chip signature.
     ///
@@ -120,7 +141,18 @@ pub trait NFCtoNFTTrait {
     ///
     /// * topics - `["transfer", from: Address, to: Address]`
     /// * data - `[token_id: u32]`
-    fn transfer(e: &Env, from: Address, to: Address, token_id: u32, message: Bytes, signature: BytesN<64>, recovery_id: u32, public_key: BytesN<65>, nonce: u32);
+    #[allow(clippy::too_many_arguments)]
+    fn transfer(
+        e: &Env,
+        from: Address,
+        to: Address,
+        token_id: u32,
+        message: Bytes,
+        signature: BytesN<64>,
+        recovery_id: u32,
+        public_key: BytesN<65>,
+        nonce: u32,
+    );
 
     /// Clawback `token_id` token from owner.
     ///

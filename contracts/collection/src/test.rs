@@ -1,4 +1,4 @@
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{Address, Env, String, testutils::Address as _};
 
 use crate::{Collection, CollectionClient};
 
@@ -6,14 +6,8 @@ mod nfc_nft_contract {
     soroban_sdk::contractimport!(file = "../nfc_nft.wasm");
 }
 
-
 fn create_client<'a>(e: &Env, admin: &Address) -> CollectionClient<'a> {
-    let address = e.register(
-        Collection,
-        (
-            admin,
-        ),
-    );
+    let address = e.register(Collection, (admin,));
     CollectionClient::new(e, &address)
 }
 
