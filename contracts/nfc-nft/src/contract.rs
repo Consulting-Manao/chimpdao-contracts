@@ -11,6 +11,9 @@ pub enum DataKey {
     Admin,
     NextTokenId,
     MaxTokens,
+    Name,
+    Symbol,
+    URI,
 }
 
 #[contracttype]
@@ -21,9 +24,6 @@ pub enum NFTStorageKey {
     PublicKey(u32),
     TokenIdByPublicKey(BytesN<65>),
     Balance(Address),
-    Name,
-    Symbol,
-    URI,
 }
 
 #[contractimpl]
@@ -38,9 +38,9 @@ impl NFCtoNFTTrait for NFCtoNFT {
     ) {
         e.storage().instance().set(&DataKey::Admin, &admin);
 
-        e.storage().instance().set(&NFTStorageKey::Name, &name);
-        e.storage().instance().set(&NFTStorageKey::Symbol, &symbol);
-        e.storage().instance().set(&NFTStorageKey::URI, &uri);
+        e.storage().instance().set(&DataKey::Name, &name);
+        e.storage().instance().set(&DataKey::Symbol, &symbol);
+        e.storage().instance().set(&DataKey::URI, &uri);
 
         e.storage().instance().set(&DataKey::MaxTokens, &max_tokens);
         e.storage().instance().set(&DataKey::NextTokenId, &0u32);
@@ -246,18 +246,18 @@ impl NFCtoNFTTrait for NFCtoNFT {
     }
 
     fn name(e: &Env) -> String {
-        e.storage().instance().get(&NFTStorageKey::Name).unwrap()
+        e.storage().instance().get(&DataKey::Name).unwrap()
     }
 
     fn symbol(e: &Env) -> String {
-        e.storage().instance().get(&NFTStorageKey::Symbol).unwrap()
+        e.storage().instance().get(&DataKey::Symbol).unwrap()
     }
 
     fn token_uri(e: &Env, token_id: u32) -> String {
         // Verify token exists (this will panic if it doesn't)
         Self::public_key(e, token_id);
 
-        let base_uri: String = e.storage().instance().get(&NFTStorageKey::URI).unwrap();
+        let base_uri: String = e.storage().instance().get(&DataKey::URI).unwrap();
 
         // Construct URI: {base_uri}/{token_id}
         let mut uri_bytes = Bytes::new(e);

@@ -10,8 +10,7 @@ pub enum DataKey {
 
 #[contracttype]
 pub enum CollectionKey {
-    NFTContract,
-    Collections,
+    Collections(Address),
     Collectibles(Address, u32), // (contract ID; Token ID) - Owner
     OwnerCollectibles(Address), // Owner - (contract ID; Token ID)
 }
@@ -51,9 +50,10 @@ impl CollectionTrait for Collection {
             .get(&CollectionKey::Collections)
             .unwrap_or(Vec::new(e));
         collections.push_back(contract_address.clone());
-        e.storage()
-            .instance()
-            .set(&CollectionKey::Collections, &contract_address.clone());
+        e.storage().instance().set(
+            &CollectionKey::Collections(contract_address.clone()),
+            symbol,
+        );
         contract_address
     }
 
