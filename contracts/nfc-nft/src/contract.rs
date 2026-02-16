@@ -1,6 +1,8 @@
 //! NFC - NFT binding
 
-use crate::{NFCtoNFT, NFCtoNFTArgs, NFCtoNFTClient, NFCtoNFTTrait, errors, events};
+use crate::{
+    NFCtoNFT, NFCtoNFTArgs, NFCtoNFTClient, NFCtoNFTTrait, collection_contract, errors, events,
+};
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
     Address, Bytes, BytesN, Env, String, contractimpl, contracttype, panic_with_error,
@@ -9,15 +11,15 @@ use soroban_sdk::{
 #[contracttype]
 pub enum DataKey {
     Admin,
+    CollectionContract,
     NextTokenId,
     MaxTokens,
     Name,
     Symbol,
-    URI,
+    Uri,
 }
 
 #[contracttype]
-#[allow(clippy::upper_case_acronyms)]
 pub enum NFTStorageKey {
     ChipNonceByPublicKey(BytesN<65>),
     Owner(u32),
@@ -31,6 +33,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
     fn __constructor(
         e: &Env,
         admin: Address,
+        collection_contract: Address,
         name: String,
         symbol: String,
         uri: String,
@@ -38,9 +41,13 @@ impl NFCtoNFTTrait for NFCtoNFT {
     ) {
         e.storage().instance().set(&DataKey::Admin, &admin);
 
+        e.storage()
+            .instance()
+            .set(&DataKey::CollectionContract, &collection_contract);
+
         e.storage().instance().set(&DataKey::Name, &name);
         e.storage().instance().set(&DataKey::Symbol, &symbol);
-        e.storage().instance().set(&DataKey::URI, &uri);
+        e.storage().instance().set(&DataKey::Uri, &uri);
 
         e.storage().instance().set(&DataKey::MaxTokens, &max_tokens);
         e.storage().instance().set(&DataKey::NextTokenId, &0u32);
@@ -144,6 +151,8 @@ impl NFCtoNFTTrait for NFCtoNFT {
             &(claimant_balance + 1),
         );
 
+        assign_collectible(e, &claimant, &token_id);
+
         events::Claim { claimant, token_id }.publish(e);
 
         token_id
@@ -198,6 +207,8 @@ impl NFCtoNFTTrait for NFCtoNFT {
             .persistent()
             .set(&NFTStorageKey::Balance(to.clone()), &(to_balance + 1));
 
+        assign_collectible(e, &to, &token_id);
+
         events::Transfer { from, to, token_id }.publish(e);
     }
 
@@ -220,6 +231,8 @@ impl NFCtoNFTTrait for NFCtoNFT {
         e.storage()
             .persistent()
             .set(&NFTStorageKey::Balance(to.clone()), &(to_balance + 1));
+
+        assign_collectible(e, &to, &token_id);
     }
 
     fn get_nonce(e: &Env, public_key: BytesN<65>) -> u32 {
@@ -257,9 +270,9 @@ impl NFCtoNFTTrait for NFCtoNFT {
         // Verify token exists (this will panic if it doesn't)
         Self::public_key(e, token_id);
 
-        let base_uri: String = e.storage().instance().get(&DataKey::URI).unwrap();
+        let base_uri: String = e.storage().instance().get(&DataKey::Uri).unwrap();
 
-        // Construct URI: {base_uri}/{token_id}
+        // Construct Uri: {base_uri}/{token_id}
         let mut uri_bytes = Bytes::new(e);
         uri_bytes.append(&Bytes::from(base_uri));
         uri_bytes.append(&Bytes::from_slice(e, b"/"));
@@ -355,4 +368,15 @@ pub(crate) fn u32_to_decimal_bytes(e: &Env, mut value: u32) -> Bytes {
     }
 
     Bytes::from_slice(e, &buffer[..length])
+}
+
+// update collection
+fn assign_collectible(e: &Env, to: &Address, token_id: &u32) {
+    let contract_address = e
+        .storage()
+        .instance()
+        .get(&DataKey::CollectionContract)
+        .unwrap();
+    let client = collection_contract::Client::new(&e, &contract_address);
+    client.assign_collectible(&e.current_contract_address(), &to, &token_id);
 }

@@ -5,6 +5,10 @@ use soroban_sdk::{Address, Bytes, BytesN, Env, String, contract, contractmeta};
 
 contractmeta!(key = "Description", val = "ChimpDAO NFC-NFT");
 
+mod collection_contract {
+    soroban_sdk::contractimport!(file = "../collection.wasm");
+}
+
 mod contract;
 
 mod errors;
@@ -19,6 +23,7 @@ pub trait NFCtoNFTTrait {
     fn __constructor(
         e: &Env,
         admin: Address,
+        collection_contract: Address,
         name: String,
         symbol: String,
         uri: String,

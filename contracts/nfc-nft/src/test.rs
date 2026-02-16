@@ -444,11 +444,26 @@ fn print_message_hash_for_signing() {
     std::println!();
 }
 
+mod collection {
+    use super::*;
+    use soroban_sdk::{contract, contractimpl};
+
+    #[contract]
+    pub struct Mock;
+    #[contractimpl]
+    impl Mock {
+        pub fn assign_collectible(_e: &Env, _collection: Address, _to: Address, _token_id: u32) {}
+    }
+}
+
 fn create_client<'a>(e: &Env, admin: &Address) -> NFCtoNFTClient<'a> {
+    let collection_id = e.register(collection::Mock, ());
+
     let address = e.register(
         NFCtoNFT,
         (
             admin,
+            collection_id,
             &String::from_str(e, "TestNFT"),
             &String::from_str(e, "TNFT"),
             &String::from_str(e, "ipfs://abcd"),

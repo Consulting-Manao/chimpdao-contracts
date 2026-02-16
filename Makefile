@@ -1,4 +1,4 @@
-.PHONY: help install contract_build contract_test contract_bindings contract_deploy_collection contract_deploy_nft contract_help
+.PHONY: help install contract_build contract_test contract_bindings contract_deploy_collection contract_create_collection contract_deploy_nft contract_help
 .DEFAULT_GOAL := help
 SHELL:=/bin/bash
 
@@ -70,7 +70,7 @@ contract_bindings: contract_build  ## Create bindings
 	cd ../.. && \
 	bun format
 
-contract_deploy_collection: contract_bindings  ## Deploy Soroban contract collection to testnet
+contract_deploy_collection: contract_build  ## Deploy Soroban contract collection to testnet
 	stellar contract deploy \
   		--wasm $(wasm_collection) \
   		--source-account $(admin) \
@@ -81,7 +81,7 @@ contract_deploy_collection: contract_bindings  ## Deploy Soroban contract collec
   		> .config/stellar/collection_$(network)_id && \
   	cat .config/stellar/collection_$(network)_id
 
-contract_deploy_nft: contract_bindings  ## Deploy Soroban contract NFT to testnet
+contract_deploy_nft: contract_build  ## Deploy Soroban contract NFT to testnet
 	stellar contract deploy \
   		--wasm $(wasm) \
   		--source-account $(admin) \
@@ -89,10 +89,24 @@ contract_deploy_nft: contract_bindings  ## Deploy Soroban contract NFT to testne
   		--salt $(shell printf chi1 | openssl sha256 | cut -d " " -f2) \
   		-- \
   		--admin $(admin) \
+  		--collection_contract $(admin) \
   		--name "Palta Chimpy" --symbol chi1 --max_tokens 100 \
   		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna \
   		> .config/stellar/nfc_nft_$(network)_id && \
   	cat .config/stellar/nfc_nft_$(network)_id
+
+
+contract_create_collection:  ## Deploy Soroban contract NFT via collection to testnet
+	stellar contract invoke \
+		--source-account $(admin) \
+		--network $(network) \
+		--id $(shell cat .config/stellar/collection_$(network)_id) \
+		-- \
+		create_collection \
+		--wasm_hash 3db8e7c9e39f8f98cbabb371d8dec546841fc715f0f94091e50fa36b9978ec20 \
+		--name "Palta Chimpy" --symbol chi1 --max_tokens 100 \
+  		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna
+
 
 contract_uri:
 	stellar contract invoke \

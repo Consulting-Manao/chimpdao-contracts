@@ -10,7 +10,7 @@ pub enum DataKey {
 
 #[contracttype]
 pub enum CollectionKey {
-    Collections,                // vec conract ID
+    Collections,                // vec contract ID
     Collectibles(Address, u32), // (contract ID; Token ID) - Owner
     OwnerCollectibles(Address), // Owner - (contract ID; Token ID)
 }
@@ -41,8 +41,17 @@ impl CollectionTrait for Collection {
 
         let salt: BytesN<32> = e.crypto().sha256(&symbol.to_bytes()).into();
         let deployer = e.deployer().with_current_contract(salt);
-        let contract_address =
-            deployer.deploy_v2(wasm_hash, (admin, name, symbol, uri, max_tokens));
+        let contract_address = deployer.deploy_v2(
+            wasm_hash,
+            (
+                admin,
+                e.current_contract_address(),
+                name,
+                symbol,
+                uri,
+                max_tokens,
+            ),
+        );
 
         let mut collections: Vec<Address> = e
             .storage()
