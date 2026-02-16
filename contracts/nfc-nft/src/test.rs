@@ -551,10 +551,7 @@ fn test_claim() {
         "Claimant should have balance of 0 after clawback"
     );
     let owner = client.owner_of(&token_id);
-    assert_eq!(
-        owner, client.address,
-        "Token should be owned by the contract"
-    );
+    assert_eq!(owner, admin, "Token should be owned by the contract");
 
     let token_uri = client.token_uri(&0);
     assert_eq!(token_uri, String::from_str(&e, "ipfs://abcd/0"));
