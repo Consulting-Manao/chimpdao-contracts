@@ -73,8 +73,9 @@ impl CollectionTrait for Collection {
         let owned_collectible: Option<Address> = e
             .storage()
             .instance()
-            .get(&CollectionKey::Collectibles(collection.clone(), token_id))
-            .unwrap();
+            .get(&CollectionKey::Collectibles(collection.clone(), token_id));
+
+        // set new owner
         e.storage().instance().set(
             &CollectionKey::Collectibles(collection.clone(), token_id),
             &to.clone(),

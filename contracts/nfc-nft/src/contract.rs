@@ -372,11 +372,11 @@ pub(crate) fn u32_to_decimal_bytes(e: &Env, mut value: u32) -> Bytes {
 
 // update collection
 fn assign_collectible(e: &Env, to: &Address, token_id: &u32) {
-    let contract_address = e
+    let collection_contract_address = e
         .storage()
         .instance()
         .get(&DataKey::CollectionContract)
         .unwrap();
-    let client = collection_contract::Client::new(&e, &contract_address);
-    client.assign_collectible(&e.current_contract_address(), &to, &token_id);
+    let client = collection_contract::Client::new(&e, &collection_contract_address);
+    client.assign_collectible(&e.current_contract_address(), to, token_id);
 }
