@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(dead_code)]
 
 use soroban_sdk::{Address, Bytes, BytesN, Env, String, contract, contractmeta};
 

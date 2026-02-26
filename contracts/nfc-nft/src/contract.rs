@@ -377,6 +377,6 @@ fn assign_collectible(e: &Env, to: &Address, token_id: &u32) {
         .instance()
         .get(&DataKey::CollectionContract)
         .unwrap();
-    let client = collection_contract::Client::new(&e, &collection_contract_address);
+    let client = collection_contract::Client::new(e, &collection_contract_address);
     client.assign_collectible(&e.current_contract_address(), to, token_id);
 }

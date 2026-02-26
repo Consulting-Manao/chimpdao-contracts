@@ -17,6 +17,7 @@
 //! - Signatures must have S normalized (low S form) for Soroban's secp256k1_recover
 //! - The normalize_s() function handles this automatically
 //! - Recovery ID (0-3) is determined automatically by trying all possibilities
+#![allow(dead_code)]
 
 extern crate alloc;
 extern crate std;

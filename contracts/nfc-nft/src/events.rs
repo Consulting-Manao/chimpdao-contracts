@@ -25,11 +25,3 @@ pub struct Claim {
     pub claimant: Address,
     pub token_id: u32,
 }
-
-#[contractevent]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Clawback {
-    #[topic]
-    pub from: Address,
-    pub token_id: u32,
-}
