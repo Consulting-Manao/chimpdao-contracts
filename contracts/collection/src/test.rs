@@ -40,7 +40,7 @@ fn test_assign_collectible() {
 
     let wasm = e.deployer().upload_contract_wasm(nfc_nft_contract::WASM);
 
-    let collection_A_address = client.create_collection(
+    let collection_a_address = client.create_collection(
         &wasm,
         &String::from_str(&e, "TestNFTA"),
         &String::from_str(&e, "TNFTA"),
@@ -48,7 +48,7 @@ fn test_assign_collectible() {
         &10u32,
     );
 
-    let collection_B_address = client.create_collection(
+    let collection_b_address = client.create_collection(
         &wasm,
         &String::from_str(&e, "TestNFTB"),
         &String::from_str(&e, "TNFTB"),
@@ -62,38 +62,47 @@ fn test_assign_collectible() {
     let collectibles = client.collectibles(&mando);
     assert_eq!(collectibles, Vec::new(&e));
 
-    client.assign_collectible(&collection_A_address, &mando, &1u32);
-    client.assign_collectible(&collection_A_address, &mando, &2u32);
-    client.assign_collectible(&collection_B_address, &grogu, &1u32);
-    client.assign_collectible(&collection_B_address, &mando, &2u32);
+    client.assign_collectible(&collection_a_address, &mando, &1u32);
+    client.assign_collectible(&collection_a_address, &mando, &2u32);
+    client.assign_collectible(&collection_b_address, &grogu, &1u32);
+    client.assign_collectible(&collection_b_address, &mando, &2u32);
 
     let collectibles = client.collectibles(&mando);
     assert_eq!(
         collectibles,
         vec![
             &e,
-            (collection_A_address.clone(), 1u32),
-            (collection_A_address.clone(), 2u32),
-            (collection_B_address.clone(), 2u32)
+            (collection_a_address.clone(), 1u32),
+            (collection_a_address.clone(), 2u32),
+            (collection_b_address.clone(), 2u32)
         ]
     );
     let collectibles = client.collectibles(&grogu);
-    assert_eq!(collectibles, vec![&e, (collection_B_address.clone(), 1u32)]);
+    assert_eq!(collectibles, vec![&e, (collection_b_address.clone(), 1u32)]);
 
     // idempotent assignment
-    client.assign_collectible(&collection_B_address, &grogu, &1u32);
+    client.assign_collectible(&collection_b_address, &grogu, &1u32);
     let collectibles = client.collectibles(&grogu);
-    assert_eq!(collectibles, vec![&e, (collection_B_address.clone(), 1u32)]);
+    assert_eq!(collectibles, vec![&e, (collection_b_address.clone(), 1u32)]);
 
     // re-assign a token from mando to grogu
-    client.assign_collectible(&collection_A_address, &grogu, &2u32);
+    client.assign_collectible(&collection_a_address, &grogu, &2u32);
     let collectibles = client.collectibles(&grogu);
     assert_eq!(
         collectibles,
         vec![
             &e,
-            (collection_B_address.clone(), 1u32),
-            (collection_A_address.clone(), 2u32),
+            (collection_b_address.clone(), 1u32),
+            (collection_a_address.clone(), 2u32),
+        ]
+    );
+    let collectibles = client.collectibles(&mando);
+    assert_eq!(
+        collectibles,
+        vec![
+            &e,
+            (collection_a_address.clone(), 1u32),
+            (collection_b_address.clone(), 2u32)
         ]
     );
 }

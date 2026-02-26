@@ -70,30 +70,24 @@ impl CollectionTrait for Collection {
 
         let collectible = (collection.clone(), token_id);
 
-        let owned_collectible: Option<Address> = e
+        let owner_address: Option<Address> = e
             .storage()
             .instance()
             .get(&CollectionKey::Collectibles(collection.clone(), token_id));
 
-        // set new owner
-        e.storage().instance().set(
-            &CollectionKey::Collectibles(collection.clone(), token_id),
-            &to.clone(),
-        );
-
         // transferring the collectible by removing from previous owner if any
-        if let Some(owned_collectible) = owned_collectible {
+        if let Some(owner_address) = owner_address {
             let mut owner_collectibles: Vec<(Address, u32)> = e
                 .storage()
                 .instance()
-                .get(&CollectionKey::OwnerCollectibles(owned_collectible.clone()))
+                .get(&CollectionKey::OwnerCollectibles(owner_address.clone()))
                 .unwrap_or(Vec::new(e));
             let idx_collectible = owner_collectibles
                 .first_index_of(collectible.clone())
                 .unwrap();
             owner_collectibles.remove(idx_collectible);
             e.storage().instance().set(
-                &CollectionKey::OwnerCollectibles(to.clone()),
+                &CollectionKey::OwnerCollectibles(owner_address.clone()),
                 &owner_collectibles,
             );
         }
@@ -104,9 +98,16 @@ impl CollectionTrait for Collection {
             .get(&CollectionKey::OwnerCollectibles(to.clone()))
             .unwrap_or(Vec::new(e));
         owner_collectibles.push_back(collectible);
-        e.storage()
-            .instance()
-            .set(&CollectionKey::OwnerCollectibles(to), &owner_collectibles);
+        e.storage().instance().set(
+            &CollectionKey::OwnerCollectibles(to.clone()),
+            &owner_collectibles,
+        );
+
+        // set new owner
+        e.storage().instance().set(
+            &CollectionKey::Collectibles(collection.clone(), token_id),
+            &to.clone(),
+        );
     }
 
     fn collectibles(e: &Env, from: Address) -> Vec<(Address, u32)> {
