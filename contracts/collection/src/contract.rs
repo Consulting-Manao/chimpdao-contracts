@@ -1,7 +1,9 @@
 //! NFC Collection
 
-use crate::{Collection, CollectionArgs, CollectionClient, CollectionTrait};
-use soroban_sdk::{Address, BytesN, Env, String, Vec, contractimpl, contracttype};
+use crate::{Collection, CollectionArgs, CollectionClient, CollectionTrait, errors, events};
+use soroban_sdk::{
+    Address, BytesN, Env, String, Vec, contractimpl, contracttype, panic_with_error,
+};
 
 #[contracttype]
 pub enum DataKey {
@@ -47,7 +49,7 @@ impl CollectionTrait for Collection {
                 admin,
                 e.current_contract_address(),
                 name,
-                symbol,
+                symbol.clone(),
                 uri,
                 max_tokens,
             ),
@@ -62,12 +64,23 @@ impl CollectionTrait for Collection {
         e.storage()
             .instance()
             .set(&CollectionKey::Collections, &collections);
+
+        events::CreateCollection {
+            symbol,
+            contract_address: contract_address.clone(),
+        }
+        .publish(e);
+
         contract_address
     }
 
     fn assign_collectible(e: &Env, collection: Address, to: Address, token_id: u32) {
         // must be call from within the collection contract itself
         collection.require_auth();
+
+        if !Self::collections(e).contains(collection.clone()) {
+            panic_with_error!(&e, &errors::CollectionError::NonExistentCollection);
+        }
 
         let collectible = (collection.clone(), token_id);
 

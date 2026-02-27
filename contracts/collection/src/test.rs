@@ -1,6 +1,6 @@
 use soroban_sdk::{Address, Env, String, Vec, testutils::Address as _, vec};
 
-use crate::{Collection, CollectionClient};
+use crate::{Collection, CollectionClient, errors};
 
 mod nfc_nft_contract {
     soroban_sdk::contractimport!(file = "../nfc_nft.wasm");
@@ -105,4 +105,35 @@ fn test_assign_collectible() {
             (collection_b_address.clone(), 2u32)
         ]
     );
+}
+
+#[test]
+fn test_failed_assign_collectible() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let admin = Address::generate(&e);
+    let client = create_client(&e, &admin);
+
+    let wasm = e.deployer().upload_contract_wasm(nfc_nft_contract::WASM);
+
+    let _collection_a_address = client.create_collection(
+        &wasm,
+        &String::from_str(&e, "TestNFTA"),
+        &String::from_str(&e, "TNFTA"),
+        &String::from_str(&e, "ipfs://abcd"),
+        &10u32,
+    );
+
+    let mando = Address::generate(&e);
+    let collection_b_address = Address::generate(&e);
+
+    let collectibles = client.collectibles(&mando);
+    assert_eq!(collectibles, Vec::new(&e));
+
+    let err = client
+        .try_assign_collectible(&collection_b_address, &mando, &1u32)
+        .unwrap_err()
+        .unwrap();
+    assert_eq!(err, errors::CollectionError::NonExistentCollection.into());
 }

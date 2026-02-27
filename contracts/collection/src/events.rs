@@ -1,8 +1,8 @@
-use soroban_sdk::{Address, Bytes, contractevent};
+use soroban_sdk::{Address, String, contractevent};
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Upgrade {
-    pub admin: Address,
-    pub wasm_hash: Bytes,
+pub struct CreateCollection {
+    pub symbol: String,
+    pub contract_address: Address,
 }
