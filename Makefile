@@ -19,7 +19,8 @@ override nfc_nft_wasm = target/wasm32v1-none/release/nfc_nft.wasm
 endif
 
 override nfc_nft_contract_id = $(shell cat .config/stellar/nfc_nft_$(network)_id)
-override nfc_nft_wasm_hash = $(shell stellar contract fetch --id $(nfc_nft_contract_id) --network $(network) | openssl sha256 | cut -d " " -f2)
+override nfc_nft_wasm_hash = $(shell cat $(nfc_nft_wasm) | openssl sha256 | cut -d " " -f2)
+# override nfc_nft_wasm_hash = $(shell stellar contract fetch --id $(nfc_nft_contract_id) --network $(network) | openssl sha256 | cut -d " " -f2)
 
 ifndef collection_wasm
 override collection_wasm = target/wasm32v1-none/release/collection.wasm
@@ -100,8 +101,9 @@ contract_upload_nft: contract_build  ## Upload Soroban contract NFT
 
 ## Create NFT collection
 
-contract_deploy_nft: contract_build  ## Deploy Soroban contract NFT directly
+contract_deploy_nft:  ## Deploy Soroban contract NFT directly
 	stellar contract deploy \
+		--resource-fee 100000 \
   		--wasm $(nfc_nft_wasm) \
   		--source-account $(admin) \
   		--network $(network) \
@@ -116,6 +118,7 @@ contract_deploy_nft: contract_build  ## Deploy Soroban contract NFT directly
 
 contract_create_collection:  ## Deploy Soroban contract NFT via collection
 	stellar contract invoke \
+		--resource-fee 50000000 \
 		--source-account $(admin) \
 		--network $(network) \
 		--id $(collection_contract_id) \
