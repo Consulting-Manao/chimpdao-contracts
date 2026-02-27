@@ -19,6 +19,7 @@ override nfc_nft_wasm = target/wasm32v1-none/release/nfc_nft.wasm
 endif
 
 override nfc_nft_contract_id = $(shell cat .config/stellar/nfc_nft_$(network)_id)
+override nfc_nft_symbol_contract_id = $(shell cat .config/stellar/nfc_nft_$(symbol)_$(network)_id)
 override nfc_nft_wasm_hash = $(shell cat $(nfc_nft_wasm) | openssl sha256 | cut -d " " -f2)
 # override nfc_nft_wasm_hash = $(shell stellar contract fetch --id $(nfc_nft_contract_id) --network $(network) | openssl sha256 | cut -d " " -f2)
 
@@ -95,6 +96,7 @@ contract_deploy_collection: contract_build  ## Deploy Soroban contract collectio
 
 contract_upload_nft: contract_build  ## Upload Soroban contract NFT
 	stellar contract upload \
+		--resource-fee 150000000 \
 		--wasm $(nfc_nft_wasm) \
   		--source-account $(admin) \
   		--network $(network)
@@ -103,7 +105,7 @@ contract_upload_nft: contract_build  ## Upload Soroban contract NFT
 
 contract_deploy_nft:  ## Deploy Soroban contract NFT directly
 	stellar contract deploy \
-		--resource-fee 100000 \
+		--resource-fee 150000000 \
   		--wasm $(nfc_nft_wasm) \
   		--source-account $(admin) \
   		--network $(network) \
@@ -118,7 +120,7 @@ contract_deploy_nft:  ## Deploy Soroban contract NFT directly
 
 contract_create_collection:  ## Deploy Soroban contract NFT via collection
 	stellar contract invoke \
-		--resource-fee 50000000 \
+		--resource-fee 10000000 \
 		--source-account $(admin) \
 		--network $(network) \
 		--id $(collection_contract_id) \
@@ -136,7 +138,37 @@ contract_uri:
 	stellar contract invoke \
 		--source-account $(admin) \
 		--network $(network) \
-		--id $(shell cat .config/stellar/nfc_nft_$(symbol)_$(network)_id) \
+		--id $(nfc_nft_symbol_contract_id) \
 		-- \
 		token_uri \
 		--token_id 0
+
+## Upgrade
+
+contract_upload_releases:  ## Upload Soroban contracts from release job
+	stellar contract upload \
+		--resource-fee 150000000 \
+		--wasm contracts/collection_v1.0.0.wasm \
+  		--source-account $(admin) \
+  		--network $(network) && \
+	stellar contract upload \
+		--resource-fee 150000000 \
+		--wasm contracts/nfc-nft_v1.0.0.wasm \
+  		--source-account $(admin) \
+  		--network $(network)
+
+contract_upgrade:
+	stellar contract invoke \
+		--source-account $(admin) \
+		--network $(network) \
+		--id $(nfc_nft_symbol_contract_id) \
+		-- \
+		upgrade \
+		--wasm_hash 63351143b7b1e761b8e6b9e5d0e087364787f7cfedaf84dc5bd50d8a1d9268e6 && \
+	stellar contract invoke \
+		--source-account $(admin) \
+		--network $(network) \
+		--id $(collection_contract_id) \
+		-- \
+		upgrade \
+		--wasm_hash 7725fab80f17f39a1afcf7372c8be2fb842fe63be0af34988edf176b3d3be081
