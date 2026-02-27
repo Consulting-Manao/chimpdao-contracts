@@ -1,0 +1,40 @@
+name: Publish Tansu contract
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions: # required permissions for the workflow
+  id-token: write
+  contents: write  # in order to create releases
+  attestations: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-collection-contract:
+    name: Release collection Chimp
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@4519e20917df3dbbd8a7c01a2b09f0e66f0d1c7b
+    with:
+      release_name: ${{ github.ref_name }}
+      release_description: "Chimp collection contract"
+      home_domain: 'nft.chimpdao.xyz'
+      relative_path: 'contracts/collection'
+      package: 'collection'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-nfc-nft-contract:
+    name: Release nfc-nft Chimp
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@4519e20917df3dbbd8a7c01a2b09f0e66f0d1c7b
+    with:
+      release_name: ${{ github.ref_name }}
+      release_description: "Chimp nfc-nft contract"
+      home_domain: 'nft.chimpdao.xyz'
+      relative_path: 'contracts/nfc-nft'
+      package: 'nfc-nft'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}

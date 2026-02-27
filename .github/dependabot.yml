@@ -3,7 +3,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       actions-minor:
         update-types:
@@ -11,11 +11,29 @@ updates:
           - patch
 
   - package-ecosystem: "bun"
-    directory: "/"
+    directory: "/dapp"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     groups:
       npm-minor:
+        update-types:
+          - minor
+          - patch
+  - package-ecosystem: "bun"
+    directory: "/nfc-server"
+    schedule:
+      interval: "monthly"
+    groups:
+      npm-minor:
+        update-types:
+          - minor
+          - patch
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      cargo-minor:
         update-types:
           - minor
           - patch
