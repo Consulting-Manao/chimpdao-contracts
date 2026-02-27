@@ -66,27 +66,28 @@ impl CollectionTrait for Collection {
     }
 
     fn assign_collectible(e: &Env, collection: Address, to: Address, token_id: u32) {
+        // must be call from within the collection contract itself
         collection.require_auth();
 
         let collectible = (collection.clone(), token_id);
 
         let owner_address: Option<Address> = e
             .storage()
-            .instance()
+            .persistent()
             .get(&CollectionKey::Collectibles(collection.clone(), token_id));
 
         // transferring the collectible by removing from previous owner if any
         if let Some(owner_address) = owner_address {
             let mut owner_collectibles: Vec<(Address, u32)> = e
                 .storage()
-                .instance()
+                .persistent()
                 .get(&CollectionKey::OwnerCollectibles(owner_address.clone()))
                 .unwrap_or(Vec::new(e));
             let idx_collectible = owner_collectibles
                 .first_index_of(collectible.clone())
                 .unwrap();
             owner_collectibles.remove(idx_collectible);
-            e.storage().instance().set(
+            e.storage().persistent().set(
                 &CollectionKey::OwnerCollectibles(owner_address.clone()),
                 &owner_collectibles,
             );
@@ -94,17 +95,17 @@ impl CollectionTrait for Collection {
 
         let mut owner_collectibles: Vec<(Address, u32)> = e
             .storage()
-            .instance()
+            .persistent()
             .get(&CollectionKey::OwnerCollectibles(to.clone()))
             .unwrap_or(Vec::new(e));
         owner_collectibles.push_back(collectible);
-        e.storage().instance().set(
+        e.storage().persistent().set(
             &CollectionKey::OwnerCollectibles(to.clone()),
             &owner_collectibles,
         );
 
         // set new owner
-        e.storage().instance().set(
+        e.storage().persistent().set(
             &CollectionKey::Collectibles(collection.clone(), token_id),
             &to.clone(),
         );
@@ -112,8 +113,15 @@ impl CollectionTrait for Collection {
 
     fn collectibles(e: &Env, from: Address) -> Vec<(Address, u32)> {
         e.storage()
-            .instance()
+            .persistent()
             .get(&CollectionKey::OwnerCollectibles(from.clone()))
+            .unwrap_or(Vec::new(e))
+    }
+
+    fn collections(e: &Env) -> Vec<Address> {
+        e.storage()
+            .instance()
+            .get(&CollectionKey::Collections)
             .unwrap_or(Vec::new(e))
     }
 }

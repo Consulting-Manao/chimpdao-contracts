@@ -28,7 +28,7 @@ endif
 override collection_contract_id = $(shell cat .config/stellar/collection_$(network)_id)
 override collection_wasm_hash = $(shell stellar contract fetch --id $(collection_contract_id) --network $(network) | openssl sha256 | cut -d " " -f2)
 
-override symbol = chi1
+override symbol = chi3
 override name = "Palta Chimpy"
 override max_tokens = 100
 
@@ -133,7 +133,7 @@ contract_uri:
 	stellar contract invoke \
 		--source-account $(admin) \
 		--network $(network) \
-		--id $(nfc_nft_contract_id) \
+		--id $(shell cat .config/stellar/nfc_nft_$(symbol)_$(network)_id) \
 		-- \
 		token_uri \
 		--token_id 0

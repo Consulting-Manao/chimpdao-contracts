@@ -32,4 +32,6 @@ pub trait CollectionTrait {
     fn assign_collectible(e: &Env, collection: Address, to: Address, token_id: u32);
 
     fn collectibles(e: &Env, from: Address) -> Vec<(Address, u32)>;
+
+    fn collections(e: &Env) -> Vec<Address>;
 }
