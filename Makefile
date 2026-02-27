@@ -28,6 +28,11 @@ endif
 override collection_contract_id = $(shell cat .config/stellar/collection_$(network)_id)
 override collection_wasm_hash = $(shell stellar contract fetch --id $(collection_contract_id) --network $(network) | openssl sha256 | cut -d " " -f2)
 
+override symbol = chi1
+override name = "Palta Chimpy"
+override max_tokens = 100
+
+
 # Add help text after each target name starting with '\#\#'
 help:   ## show this help
 	@echo -e "Help for this makefile\n"
@@ -100,11 +105,11 @@ contract_deploy_nft: contract_build  ## Deploy Soroban contract NFT directly
   		--wasm $(nfc_nft_wasm) \
   		--source-account $(admin) \
   		--network $(network) \
-  		--salt $(shell printf chi1 | openssl sha256 | cut -d " " -f2) \
+  		--salt $(shell printf $(symbol) | openssl sha256 | cut -d " " -f2) \
   		-- \
   		--admin $(admin) \
   		--collection_contract $(collection_contract_id) \
-  		--name "Palta Chimpy" --symbol chi1 --max_tokens 100 \
+  		--name $(name) --symbol $(symbol) --max_tokens $(max_tokens) \
   		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna \
   		> .config/stellar/nfc_nft_$(network)_id && \
   	cat .config/stellar/nfc_nft_$(network)_id
@@ -117,8 +122,10 @@ contract_create_collection:  ## Deploy Soroban contract NFT via collection
 		-- \
 		create_collection \
 		--wasm_hash $(nfc_nft_wasm_hash) \
-		--name "Palta Chimpy" --symbol "chi1" --max_tokens 100 \
-  		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna
+		--name $(name) --symbol $(symbol) --max_tokens $(max_tokens) \
+  		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna \
+  		> .config/stellar/nfc_nft_$(symbol)_$(network)_id && \
+  	cat .config/stellar/nfc_nft_$(symbol)_$(network)_id
 
 ## Usage
 
