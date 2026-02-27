@@ -1,4 +1,4 @@
-.PHONY: help install contract_build contract_test contract_bindings contract_deploy_collection contract_create_collection contract_deploy_nft contract_help
+.PHONY: help install contract_build contract_test contract_bindings contract_deploy_collection contract_upload_nft contract_create_collection contract_deploy_nft contract_help
 .DEFAULT_GOAL := help
 SHELL:=/bin/bash
 
@@ -14,13 +14,19 @@ ifndef admin
 	endif
 endif
 
-ifndef wasm
-override wasm = target/wasm32v1-none/release/nfc_nft.wasm
+ifndef nfc_nft_wasm
+override nfc_nft_wasm = target/wasm32v1-none/release/nfc_nft.wasm
 endif
 
-ifndef wasm_collection
-override wasm_collection = target/wasm32v1-none/release/collection.wasm
+override nfc_nft_contract_id = $(shell cat .config/stellar/nfc_nft_$(network)_id)
+override nfc_nft_wasm_hash = $(shell stellar contract fetch --id $(nfc_nft_contract_id) --network $(network) | openssl sha256 | cut -d " " -f2)
+
+ifndef collection_wasm
+override collection_wasm = target/wasm32v1-none/release/collection.wasm
 endif
+
+override collection_contract_id = $(shell cat .config/stellar/collection_$(network)_id)
+override collection_wasm_hash = $(shell stellar contract fetch --id $(collection_contract_id) --network $(network) | openssl sha256 | cut -d " " -f2)
 
 # Add help text after each target name starting with '\#\#'
 help:   ## show this help
@@ -52,7 +58,7 @@ contract_test:
 contract_bindings: contract_build  ## Create bindings
 	stellar contract bindings typescript \
 		--network $(network) \
-		--wasm $(wasm) \
+		--wasm $(nfc_nft_wasm) \
 		--output-dir dapp/packages/nfc_nft \
 		--overwrite && \
 	cd dapp/packages/nfc_nft && \
@@ -61,7 +67,7 @@ contract_bindings: contract_build  ## Create bindings
 	cd ../../.. && \
 	stellar contract bindings typescript \
 		--network $(network) \
-		--wasm $(wasm_collection) \
+		--wasm $(collection_wasm) \
 		--output-dir dapp/packages/collection \
 		--overwrite && \
 	cd dapp/packages/collection && \
@@ -70,9 +76,9 @@ contract_bindings: contract_build  ## Create bindings
 	cd ../.. && \
 	bun format
 
-contract_deploy_collection: contract_build  ## Deploy Soroban contract collection to testnet
+contract_deploy_collection: contract_build  ## Deploy Soroban contract collection
 	stellar contract deploy \
-  		--wasm $(wasm_collection) \
+  		--wasm $(collection_wasm) \
   		--source-account $(admin) \
   		--network $(network) \
   		--salt $(shell printf chi_collection | openssl sha256 | cut -d " " -f2) \
@@ -81,38 +87,46 @@ contract_deploy_collection: contract_build  ## Deploy Soroban contract collectio
   		> .config/stellar/collection_$(network)_id && \
   	cat .config/stellar/collection_$(network)_id
 
-contract_deploy_nft: contract_build  ## Deploy Soroban contract NFT to testnet
+contract_upload_nft: contract_build  ## Upload Soroban contract NFT
+	stellar contract upload \
+		--wasm $(nfc_nft_wasm) \
+  		--source-account $(admin) \
+  		--network $(network)
+
+## Create NFT collection
+
+contract_deploy_nft: contract_build  ## Deploy Soroban contract NFT directly
 	stellar contract deploy \
-  		--wasm $(wasm) \
+  		--wasm $(nfc_nft_wasm) \
   		--source-account $(admin) \
   		--network $(network) \
   		--salt $(shell printf chi1 | openssl sha256 | cut -d " " -f2) \
   		-- \
   		--admin $(admin) \
-  		--collection_contract $(admin) \
+  		--collection_contract $(collection_contract_id) \
   		--name "Palta Chimpy" --symbol chi1 --max_tokens 100 \
   		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna \
   		> .config/stellar/nfc_nft_$(network)_id && \
   	cat .config/stellar/nfc_nft_$(network)_id
 
-
-contract_create_collection:  ## Deploy Soroban contract NFT via collection to testnet
+contract_create_collection:  ## Deploy Soroban contract NFT via collection
 	stellar contract invoke \
 		--source-account $(admin) \
 		--network $(network) \
-		--id $(shell cat .config/stellar/collection_$(network)_id) \
+		--id $(collection_contract_id) \
 		-- \
 		create_collection \
-		--wasm_hash 3db8e7c9e39f8f98cbabb371d8dec546841fc715f0f94091e50fa36b9978ec20 \
-		--name "Palta Chimpy" --symbol chi1 --max_tokens 100 \
+		--wasm_hash $(nfc_nft_wasm_hash) \
+		--name "Palta Chimpy" --symbol "chi1" --max_tokens 100 \
   		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna
 
+## Usage
 
 contract_uri:
 	stellar contract invoke \
 		--source-account $(admin) \
 		--network $(network) \
-		--id $(shell cat .config/stellar/nfc_nft_$(network)_id) \
+		--id $(nfc_nft_contract_id) \
 		-- \
 		token_uri \
 		--token_id 0
