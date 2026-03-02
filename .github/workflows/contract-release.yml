@@ -17,7 +17,7 @@ concurrency:
 jobs:
   release-collection-contract:
     name: Release collection Chimp
-    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@4519e20917df3dbbd8a7c01a2b09f0e66f0d1c7b
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@a0add5bf5559b0649053e1c0ae42ca1c07113325
     with:
       release_name: ${{ github.ref_name }}
       release_description: "Chimp collection contract"
@@ -29,7 +29,7 @@ jobs:
 
   release-nfc-nft-contract:
     name: Release nfc-nft Chimp
-    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@4519e20917df3dbbd8a7c01a2b09f0e66f0d1c7b
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@a0add5bf5559b0649053e1c0ae42ca1c07113325
     with:
       release_name: ${{ github.ref_name }}
       release_description: "Chimp nfc-nft contract"
