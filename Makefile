@@ -18,7 +18,6 @@ ifndef nfc_nft_wasm
 override nfc_nft_wasm = target/wasm32v1-none/release/nfc_nft.wasm
 endif
 
-override nfc_nft_contract_id = $(shell cat .config/stellar/nfc_nft_$(network)_id)
 override nfc_nft_symbol_contract_id = $(shell cat .config/stellar/nfc_nft_$(symbol)_$(network)_id)
 override nfc_nft_wasm_hash = $(shell cat $(nfc_nft_wasm) | openssl sha256 | cut -d " " -f2)
 # override nfc_nft_wasm_hash = $(shell stellar contract fetch --id $(nfc_nft_contract_id) --network $(network) | openssl sha256 | cut -d " " -f2)
@@ -29,6 +28,13 @@ endif
 
 override collection_contract_id = $(shell cat .config/stellar/collection_$(network)_id)
 override collection_wasm_hash = $(shell stellar contract fetch --id $(collection_contract_id) --network $(network) | openssl sha256 | cut -d " " -f2)
+
+ifndef prize_wasm
+override prize_wasm = target/wasm32v1-none/release/prize.wasm
+endif
+
+override prize_contract_id = $(shell cat .config/stellar/prize_$(network)_id)
+override native_contract_id = $(shell stellar contract id asset --asset native --network $(network))
 
 override symbol = chi1
 override name = "Palta Chimpy"
@@ -132,6 +138,20 @@ contract_create_collection:  ## Deploy Soroban contract NFT via collection
   		> .config/stellar/nfc_nft_$(symbol)_$(network)_id && \
   	cat .config/stellar/nfc_nft_$(symbol)_$(network)_id
 
+## Prize
+
+contract_deploy_prize: contract_build  ## Deploy Soroban contract prize
+	stellar contract deploy \
+  		--wasm $(prize_wasm) \
+  		--source-account $(admin) \
+  		--network $(network) \
+  		--salt $(shell printf chimp_prize | openssl sha256 | cut -d " " -f2) \
+  		-- \
+  		--admin $(admin) \
+  		--token $(native_contract_id) \
+  		> .config/stellar/prize_$(network)_id && \
+  	cat .config/stellar/prize_$(network)_id
+
 ## Usage
 
 contract_uri:
@@ -142,6 +162,31 @@ contract_uri:
 		-- \
 		token_uri \
 		--token_id 0
+
+contract_prize_deposit:
+	stellar contract invoke \
+		--source-account $(admin) \
+		--network $(network) \
+		--id $(prize_contract_id) \
+		-- \
+		deposit \
+		--from $(admin) \
+		--amount 1000000000 \
+		--nfc_contract $(nfc_nft_symbol_contract_id) \
+		--token_id 0
+
+contract_prize_redeem:
+	stellar contract invoke \
+		--source-account $(admin) \
+		--network $(network) \
+		--id $(prize_contract_id) \
+		-- \
+		redeem \
+		--redeemer $(admin) \
+		--nfc_contract $(nfc_nft_symbol_contract_id) \
+		--message "toto"$(admin)12 \
+		--signature 3045022100a383a5d0e5841ec87dde98ad782a1affba52d6421fd2d3fc59073a8624107f8c0220597a10cb9a76cafce97d4c0616490c6b1027fddb5e101ae72486132a62e77e1e \
+		--nonce 12
 
 ## Upgrade
 

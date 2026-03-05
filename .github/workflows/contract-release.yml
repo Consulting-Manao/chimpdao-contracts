@@ -38,3 +38,15 @@ jobs:
       package: 'nfc-nft'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-prize-contract:
+    name: Release prize Chimp
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@a0add5bf5559b0649053e1c0ae42ca1c07113325
+    with:
+      release_name: ${{ github.ref_name }}
+      release_description: "Chimp prize contract"
+      home_domain: 'nft.chimpdao.xyz'
+      relative_path: 'contracts/prize'
+      package: 'prize'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}
