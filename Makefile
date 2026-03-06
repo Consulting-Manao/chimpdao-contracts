@@ -231,4 +231,4 @@ contract_upgrade:
 		--id $(prize_contract_id) \
 		-- \
 		upgrade \
-		--wasm_hash ...
+		--wasm_hash 08dcb1dbb7a2dab1ed76e621dcac0cc7ca9d2457b6133fe0c9570772268df4d5
