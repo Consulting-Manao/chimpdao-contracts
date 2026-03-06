@@ -16,6 +16,8 @@ import {
   createChipSignedPayloadHash,
   bytesToHex,
   hexToBytes,
+  parseDerSignatureToRaw,
+  determineRecoveryId,
 } from "../../util/crypto.ts";
 import {
   handleChipError,
@@ -73,6 +75,120 @@ export const SignMessageSection = ({
   const [signing, setSigning] = useState(false);
   const [result, setResult] = useState<SignResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hashCopied, setHashCopied] = useState(false);
+  const [iosDerSignature, setIosDerSignature] = useState("");
+  const [iosPublicKeyHex, setIosPublicKeyHex] = useState("");
+  const [iosApplying, setIosApplying] = useState(false);
+
+  const handleCopyHash = async () => {
+    if (!address) return;
+    if (!messageText.trim()) {
+      setError("Enter a message first");
+      return;
+    }
+    setError(null);
+    try {
+      let nonce: number;
+      if (nonceOverride.trim()) {
+        nonce = parseInt(nonceOverride, 10);
+        if (isNaN(nonce) || nonce < 0) {
+          setError("Nonce must be a non-negative integer");
+          return;
+        }
+      } else if (isReady && contractClient) {
+        try {
+          const keyIdNum = parseInt(keyId, 10);
+          if (isNaN(keyIdNum) || keyIdNum < 1 || keyIdNum > 255) {
+            setError("Set nonce manually or use a valid Key ID for auto nonce");
+            return;
+          }
+          if (!connected) await connect();
+          const chipPublicKeyHex = await readChip(keyIdNum);
+          const chipPublicKeyBytes = hexToBytes(chipPublicKeyHex);
+          const nonceResult = await contractClient.get_nonce(
+            { public_key: Buffer.from(chipPublicKeyBytes) },
+            { publicKey: address } as ContractCallOptions,
+          );
+          const currentNonce = (nonceResult.result as number) || 0;
+          nonce = currentNonce + 1;
+        } catch {
+          setError("Enter nonce manually (could not fetch from contract)");
+          return;
+        }
+      } else {
+        setError("Enter nonce (or connect contract to auto-fetch)");
+        return;
+      }
+      const messageBytes = new TextEncoder().encode(messageText.trim());
+      const { hash } = await createChipSignedPayloadHash(
+        messageBytes,
+        address,
+        nonce,
+      );
+      const hashHex = bytesToHex(hash);
+      await navigator.clipboard.writeText(hashHex);
+      setHashCopied(true);
+      setTimeout(() => setHashCopied(false), 2500);
+    } catch (err) {
+      console.error("Copy hash error:", err);
+      setError(err instanceof Error ? err.message : "Failed to copy hash");
+    }
+  };
+
+  const handleUseIosSignature = async () => {
+    if (!address) return;
+    if (!messageText.trim()) {
+      setError("Enter the same message you signed on iOS");
+      return;
+    }
+    if (!iosDerSignature.trim()) {
+      setError("Paste the DER signature from the iOS app");
+      return;
+    }
+    if (!iosPublicKeyHex.trim()) {
+      setError("Enter the chip public key (65 bytes hex from iOS or dapp)");
+      return;
+    }
+    setError(null);
+    setIosApplying(true);
+    try {
+      let nonce: number;
+      if (nonceOverride.trim()) {
+        nonce = parseInt(nonceOverride, 10);
+        if (isNaN(nonce) || nonce < 0) {
+          setError("Nonce must be a non-negative integer");
+          return;
+        }
+      } else {
+        setError("Enter the nonce you used when signing on iOS");
+        return;
+      }
+      const messageBytes = new TextEncoder().encode(messageText.trim());
+      const { hash } = await createChipSignedPayloadHash(
+        messageBytes,
+        address,
+        nonce,
+      );
+      const rawSig = parseDerSignatureToRaw(iosDerSignature.trim());
+      let pubKeyHex = iosPublicKeyHex.trim().replace(/^0x/, "");
+      if (pubKeyHex.length === 128 && !pubKeyHex.startsWith("04")) {
+        pubKeyHex = `04${pubKeyHex}`;
+      }
+      const recoveryId = await determineRecoveryId(hash, rawSig, pubKeyHex);
+      setResult({
+        message_hex: bytesToHex(messageBytes),
+        nonce,
+        public_key_hex: pubKeyHex,
+        signature_hex: bytesToHex(rawSig),
+        recovery_id: recoveryId,
+      });
+    } catch (err) {
+      console.error("Use iOS signature error:", err);
+      setError(err instanceof Error ? err.message : "Invalid signature or key");
+    } finally {
+      setIosApplying(false);
+    }
+  };
 
   const handleSign = async () => {
     if (!address) return;
@@ -201,7 +317,7 @@ export const SignMessageSection = ({
         />
       </Box>
 
-      <Box gap="sm" direction="row" style={{ alignItems: "center" }}>
+      <Box gap="sm" direction="row" style={{ alignItems: "center", flexWrap: "wrap" }}>
         <Button
           type="button"
           variant="primary"
@@ -212,6 +328,15 @@ export const SignMessageSection = ({
         >
           Sign with chip
         </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="md"
+          onClick={() => void handleCopyHash()}
+          disabled={signing || !messageText.trim()}
+        >
+          {hashCopied ? "Hash copied" : "Copy hash (for iOS)"}
+        </Button>
         {signing && (
           <ChipProgressIndicator
             step="scanning"
@@ -219,6 +344,82 @@ export const SignMessageSection = ({
             steps={["scanning"]}
           />
         )}
+      </Box>
+
+      <Box
+        gap="md"
+        direction="column"
+        style={{
+          marginTop: "16px",
+          padding: "16px",
+          backgroundColor: "#f5f5f5",
+          borderRadius: "8px",
+          border: "1px solid #e0e0e0",
+        }}
+      >
+        <Text as="p" size="sm" weight="semi-bold">
+          Or use signature from iOS app
+        </Text>
+        <Text as="p" size="sm" style={{ color: "#666" }}>
+          Paste the DER signature and chip public key from the iOS app after
+          signing the hash you copied above (64-char hex = sign hash directly).
+        </Text>
+        <Box gap="xs" direction="column" style={{ maxWidth: "560px" }}>
+          <Text as="p" size="sm" weight="semi-bold">
+            DER signature (hex)
+          </Text>
+          <textarea
+            id="sign-ios-der-input"
+            value={iosDerSignature}
+            onChange={(e) => setIosDerSignature(e.target.value)}
+            placeholder="e.g. 3045022100..."
+            style={{
+              minHeight: "56px",
+              resize: "vertical",
+              padding: "8px 12px",
+              borderRadius: "4px",
+              border: "1px solid #ccc",
+              fontFamily: "monospace",
+              fontSize: "12px",
+            }}
+          />
+        </Box>
+        <Box gap="xs" direction="column" style={{ maxWidth: "560px" }}>
+          <Text as="p" size="sm" weight="semi-bold">
+            Chip public key (65 bytes hex, with or without 04 prefix)
+          </Text>
+          <textarea
+            id="sign-ios-pubkey-input"
+            value={iosPublicKeyHex}
+            onChange={(e) => setIosPublicKeyHex(e.target.value)}
+            placeholder="e.g. 04..."
+            style={{
+              minHeight: "56px",
+              resize: "vertical",
+              padding: "8px 12px",
+              borderRadius: "4px",
+              border: "1px solid #ccc",
+              fontFamily: "monospace",
+              fontSize: "12px",
+            }}
+          />
+        </Box>
+        <Button
+          type="button"
+          variant="secondary"
+          size="md"
+          onClick={() => void handleUseIosSignature()}
+          disabled={
+            iosApplying ||
+            !messageText.trim() ||
+            !nonceOverride.trim() ||
+            !iosDerSignature.trim() ||
+            !iosPublicKeyHex.trim()
+          }
+          isLoading={iosApplying}
+        >
+          Use iOS signature
+        </Button>
       </Box>
 
       {error && (

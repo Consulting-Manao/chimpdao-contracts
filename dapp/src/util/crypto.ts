@@ -265,6 +265,61 @@ function normalizeS(s: Uint8Array): Uint8Array {
 }
 
 /**
+ * Parse a DER-encoded ECDSA signature (hex) and return 64-byte raw r||s with normalized S.
+ * Matches the contract's expected format (low S).
+ * DER format: 0x30 [length] 0x02 [R length] [R bytes] 0x02 [S length] [S bytes]
+ */
+export function parseDerSignatureToRaw(derHex: string): Uint8Array {
+  const derBytes = hexToBytes(derHex);
+  if (derBytes.length < 8) {
+    throw new Error("Invalid DER signature: too short");
+  }
+  let pos = 0;
+  if (derBytes[pos++] !== 0x30) {
+    throw new Error("Invalid DER: expected sequence tag 0x30");
+  }
+  pos += 1; // skip sequence length
+
+  if (derBytes[pos++] !== 0x02) {
+    throw new Error("Invalid DER: expected integer tag 0x02 for R");
+  }
+  const rLen = derBytes[pos++];
+  let rBytes = derBytes.slice(pos, pos + rLen);
+  pos += rLen;
+  if (rBytes[0] === 0x00 && rBytes.length > 32) {
+    rBytes = rBytes.slice(1);
+  }
+  const r = new Uint8Array(32);
+  if (rBytes.length <= 32) {
+    r.set(rBytes, 32 - rBytes.length);
+  } else {
+    r.set(rBytes.slice(rBytes.length - 32), 0);
+  }
+
+  if (derBytes[pos++] !== 0x02) {
+    throw new Error("Invalid DER: expected integer tag 0x02 for S");
+  }
+  const sLen = derBytes[pos];
+  pos += 1;
+  let sBytes = derBytes.slice(pos, pos + sLen);
+  if (sBytes[0] === 0x00 && sBytes.length > 32) {
+    sBytes = sBytes.slice(1);
+  }
+  const s = new Uint8Array(32);
+  if (sBytes.length <= 32) {
+    s.set(sBytes, 32 - sBytes.length);
+  } else {
+    s.set(sBytes.slice(sBytes.length - 32), 0);
+  }
+  const sNormalized = normalizeS(s);
+
+  const out = new Uint8Array(64);
+  out.set(r, 0);
+  out.set(sNormalized, 32);
+  return out;
+}
+
+/**
  * Convert NFC chip signature format to Soroban format
  * Only formats the signature bytes (normalizes S, concatenates r+s)
  * Recovery ID should be determined separately using determineRecoveryId()

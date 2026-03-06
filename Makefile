@@ -186,10 +186,10 @@ contract_prize_redeem:
 		--redeemer $(admin) \
 		--nfc_contract $(nfc_nft_symbol_contract_id) \
 		--message 68656c6c6f \
-		--signature 42954c99944ab633b99d8d2220f916ccca2eb20cf1fc2a1eff73c03df0a2b1691fc312e81725c8f398292c8078c40e7adbf4c0e6bc466e213fb47b82404a6e55 \
+		--signature 38e50dbb0e7846aeafeba90ef32727cd5e5141e90b07c91ede26564039a8e873697f4f726f3827ecacbb46664e4b5f685d976284ea54d13d557e55733671f617 \
 		--recovery_id 1 \
 		--public_key 041e83a31ced7662d909a9eb3f746ce7d385c8f699efe851e318bd2fcfb754a8996495cae0e303e19f2bf9c6542231c5ab30d7aae7a0faf3f59ef94ad5bd275efb \
-		--nonce 12
+		--nonce 13
 
 ## Upgrade
 
