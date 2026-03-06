@@ -175,7 +175,7 @@ contract_prize_deposit:
 		--nfc_contract $(nfc_nft_symbol_contract_id) \
 		--token_id 0
 
-# redeem: message = hex bytes; signature = 64-byte raw R||S hex (128 chars); public_key = 65-byte uncompressed secp256k1 hex (130 chars). Replace public_key with your chip key from NFC/recovery if different.
+# use dapp to make new signatures
 contract_prize_redeem:
 	stellar contract invoke \
 		--source-account $(admin) \
@@ -203,7 +203,12 @@ contract_upload_releases:  ## Upload Soroban contracts from release job
 		--resource-fee 150000000 \
 		--wasm contracts/nfc-nft_v1.0.0.wasm \
   		--source-account $(admin) \
-  		--network $(network)
+		--network $(network) && \
+	stellar contract upload \
+		--resource-fee 150000000 \
+		--wasm contracts/prize_v1.0.0.wasm \
+		--source-account $(admin) \
+		--network $(network)
 
 contract_upgrade:
 	stellar contract invoke \
@@ -219,4 +224,11 @@ contract_upgrade:
 		--id $(collection_contract_id) \
 		-- \
 		upgrade \
-		--wasm_hash 7725fab80f17f39a1afcf7372c8be2fb842fe63be0af34988edf176b3d3be081
+		--wasm_hash 7725fab80f17f39a1afcf7372c8be2fb842fe63be0af34988edf176b3d3be081 && \
+	stellar contract invoke \
+		--source-account $(admin) \
+		--network $(network) \
+		--id $(prize_contract_id) \
+		-- \
+		upgrade \
+		--wasm_hash ...
