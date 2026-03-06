@@ -43,7 +43,7 @@ impl PrizeTrait for Prize {
         let nfc_client = nfc_contract::Client::new(e, &nfc_contract);
         let chip_public_key = nfc_client.public_key(&token_id);
         let key = StorageKey::Vault(chip_public_key.clone());
-        let current: i128 = e.storage().persistent().get(&key).unwrap_or(0);
+        let current: i128 = e.storage().persistent().get(&key).unwrap_or(0i128);
         e.storage().persistent().set(&key, &(current + amount));
 
         events::Deposit {
@@ -87,12 +87,12 @@ impl PrizeTrait for Prize {
         }
 
         let key = StorageKey::Vault(public_key.clone());
-        let amount: i128 = e.storage().persistent().get(&key).unwrap_or(0);
+        let amount: i128 = e.storage().persistent().get(&key).unwrap_or(0i128);
         if amount <= 0 {
             panic_with_error!(&e, &errors::PrizeError::NoVaultForChip);
         }
 
-        e.storage().persistent().set(&key, &0);
+        e.storage().persistent().set(&key, &0i128);
 
         let token: Address = e.storage().instance().get(&DataKey::Token).unwrap();
         let contract = e.current_contract_address();
@@ -109,6 +109,6 @@ impl PrizeTrait for Prize {
 
     fn get_redeemable(e: &Env, chip_public_key: BytesN<65>) -> i128 {
         let key = StorageKey::Vault(chip_public_key);
-        e.storage().persistent().get(&key).unwrap_or(0)
+        e.storage().persistent().get(&key).unwrap_or(0i128)
     }
 }

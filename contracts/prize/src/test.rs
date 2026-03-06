@@ -122,4 +122,6 @@ fn test_deposit_redeem() {
     );
 
     assert_eq!(token_client.balance(&redeemer), 100);
+
+    prize.deposit(&depositor, &100_i128, &mock_nfc, &0u32);
 }
