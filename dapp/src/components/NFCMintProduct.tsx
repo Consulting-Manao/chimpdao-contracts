@@ -19,15 +19,17 @@ import { MintSection } from "./contracts/MintSection.tsx";
 import { TransferSection } from "./contracts/TransferSection.tsx";
 import { ClaimSection } from "./contracts/ClaimSection.tsx";
 import { BalanceSection } from "./contracts/BalanceSection.tsx";
+import { SignMessageSection } from "./contracts/SignMessageSection.tsx";
 import { ChipNotPresentError } from "../util/nfcClient.ts";
 
-type TabId = "mint" | "transfer" | "claim" | "balance";
+type TabId = "mint" | "transfer" | "claim" | "balance" | "sign";
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: "mint", label: "Mint" },
   { id: "transfer", label: "Transfer" },
   { id: "claim", label: "Claim" },
   { id: "balance", label: "Balance" },
+  { id: "sign", label: "Sign" },
 ];
 
 /**
@@ -139,6 +141,13 @@ export const NFCMintProduct = () => {
       )}
       {activeTab === "balance" && (
         <BalanceSection key={`balance-${contractId}`} contractId={contractId} />
+      )}
+      {activeTab === "sign" && (
+        <SignMessageSection
+          key={`sign-${contractId}`}
+          keyId={selectedKeyId}
+          contractId={contractId}
+        />
       )}
     </Box>
   );

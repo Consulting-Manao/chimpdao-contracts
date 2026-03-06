@@ -175,6 +175,7 @@ contract_prize_deposit:
 		--nfc_contract $(nfc_nft_symbol_contract_id) \
 		--token_id 0
 
+# redeem: message = hex bytes; signature = 64-byte raw R||S hex (128 chars); public_key = 65-byte uncompressed secp256k1 hex (130 chars). Replace public_key with your chip key from NFC/recovery if different.
 contract_prize_redeem:
 	stellar contract invoke \
 		--source-account $(admin) \
@@ -184,8 +185,10 @@ contract_prize_redeem:
 		redeem \
 		--redeemer $(admin) \
 		--nfc_contract $(nfc_nft_symbol_contract_id) \
-		--message "toto"$(admin)12 \
-		--signature 3045022100a383a5d0e5841ec87dde98ad782a1affba52d6421fd2d3fc59073a8624107f8c0220597a10cb9a76cafce97d4c0616490c6b1027fddb5e101ae72486132a62e77e1e \
+		--message 68656c6c6f \
+		--signature 42954c99944ab633b99d8d2220f916ccca2eb20cf1fc2a1eff73c03df0a2b1691fc312e81725c8f398292c8078c40e7adbf4c0e6bc466e213fb47b82404a6e55 \
+		--recovery_id 1 \
+		--public_key 041e83a31ced7662d909a9eb3f746ce7d385c8f699efe851e318bd2fcfb754a8996495cae0e303e19f2bf9c6542231c5ab30d7aae7a0faf3f59ef94ad5bd275efb \
 		--nonce 12
 
 ## Upgrade

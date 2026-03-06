@@ -97,13 +97,13 @@ export async function createSEP53Message(
     offset += part.length;
   }
 
-  // Signer as Soroban Address XDR bytes (same as contract's signer.to_xdr)
-  const signerScAddress = Address.fromString(signerAddress).toScAddress();
-  const signerXdrOutput = signerScAddress.toXDR();
+  // Signer as Soroban ScVal::Address XDR bytes (same as contract's signer.to_xdr)
+  const signerScVal = Address.fromString(signerAddress).toScVal();
+  const signerXdrOutput = signerScVal.toXDR("raw");
   const signerXdrBytes =
     typeof signerXdrOutput === "string"
       ? new Uint8Array(Buffer.from(signerXdrOutput, "base64"))
-      : new Uint8Array(signerXdrOutput as ArrayBuffer);
+      : new Uint8Array(signerXdrOutput);
 
   // u32 nonce XDR (type tag 3 + value, 8 bytes)
   const nonceXdrBytes = new Uint8Array(8);
@@ -124,6 +124,59 @@ export async function createSEP53Message(
   return {
     message,
     messageHash,
+  };
+}
+
+/**
+ * Build the exact signed payload used by nfc-nft verify_chip_signature:
+ * message_bytes || signer.to_xdr() || nonce.to_xdr(), then SHA-256.
+ * Use this for arbitrary message signing (e.g. Sign tab) so the chip signs
+ * the same hash the contract will verify.
+ *
+ * @param messageBytes - Raw message bytes (e.g. UTF-8 of user text)
+ * @param signerAddress - Stellar account address (e.g. wallet)
+ * @param nonce - u32 nonce
+ * @returns signerXdrBytes, nonceXdrBytes, signedPayload, and hash for chip signing
+ */
+export async function createChipSignedPayloadHash(
+  messageBytes: Uint8Array,
+  signerAddress: string,
+  nonce: number,
+): Promise<{
+  signerXdrBytes: Uint8Array;
+  nonceXdrBytes: Uint8Array;
+  signedPayload: Uint8Array;
+  hash: Uint8Array;
+}> {
+  const signerScVal = Address.fromString(signerAddress).toScVal();
+  const signerXdrOutput = signerScVal.toXDR("raw");
+  const signerXdrBytes =
+    typeof signerXdrOutput === "string"
+      ? new Uint8Array(Buffer.from(signerXdrOutput, "base64"))
+      : new Uint8Array(signerXdrOutput);
+
+  const nonceXdrBytes = new Uint8Array(8);
+  const view = new DataView(nonceXdrBytes.buffer);
+  view.setUint32(0, 3, false);
+  view.setUint32(4, nonce, false);
+
+  const signedPayload = new Uint8Array(
+    messageBytes.length + signerXdrBytes.length + nonceXdrBytes.length,
+  );
+  signedPayload.set(messageBytes, 0);
+  signedPayload.set(signerXdrBytes, messageBytes.length);
+  signedPayload.set(
+    nonceXdrBytes,
+    messageBytes.length + signerXdrBytes.length,
+  );
+
+  const hash = await sha256(signedPayload);
+
+  return {
+    signerXdrBytes,
+    nonceXdrBytes,
+    signedPayload,
+    hash,
   };
 }
 

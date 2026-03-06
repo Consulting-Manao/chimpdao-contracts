@@ -1,20 +1,20 @@
-import { Layout } from "@stellar/design-system";
+import {Layout} from "@stellar/design-system";
 import "./App.module.css";
 import ConnectAccount from "./components/ConnectAccount.tsx";
-import { Routes, Route, Outlet } from "react-router-dom";
+import {Routes, Route, Outlet} from "react-router-dom";
 import Home from "./pages/Home.tsx";
 
 const AppLayout: React.FC = () => (
   <main>
     <Layout.Header
-      projectId="Stellar Merch Shop"
-      projectTitle="Stellar Merch Shop"
-      contentRight={<ConnectAccount />}
+      projectId="Chi//mp"
+      projectTitle="Chi//mp"
+      contentRight={<ConnectAccount/>}
     />
-    <Outlet />
+    <Outlet/>
     <Layout.Footer>
       <span>
-        © {new Date().getFullYear()} Stellar Merch Shop. Licensed under the{" "}
+        © {new Date().getFullYear()} Chi//mp. Licensed under the{" "}
         <a
           href="http://www.apache.org/licenses/LICENSE-2.0"
           target="_blank"
@@ -31,8 +31,8 @@ const AppLayout: React.FC = () => (
 function App() {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
-        <Route path="/" element={<Home />} />
+      <Route element={<AppLayout/>}>
+        <Route path="/" element={<Home/>}/>
       </Route>
     </Routes>
   );
