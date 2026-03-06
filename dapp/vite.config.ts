@@ -19,7 +19,10 @@ export default defineConfig(() => {
     ],
     resolve: {
       alias: {
-        nfc_nft: path.resolve(__dirname, "./packages/nfc_nft/dist/index.js"),
+        // During dev we import the generated client sources directly.
+        // The workspace package exports `dist/`, but `dist/` may not exist until a build runs.
+        nfc_nft: path.resolve(__dirname, "./packages/nfc_nft/src/index.ts"),
+        collection: path.resolve(__dirname, "./packages/collection/src/index.ts"),
       },
     },
     build: {

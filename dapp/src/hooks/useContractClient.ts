@@ -6,7 +6,7 @@
 import { useMemo } from "react";
 import { useWallet } from "./useWallet.ts";
 import { getNetworkPassphrase, getRpcUrl } from "../contracts/util.ts";
-import * as Client from "packages/nfc_nft/src";
+import * as Client from "nfc_nft";
 
 export const useContractClient = (contractId: string) => {
   const { network: walletNetwork, networkPassphrase: walletPassphrase } =

@@ -1,4 +1,4 @@
-import * as Client from "packages/nfc_nft/src";
+import * as Client from "nfc_nft";
 import { rpcUrl } from "./util.ts";
 
 export default new Client.Client({

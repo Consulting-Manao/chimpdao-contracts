@@ -7,6 +7,12 @@
     "module": "ESNext",
     "skipLibCheck": true,
 
+    "baseUrl": ".",
+    "paths": {
+      "nfc_nft": ["packages/nfc_nft/src/index.ts"],
+      "collection": ["packages/collection/src/index.ts"]
+    },
+
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
