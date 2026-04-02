@@ -23,11 +23,11 @@
     "@stellar/design-system": "^3.2.8",
     "@stellar/stellar-sdk": "^14.5.0",
     "@stellar/stellar-xdr-json": "^23.0.0",
-    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query": "^5.96.1",
     "lossless-json": "^4.3.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.1",
+    "react-router-dom": "^7.13.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -39,7 +39,7 @@
     "@vitejs/plugin-react": "^5.1.4",
     "concurrently": "^9.2.1",
     "dotenv": "^17.3.1",
-    "eslint": "^10.0.2",
+    "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-dom": "^2.13.0",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -47,13 +47,13 @@
     "eslint-plugin-react-x": "^2.13.0",
     "glob": "^13.0.6",
     "globals": "^17.4.0",
-    "lint-staged": "^16.3.1",
+    "lint-staged": "^16.4.0",
     "prettier": "3.8.1",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.56.1",
+    "typescript-eslint": "^8.58.0",
     "vite": "^7.3.1",
-    "vite-plugin-node-polyfills": "^0.25.0",
-    "vite-plugin-wasm": "^3.5.0"
+    "vite-plugin-node-polyfills": "^0.26.0",
+    "vite-plugin-wasm": "^3.6.0"
   },
   "lint-staged": {
     "**/*": [
