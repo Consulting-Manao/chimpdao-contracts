@@ -7,7 +7,6 @@ authors = ["ChimpDAO"]
 edition = "2024"
 license = "BSD-3"
 repository = "https://github.com/consulting-manao/chimpdao"
-version = "1.0.0"
 
 [workspace.dependencies.soroban-sdk]
 version = "25.3.0"

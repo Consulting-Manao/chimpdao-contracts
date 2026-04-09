@@ -168,11 +168,6 @@ pub trait NFCtoNFTTrait {
     ///
     /// * `e` - The environment object.
     /// * `token_id` - Token id as a number.
-    ///
-    /// # Events
-    ///
-    /// * topics - `["clawback", from: Address]`
-    /// * data - `[token_id: u32]`
     fn clawback(e: &Env, token_id: u32);
 
     /// Returns the current nonce for the given `public_key`.
