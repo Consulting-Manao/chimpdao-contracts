@@ -5,11 +5,11 @@ resolver = "2"
 [workspace.package]
 authors = ["ChimpDAO"]
 edition = "2024"
-license = "BSD-3"
-repository = "https://github.com/consulting-manao/chimpdao"
+license = "BSD-3-Clause"
+repository = "https://github.com/Consulting-Manao/chimpdao-contracts"
 
 [workspace.dependencies.soroban-sdk]
-version = "25.3.1"
+version = "26.0.0"
 
 [profile.release]
 opt-level = "z"
