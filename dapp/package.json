@@ -47,7 +47,7 @@
     "eslint-plugin-react-x": "^2.13.0",
     "glob": "^13.0.6",
     "globals": "^17.6.0",
-    "lint-staged": "^16.4.0",
+    "lint-staged": "^17.0.7",
     "prettier": "3.8.3",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.60.1",
