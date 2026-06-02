@@ -9,7 +9,7 @@ license = "BSD-3-Clause"
 repository = "https://github.com/Consulting-Manao/chimpdao-contracts"
 
 [workspace.dependencies.soroban-sdk]
-version = "26.0.0"
+version = "26.0.1"
 
 [profile.release]
 opt-level = "z"
