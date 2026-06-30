@@ -44,7 +44,7 @@
     "eslint-plugin-react-dom": "^5.8.10",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
-    "eslint-plugin-react-x": "^2.13.0",
+    "eslint-plugin-react-x": "^5.10.0",
     "glob": "^13.0.6",
     "globals": "^17.6.0",
     "lint-staged": "^17.0.7",
