@@ -5,6 +5,15 @@
 
 import { BLOCKCHAIN_AID } from "./constants.js";
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A card that just landed on the reader usually fails its first SELECT with
+ * SCARD 0x80100016 ("transaction failed") because `card.on` fires before the RF
+ * link is usable. Reconnect and retry instead of failing the whole payment.
+ */
+const SELECT_ATTEMPTS = 4;
+
 export class BlockchainOperations {
   constructor(nfcManager) {
     this.nfcManager = nfcManager;
@@ -15,6 +24,36 @@ export class BlockchainOperations {
    * Always SELECT; avoids wrong-app state after NDEF operations.
    */
   async selectApplication() {
+    for (let attempt = 1; attempt <= SELECT_ATTEMPTS; attempt++) {
+      try {
+        return await this._selectOnce();
+      } catch (error) {
+        // Give up early if the card really left: retrying an empty field is noise.
+        if (attempt === SELECT_ATTEMPTS || !this.nfcManager.isChipPresent()) {
+          this.nfcManager.clearCardState();
+          throw error;
+        }
+        console.warn(
+          `selectApplication: attempt ${attempt}/${SELECT_ATTEMPTS} failed (${error.message}), reconnecting`,
+        );
+        await this._dropConnection();
+        await sleep(80 * attempt);
+      }
+    }
+  }
+
+  /** Force the next attempt through reader.connect() with a fresh handle. */
+  async _dropConnection() {
+    const reader = this.nfcManager.getReader();
+    if (!reader?.connection) return;
+    try {
+      await reader.disconnect();
+    } catch {
+      reader.connection = null; // card already gone; the handle is dead either way
+    }
+  }
+
+  async _selectOnce() {
     const reader = this.nfcManager.getReader();
     if (!this.nfcManager.verifyConnection()) {
       throw new Error("Connection not available");
@@ -39,7 +78,7 @@ export class BlockchainOperations {
       }
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await sleep(100);
 
     if (
       !reader.connection ||
@@ -59,13 +98,10 @@ export class BlockchainOperations {
     try {
       response = await reader.transmit(selectApp, 40);
     } catch (error) {
-      console.error("selectApplication: Transmit failed:", error);
-      this.nfcManager.clearCardState();
       throw new Error(`Failed to transmit SELECT command: ${error.message}`);
     }
 
     if (response.length < 2) {
-      this.nfcManager.clearCardState();
       throw new Error(`Invalid response length: ${response.length}`);
     }
 

@@ -29,7 +29,10 @@ function copy(
       : { title: "Approved", hint: "" };
   }
   if (step === "tap") {
-    return { title: "Tap to pay", hint: "Hold the card near the reader" };
+    // Back on the tap screen with an error means the last tap didn't read.
+    return error
+      ? { title: "Tap again", hint: friendly(error) }
+      : { title: "Tap to pay", hint: "Hold the card near the reader" };
   }
   if (step === "sign") {
     return { title: "Keep card on reader", hint: "Reading card" };

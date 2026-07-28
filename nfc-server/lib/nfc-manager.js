@@ -238,6 +238,8 @@ export class NFCManager {
       this.cardReadyResolve = null;
       reject(new Error("Card state cleared due to error"));
     }
+    // Clients must not keep believing a chip is on the reader after we gave up.
+    if (this.onStatusChange) this.onStatusChange();
   }
 
   getReader() {
