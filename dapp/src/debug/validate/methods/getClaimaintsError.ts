@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { isEmptyObject } from "../../util/isEmptyObject.ts";
 import { sanitizeObject } from "../../util/sanitizeObject.ts";

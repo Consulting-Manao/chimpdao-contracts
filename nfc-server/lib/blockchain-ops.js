@@ -8,52 +8,33 @@ import { BLOCKCHAIN_AID } from "./constants.js";
 export class BlockchainOperations {
   constructor(nfcManager) {
     this.nfcManager = nfcManager;
-    this.lastSelectedApp = null; // Track last application selection timestamp
-    this.appSelectionCacheTimeout = 1000; // Cache for 1 second
   }
 
   /**
-   * Select Blockchain application
-   * Caches selection to avoid redundant calls within a short time window
+   * Select Blockchain application.
+   * Always SELECT; avoids wrong-app state after NDEF operations.
    */
   async selectApplication() {
-    const now = Date.now();
-    // Skip if recently selected (within cache timeout)
-    if (
-      this.lastSelectedApp &&
-      now - this.lastSelectedApp < this.appSelectionCacheTimeout
-    ) {
-      return true;
-    }
-
     const reader = this.nfcManager.getReader();
     if (!this.nfcManager.verifyConnection()) {
       throw new Error("Connection not available");
     }
 
-    // For manually detected cards, try to establish connection if needed
     if (!reader.connection) {
-      console.log(
-        "BlockchainOps: Establishing connection for application selection...",
-      );
+      console.log("BlockchainOps: Establishing connection...");
       try {
-        // Set the blockchain AID before connecting (try hex string format)
         reader.aid = BLOCKCHAIN_AID.toString("hex");
         await reader.connect();
-        console.log("BlockchainOps: Connection established successfully");
-      } catch (connectError) {
-        console.log("BlockchainOps: Connection failed:", connectError.message);
-        // Try with Buffer format
+        console.log("BlockchainOps: Connection established");
+      } catch {
         try {
           reader.aid = BLOCKCHAIN_AID;
           await reader.connect();
-          console.log("BlockchainOps: Connection established with Buffer AID");
+          console.log("BlockchainOps: Connection established (Buffer AID)");
         } catch (retryError) {
-          console.log(
-            "BlockchainOps: Connection retry failed:",
-            retryError.message,
+          throw new Error(
+            `Failed to establish connection to card: ${retryError.message}`,
           );
-          throw new Error("Failed to establish connection to card");
         }
       }
     }
@@ -79,13 +60,11 @@ export class BlockchainOperations {
       response = await reader.transmit(selectApp, 40);
     } catch (error) {
       console.error("selectApplication: Transmit failed:", error);
-      this.lastSelectedApp = null; // Clear cache on error
       this.nfcManager.clearCardState();
       throw new Error(`Failed to transmit SELECT command: ${error.message}`);
     }
 
     if (response.length < 2) {
-      this.lastSelectedApp = null; // Clear cache on error
       this.nfcManager.clearCardState();
       throw new Error(`Invalid response length: ${response.length}`);
     }
@@ -94,13 +73,11 @@ export class BlockchainOperations {
     if (status[0] !== 0x90 || status[1] !== 0x00) {
       const statusHex = status.toString("hex");
       console.error(`selectApplication: Failed with status: ${statusHex}`);
-      this.lastSelectedApp = null; // Clear cache on error
       throw new Error(
         `Failed to select Blockchain application: status=${statusHex}`,
       );
     }
 
-    this.lastSelectedApp = now; // Cache successful selection
     return true;
   }
 
@@ -111,33 +88,6 @@ export class BlockchainOperations {
     const reader = this.nfcManager.getReader();
     if (!this.nfcManager.verifyConnection()) {
       throw new Error("Connection not available");
-    }
-
-    // For manually detected cards, try to establish connection if needed
-    if (!reader.connection) {
-      console.log(
-        "BlockchainOps: Establishing connection for key operation...",
-      );
-      try {
-        // Set the blockchain AID before connecting (try hex string format)
-        reader.aid = BLOCKCHAIN_AID.toString("hex");
-        await reader.connect();
-        console.log("BlockchainOps: Connection established successfully");
-      } catch (connectError) {
-        console.log("BlockchainOps: Connection failed:", connectError.message);
-        // Try with Buffer format
-        try {
-          reader.aid = BLOCKCHAIN_AID;
-          await reader.connect();
-          console.log("BlockchainOps: Connection established with Buffer AID");
-        } catch (retryError) {
-          console.log(
-            "BlockchainOps: Connection retry failed:",
-            retryError.message,
-          );
-          throw new Error("Failed to establish connection to card");
-        }
-      }
     }
 
     if (keyHandle < 0 || keyHandle > 255) {
@@ -221,7 +171,7 @@ export class BlockchainOperations {
    */
   async generateKey() {
     const reader = this.nfcManager.getReader();
-    if (!this.nfcManager.verifyConnection() || !reader.connection) {
+    if (!this.nfcManager.verifyConnection()) {
       throw new Error("Connection not available");
     }
 
@@ -290,7 +240,7 @@ export class BlockchainOperations {
    */
   async generateSignature(keyHandle, messageDigest) {
     const reader = this.nfcManager.getReader();
-    if (!this.nfcManager.verifyConnection() || !reader.connection) {
+    if (!this.nfcManager.verifyConnection()) {
       throw new Error("Connection not available");
     }
 

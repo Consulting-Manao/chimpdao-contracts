@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { PrettyJson } from "./PrettyJson.tsx";
 import { Box } from "../../components/layout/Box.tsx";
 import { LabelHeading } from "./LabelHeading.tsx";

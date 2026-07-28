@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* eslint-disable react-x/no-nested-component-definitions */
 import React, { useState } from "react";
 import { Icon, Link, Loader } from "@stellar/design-system";

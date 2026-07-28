@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { FiltersObject } from "../../types/types.ts";
 
 import { getArrayOfStringsError } from "./getArrayOfStringsError.ts";

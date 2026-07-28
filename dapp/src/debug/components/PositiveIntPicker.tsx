@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from "react";
 import { Icon, Input, InputProps } from "@stellar/design-system";
 

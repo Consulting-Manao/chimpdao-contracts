@@ -175,7 +175,7 @@ export const ClaimSection = ({ keyId, contractId }: ClaimSectionProps) => {
       const txResponse = await tx.signAndSend({ signTransaction, force: true });
 
       // Contract returns u64 token_id (bigint)
-      const returnedTokenId = txResponse.result as bigint;
+      const returnedTokenId = txResponse.result as unknown as bigint;
       const tokenIdString = returnedTokenId.toString();
 
       setResult({

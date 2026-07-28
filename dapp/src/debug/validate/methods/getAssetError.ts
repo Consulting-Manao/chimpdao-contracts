@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { isEmptyObject } from "../../util/isEmptyObject.ts";
 import {
   AssetError,

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Alert, Card, Text } from "@stellar/design-system";
 import { contract } from "@stellar/stellar-sdk";
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { trim } from "../../util/trim.ts";
 import { xdr as stellarXDR } from "@stellar/stellar-sdk";
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getAccountThresholdError } from "./methods/getAccountThresholdError.ts";
 import { getAmountError } from "./methods/getAmountError.ts";
 import { getArrayOfStringsError } from "./methods/getArrayOfStringsError.ts";

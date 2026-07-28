@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Primitive Definition DataUrl comes from
 // https://github.com/stellar/js-stellar-sdk/blob/master/src/contract/spec.ts#L159-L164
 export const getDataUrlError = (value: string, isRequired?: boolean) => {

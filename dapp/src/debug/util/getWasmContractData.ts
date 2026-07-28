@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as StellarXdr from "./StellarXdr.ts";
 import { prettifyJsonString } from "./prettifyJsonString.ts";

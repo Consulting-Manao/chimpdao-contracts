@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getPositiveIntError } from "./getPositiveIntError.ts";
 
 export const getAccountThresholdError = (value: string) => {

@@ -1,11 +1,7 @@
 /**
- * Cryptographic utilities for NFC operations
- */
-
-/**
- * Parse DER-encoded ECDSA signature to extract r and s values
+ * Parse DER-encoded ECDSA signature to extract r and s values.
  * @param {string} derHex - DER-encoded signature as hex string
- * @returns {{r: string, s: string, wasNormalized: boolean}} - r and s values as hex strings (32 bytes each), and whether s was normalized
+ * @returns {{r: string, s: string, wasNormalized: boolean}} - r and s as hex strings (32 bytes each), and whether s was normalized
  */
 export function parseDERSignature(derHex) {
   const der = Buffer.from(derHex, "hex");
@@ -66,19 +62,4 @@ export function parseDERSignature(derHex) {
     s: sPadded.toString("hex"),
     wasNormalized,
   };
-}
-
-/**
- * Determine recovery ID from signature and expected public key
- * @param {Buffer} r - r value (32 bytes)
- * @param {Buffer} s - s value (32 bytes)
- * @param {string} expectedPublicKeyHex - Expected public key as hex string
- * @param {Buffer} messageHash - Message hash (32 bytes)
- * @returns {number} - Recovery ID (0-3)
- */
-export function determineRecoveryId(r, s, expectedPublicKeyHex, messageHash) {
-  // This is a simplified version - in practice, you'd use secp256k1 library
-  // For now, we'll return a default and let the client handle recovery
-  // The actual recovery should be done client-side with proper crypto libraries
-  return 1; // Default recovery ID
 }

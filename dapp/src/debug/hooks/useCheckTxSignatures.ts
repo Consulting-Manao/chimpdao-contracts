@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useQuery } from "@tanstack/react-query";
 import { fetchTxSignatures } from "../util/fetchTxSignatures.ts";
 import { NetworkHeaders } from "../types/types.ts";

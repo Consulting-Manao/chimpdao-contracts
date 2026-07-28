@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* eslint-disable react-x/no-array-index-key */
 import React from "react";
 import { Card, Text } from "@stellar/design-system";

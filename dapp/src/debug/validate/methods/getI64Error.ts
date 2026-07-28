@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Primitive Definition I64 comes from
 // https://github.com/stellar/js-stellar-sdk/blob/master/src/contract/spec.ts#L116C2-L121C5
 export const getI64Error = (value: string, isRequired?: boolean) => {

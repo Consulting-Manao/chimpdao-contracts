@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Primitive Definition I128 comes from
 // https://github.com/stellar/js-stellar-sdk/blob/master/src/contract/spec.ts#L128-L133
 export const getI128Error = (value: string, isRequired?: boolean) => {

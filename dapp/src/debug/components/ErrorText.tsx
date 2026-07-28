@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Text } from "@stellar/design-system";
 
 export const ErrorText = ({

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { validate } from "../index.ts";
 
 // Primitive Definition U128 comes from

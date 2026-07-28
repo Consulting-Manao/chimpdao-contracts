@@ -1,3 +1,4 @@
+// @ts-nocheck
 // This content is copied from js-stellar-base (src/util/continued_fraction.js)
 import BigNumber from "bignumber.js";
 

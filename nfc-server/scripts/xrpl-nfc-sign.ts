@@ -11,8 +11,8 @@ import {
   xrpToDrops,
 } from "xrpl";
 import { createHash } from "crypto";
-import { nfcClient } from "../src/util/nfcClient.ts";
-import { bytesToHex, hexToBytes } from "../src/util/crypto.ts";
+import { nfcClient } from "../../dapp/src/util/nfcClient.ts";
+import { bytesToHex, hexToBytes } from "../../dapp/src/util/crypto.ts";
 
 // raw 32-byte integer → DER INTEGER (0x02 len bytes)
 function derInt(b: Uint8Array): Buffer {
@@ -23,10 +23,11 @@ function derInt(b: Uint8Array): Buffer {
 }
 
 const client = new Client("wss://s.altnet.rippletest.net:51233");
-await client.connect();
-await nfcClient.connect();
 
 try {
+  await client.connect();
+  await nfcClient.connect();
+
   // wait for card
   const deadline = Date.now() + 15_000;
   while (!nfcClient.getStatus().chipPresent) {
@@ -63,7 +64,10 @@ try {
       }),
     ).tx_blob,
   );
-  console.log("funded:", fund.result.meta?.TransactionResult);
+  if (fund.result.meta?.TransactionResult !== "tesSUCCESS") {
+    throw new Error(`fund failed: ${fund.result.meta?.TransactionResult}`);
+  }
+  console.log("funded:", fund.result.meta.TransactionResult);
 
   // chip-signed payment back to funder
   const prepared = await client.autofill({
@@ -75,15 +79,18 @@ try {
   const unsigned = { ...prepared, SigningPubKey: signingPubKey };
 
   // encodeForSigning already includes STX\0; SHA-512Half
-  const hash = new Uint8Array(
+  const digest = new Uint8Array(
     createHash("sha512")
       .update(Buffer.from(encodeForSigning(unsigned), "hex"))
       .digest()
       .subarray(0, 32),
   );
-  console.log("hash:", bytesToHex(hash));
+  console.log("digest:", bytesToHex(digest));
 
-  const { signatureBytes } = await nfcClient.signMessage(hash);
+  const { signatureBytes } = await nfcClient.signMessage(digest);
+  if (signatureBytes.length !== 64) {
+    throw new Error(`expected 64-byte signature, got ${signatureBytes.length}`);
+  }
   const r = derInt(signatureBytes.subarray(0, 32));
   const s = derInt(signatureBytes.subarray(32));
   const txnSignature = Buffer.concat([
@@ -97,8 +104,11 @@ try {
   const result = await client.submitAndWait(
     encode({ ...unsigned, TxnSignature: txnSignature }),
   );
-  console.log("result:", result.result.meta?.TransactionResult);
-  console.log("hash:", result.result.hash);
+  if (result.result.meta?.TransactionResult !== "tesSUCCESS") {
+    throw new Error(`submit failed: ${result.result.meta?.TransactionResult}`);
+  }
+  console.log("result:", result.result.meta.TransactionResult);
+  console.log("tx:", result.result.hash);
   console.log(
     "explorer:",
     `https://testnet.xrpl.org/transactions/${result.result.hash}`,

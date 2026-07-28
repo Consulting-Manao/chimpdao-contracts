@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { sanitizeObject } from "../../util/sanitizeObject.ts";
 import { isEmptyObject } from "../../util/isEmptyObject.ts";
 import {

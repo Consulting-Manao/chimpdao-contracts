@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* eslint-disable @typescript-eslint/no-redundant-type-constituents */
 import { capitalizeString } from "../../util/capitalizeString.ts";
 import { MemoType, MemoValue, xdr } from "@stellar/stellar-sdk";

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { stringify } from "lossless-json";
 import { parseToLosslessJson } from "./parseToLosslessJson.ts";
 

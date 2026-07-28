@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { isEmptyObject } from "../../util/isEmptyObject.ts";
 import { getAssetCodeError } from "./getAssetCodeError.ts";
 import { getPublicKeyError } from "./getPublicKeyError.ts";

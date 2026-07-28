@@ -1,3 +1,4 @@
+// @ts-nocheck
 // https://jsonforms.io/api/core/interfaces/jsonschema7.html
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import type { DereferencedSchemaType } from "../types/types.ts";

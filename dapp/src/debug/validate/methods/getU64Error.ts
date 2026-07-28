@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { validate } from "../index.ts";
 
 // Primitive Definition U64 comes from

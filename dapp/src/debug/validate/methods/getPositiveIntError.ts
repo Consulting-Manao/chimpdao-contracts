@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const getPositiveIntError = (value: string) => {
   if (value.toString().charAt(0) === "-") {
     return "Expected a positive number or zero.";

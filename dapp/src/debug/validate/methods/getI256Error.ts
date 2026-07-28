@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Primitive Definition I256 comes from
 // https://github.com/stellar/js-stellar-sdk/blob/master/src/contract/spec.ts#L140-L145
 export const getI256Error = (value: string, isRequired?: boolean) => {

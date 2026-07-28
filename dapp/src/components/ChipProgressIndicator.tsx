@@ -76,7 +76,7 @@ export const ChipProgressIndicator = ({
         </Text>
       </Box>
       <Box gap="xs" direction="row" style={{ marginTop: "4px" }}>
-        {steps.map((stepName, index) => (
+        {steps.map((stepName) => (
           <div
             key={stepName}
             style={{

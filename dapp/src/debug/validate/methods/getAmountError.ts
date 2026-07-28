@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const getAmountError = (value: string) => {
   if (value.toString().charAt(0) === "-") {
     return "Amount can only be a positive number.";

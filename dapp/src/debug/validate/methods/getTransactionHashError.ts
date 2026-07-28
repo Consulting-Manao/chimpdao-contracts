@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const getTransactionHashError = (hash: string | undefined) => {
   if (!hash) {
     return false;

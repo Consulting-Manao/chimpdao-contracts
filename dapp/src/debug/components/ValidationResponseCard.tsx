@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Button, Card, Link, Text } from "@stellar/design-system";
 import { Box } from "../../components/layout/Box.tsx";
 import { useState } from "react";

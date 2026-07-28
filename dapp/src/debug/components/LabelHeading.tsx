@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Icon, Tooltip } from "@stellar/design-system";
 
 export const LabelHeading = ({

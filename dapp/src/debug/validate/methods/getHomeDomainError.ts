@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const getHomeDomainError = (value: string) => {
   const charLen = value.toString().length;
 

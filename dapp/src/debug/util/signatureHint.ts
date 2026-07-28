@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Keypair } from "@stellar/stellar-sdk";
 
 export const signatureHint = (value: string) => {

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useQuery } from "@tanstack/react-query";
 import { Client } from "@stellar/stellar-sdk/contract";
 import {

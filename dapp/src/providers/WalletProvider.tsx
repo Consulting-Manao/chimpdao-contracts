@@ -7,12 +7,13 @@ import {
   useState,
   useTransition,
 } from "react";
-import { wallet } from "../util/wallet.ts";
+import { StellarWalletsKit, fetchBalances } from "../util/wallet.ts";
 import storage from "../util/storage.ts";
-import { fetchBalances } from "../util/wallet.ts";
 import type { MappedBalances } from "../util/wallet.ts";
 
-const signTransaction = wallet.signTransaction.bind(wallet);
+const signTransaction = StellarWalletsKit.signTransaction.bind(
+  StellarWalletsKit,
+);
 
 function deepEqual<T>(a: T, b: T): boolean {
   if (a === b) {
@@ -35,7 +36,7 @@ export interface WalletContextType {
   isPending: boolean;
   network?: string;
   networkPassphrase?: string;
-  signTransaction: typeof wallet.signTransaction;
+  signTransaction: typeof StellarWalletsKit.signTransaction;
   updateBalances: () => Promise<void>;
 }
 
@@ -147,11 +148,11 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       if (popupLock.current) return;
       try {
         popupLock.current = true;
-        wallet.setWallet(walletId);
+        StellarWalletsKit.setWallet(walletId);
         if (walletId !== "freighter" && walletAddr !== null) return;
         const [a, n] = await Promise.all([
-          wallet.getAddress(),
-          wallet.getNetwork(),
+          StellarWalletsKit.getAddress(),
+          StellarWalletsKit.getNetwork(),
         ]);
 
         if (!a.address) storage.setItem("walletId", "");

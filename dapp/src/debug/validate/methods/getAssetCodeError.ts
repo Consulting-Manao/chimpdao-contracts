@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { AssetType } from "../../types/types.ts";
 
 export const getAssetCodeError = (

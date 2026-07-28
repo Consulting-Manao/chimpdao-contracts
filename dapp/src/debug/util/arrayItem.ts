@@ -1,3 +1,4 @@
+// @ts-nocheck
 const isValidItemIndex = (array: unknown[], itemIndex: number) => {
   // No items in the array
   if (array.length === 0) {

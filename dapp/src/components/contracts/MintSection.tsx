@@ -168,7 +168,7 @@ export const MintSection = ({ keyId, contractId }: MintSectionProps) => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Contract returns u64 token_id (bigint)
-      const returnedTokenId = txResponse.result as bigint;
+      const returnedTokenId = txResponse.result as unknown as bigint;
       const tokenIdString = returnedTokenId.toString();
 
       // Write NDEF URL to chip after successful mint

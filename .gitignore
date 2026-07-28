@@ -36,4 +36,3 @@ dapp/.env
 .idea
 .cursor
 .build
-nfc-server/scripts

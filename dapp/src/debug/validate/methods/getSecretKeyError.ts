@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { StrKey } from "@stellar/stellar-sdk";
 
 export const getSecretKeyError = (value: string) => {

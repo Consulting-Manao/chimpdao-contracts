@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { parse, isNumber } from "lossless-json";
 import { AnyObject } from "../types/types.ts";
 

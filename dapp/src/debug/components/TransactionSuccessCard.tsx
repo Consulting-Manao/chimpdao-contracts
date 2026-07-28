@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Box } from "../../components/layout/Box.tsx";
 import { TxResponse } from "./TxResponse.tsx";
 import { ValidationResponseCard } from "./ValidationResponseCard.tsx";

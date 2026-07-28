@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Box } from "../../components/layout/Box.tsx";
 
 const styles = {

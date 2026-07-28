@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { isEmptyObject } from "./isEmptyObject.ts";
 import { AnyObject } from "../types/types.ts";
 

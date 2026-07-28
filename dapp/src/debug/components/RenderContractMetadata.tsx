@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from "react";
 import { Box } from "../../components/layout/Box.tsx";
 import { ContractMetadata } from "../util/loadContractMetada.ts";

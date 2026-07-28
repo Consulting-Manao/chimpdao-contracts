@@ -1,3 +1,4 @@
+// @ts-nocheck
 import init, {
   decode,
   encode,

@@ -65,8 +65,6 @@ export const TransferSection = ({
     "submitting",
     "confirming",
   ];
-  const allSteps: TransferStep[] = [...chipSteps, ...blockchainSteps];
-
   const getStepMessage = (step: TransferStep): string => {
     switch (step) {
       case "reading":
@@ -130,7 +128,7 @@ export const TransferSection = ({
         throw new Error("Network passphrase is required");
       }
 
-      const tokenIdNum = BigInt(tokenId.trim());
+      const tokenIdNum = Number(tokenId.trim());
 
       // Get network-specific settings
       const networkPassphraseToUse = getNetworkPassphrase(

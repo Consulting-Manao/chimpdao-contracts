@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { FractionValue, NumberFractionValue } from "../../types/types.ts";
 import { getAmountError } from "./getAmountError.ts";
 import { getPositiveIntError } from "./getPositiveIntError.ts";

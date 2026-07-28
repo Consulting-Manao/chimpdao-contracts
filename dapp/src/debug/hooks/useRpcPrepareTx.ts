@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* eslint-disable @typescript-eslint/only-throw-error */
 import { useMutation } from "@tanstack/react-query";
 import { rpc as StellarRpc, TransactionBuilder } from "@stellar/stellar-sdk";

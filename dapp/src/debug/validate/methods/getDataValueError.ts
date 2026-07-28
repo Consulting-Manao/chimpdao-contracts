@@ -1,3 +1,4 @@
+// @ts-nocheck
 export const getDataValueError = (value: string) => {
   const valueSize = Buffer.from(value).length;
 

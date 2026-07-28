@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { WalletNetwork } from "@creit.tech/stellar-wallets-kit";
+import { Networks } from "@creit.tech/stellar-wallets-kit/types";
 
 type NetworkType =
   | "local"
@@ -24,7 +24,7 @@ const envSchema = z.object({
     "LOCAL",
     "STANDALONE", // deprecated in favor of LOCAL
   ] as const),
-  PUBLIC_STELLAR_NETWORK_PASSPHRASE: z.nativeEnum(WalletNetwork),
+  PUBLIC_STELLAR_NETWORK_PASSPHRASE: z.nativeEnum(Networks),
   PUBLIC_STELLAR_RPC_URL: z.string(),
   PUBLIC_STELLAR_HORIZON_URL: z.string(),
   // Contract IDs for different networks
@@ -39,7 +39,7 @@ const env: z.infer<typeof envSchema> = parsed.success
   ? parsed.data
   : {
       PUBLIC_STELLAR_NETWORK: "LOCAL",
-      PUBLIC_STELLAR_NETWORK_PASSPHRASE: WalletNetwork.STANDALONE,
+      PUBLIC_STELLAR_NETWORK_PASSPHRASE: Networks.STANDALONE,
       PUBLIC_STELLAR_RPC_URL: "http://localhost:8000/rpc",
       PUBLIC_STELLAR_HORIZON_URL: "http://localhost:8000",
       PUBLIC_STELLAR_MERCH_SHOP_CONTRACT_ID_LOCAL: undefined,

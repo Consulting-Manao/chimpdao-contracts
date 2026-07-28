@@ -4,6 +4,7 @@
  */
 
 import { NFC, TAG_ISO_14443_4 } from "nfc-pcsc";
+import { BLOCKCHAIN_AID } from "./constants.js";
 
 export class NFCManager {
   constructor() {
@@ -17,34 +18,38 @@ export class NFCManager {
 
   /**
    * Initialize nfc-pcsc for all NFC operations (APDU and NDEF)
-   * @param {Function} onCardDetected - Callback when card is detected
-   * @param {Function} onCardRemoved - Callback when card is removed
    * @param {Function} onStatusChange - Callback for status changes
    */
-  init(onCardDetected, onCardRemoved, onStatusChange) {
+  init(onStatusChange) {
     this.nfc = new NFC();
-    this.onCardDetected = onCardDetected;
-    this.onCardRemoved = onCardRemoved;
     this.onStatusChange = onStatusChange;
 
     this.nfc.on("reader", (reader) => {
       console.log(`NFC Reader detected: ${reader.reader.name}`);
 
-      // Only use reader 2 (Identiv uTrust 4701 F Dual Interface Reader(2))
-      if (!reader.reader.name.includes("(2)")) {
-        console.log(
-          `Skipping reader "${reader.reader.name}" - only using reader (2)`,
-        );
+      // Only Identiv/uTrust dual-interface readers (both (1) and (2) OK)
+      const name = reader.reader.name || "";
+      if (!name.includes("Identiv") && !name.includes("uTrust")) {
+        console.log(`Skipping non-Identiv reader "${name}"`);
         return;
       }
 
-      console.log(`Using reader: ${reader.reader.name}`);
-      this.currentReader = reader;
       reader.autoProcessing = false;
+      // Set AID before any card event so nfc-pcsc ISO14443-4 path doesn't crash
+      reader.aid = BLOCKCHAIN_AID.toString("hex");
+
+      // Track any Identiv interface; card event picks the active one
+      if (!this.currentReader) {
+        this.currentReader = reader;
+        console.log(`Using reader: ${reader.reader.name}`);
+      }
 
       reader.on("card", async (card) => {
         try {
-          console.log(`Card detected: ${card.type}, UID: ${card.uid || "N/A"}`);
+          console.log(
+            `Card detected on ${reader.reader.name}: ${card.type}, UID: ${card.uid || "N/A"}`,
+          );
+          this.currentReader = reader;
           this.currentCard = card;
           this.chipPresent = true;
 
@@ -55,15 +60,9 @@ export class NFCManager {
             return;
           }
 
-          if (!reader.connection) {
-            console.warn("Connection not established, waiting a bit more...");
-            await new Promise((resolve) => setTimeout(resolve, 200));
-          }
-
           if (this.cardReadyResolve) {
             this.cardReadyResolve();
           }
-
           if (this.onStatusChange) {
             this.onStatusChange();
           }
@@ -75,6 +74,7 @@ export class NFCManager {
       });
 
       reader.on("card.off", (card) => {
+        if (this.currentReader !== reader) return;
         console.log("Card removed", card ? `(UID: ${card.uid || "N/A"})` : "");
         this.currentCard = null;
         this.chipPresent = false;
@@ -93,16 +93,15 @@ export class NFCManager {
       });
 
       reader.on("error", (err) => {
-        // Suppress the common "AID was not set" error which happens with existing cards
         if (err.message && err.message.includes("AID was not set")) {
           console.log(
             "NFC: Ignoring AID error (nfc-pcsc library issue with existing cards)",
           );
-          // Since we got an AID error, a card must be present. Manually trigger card detection.
           if (!this.chipPresent) {
             console.log(
               "NFC: Manually triggering card detection due to AID error",
             );
+            this.currentReader = reader;
             this.currentCard = {
               type: "TAG_ISO_14443_4",
               uid: null,
@@ -161,19 +160,23 @@ export class NFCManager {
           throw new Error("Connection lost, card needs to be re-presented");
         }
 
-        // For manually detected cards (from AID errors), we may not have a connection
-        // but we know the card is there. Try to establish connection if needed.
+        // Try to connect; selectApplication will retry if this fails
         if (!this.currentReader.connection) {
-          console.log("NFC: Establishing connection to card...");
           try {
+            this.currentReader.aid = BLOCKCHAIN_AID.toString("hex");
             await this.currentReader.connect();
-            console.log("NFC: Connection established successfully");
-          } catch (connectError) {
-            console.log(
-              "NFC: Connection failed, but card should be present:",
-              connectError.message,
-            );
-            // For AID-detected cards, continue anyway since we know the card is there
+            console.log("NFC: Connection established");
+          } catch {
+            try {
+              this.currentReader.aid = BLOCKCHAIN_AID;
+              await this.currentReader.connect();
+              console.log("NFC: Connection established (Buffer AID)");
+            } catch (error) {
+              console.log(
+                "NFC: Connection deferred to BlockchainOps:",
+                error.message,
+              );
+            }
           }
         }
 
@@ -185,11 +188,9 @@ export class NFCManager {
       }
 
       await new Promise((resolve) => setTimeout(resolve, 50));
-
       if (!this.currentCard || !this.chipPresent) {
         throw new Error("Card was removed during initialization");
       }
-
       return;
     }
 

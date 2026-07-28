@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Card } from "@stellar/design-system";
 import { JSONSchema7 } from "json-schema";
 

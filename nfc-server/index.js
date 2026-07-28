@@ -20,12 +20,8 @@ class NFCServer {
     this.blockchainOps = new BlockchainOperations(this.nfcManager);
     this.ndefOps = new NDEFOperations(this.nfcManager);
 
-    // Initialize NFC manager with callbacks
-    this.nfcManager.init(
-      () => {}, // onCardDetected
-      () => {}, // onCardRemoved
-      () => this.broadcastStatus(), // onStatusChange
-    );
+    // Initialize NFC manager; broadcast status on detect/remove
+    this.nfcManager.init(() => this.broadcastStatus());
   }
 
   start() {
@@ -83,6 +79,10 @@ class NFCServer {
         break;
 
       case "sign":
+        if (!data?.messageDigest || data.messageDigest.length !== 64) {
+          this.sendError(ws, "Invalid message digest (must be 64 hex chars)");
+          break;
+        }
         await this.signMessage(ws, data.messageDigest, data?.keyId);
         break;
 
@@ -91,6 +91,10 @@ class NFCServer {
         break;
 
       case "write-ndef":
+        if (!data?.url) {
+          this.sendError(ws, "Missing url in write-ndef request");
+          break;
+        }
         await this.writeNDEF(ws, data);
         break;
 
@@ -99,6 +103,10 @@ class NFCServer {
         break;
 
       case "fetch-key":
+        if (!data?.keyId) {
+          this.sendError(ws, "Missing keyId in fetch-key request");
+          break;
+        }
         await this.handleFetchKey(ws, data.keyId);
         break;
 
@@ -114,7 +122,8 @@ class NFCServer {
       const keyId = await this.blockchainOps.generateKey();
       const keyInfo = await this.blockchainOps.getKeyInfo(keyId);
 
-      ws.send(
+      this.sendIfOpen(
+        ws,
         JSON.stringify({
           type: "key-generated",
           success: true,
@@ -139,7 +148,8 @@ class NFCServer {
 
       const keyInfo = await this.blockchainOps.fetchKeyById(normalizedKeyId);
 
-      ws.send(
+      this.sendIfOpen(
+        ws,
         JSON.stringify({
           type: "key-fetched",
           success: true,
@@ -159,7 +169,8 @@ class NFCServer {
 
       const keyInfo = await this.blockchainOps.getKeyInfo(normalizedKeyId);
 
-      ws.send(
+      this.sendIfOpen(
+        ws,
         JSON.stringify({
           type: "pubkey",
           success: true,
@@ -194,14 +205,14 @@ class NFCServer {
       );
 
       const derHex = result.signature.toString("hex");
-      const { r, s, wasNormalized } = parseDERSignature(derHex);
-      const recoveryId = wasNormalized ? 0 : 1;
+      const { r, s } = parseDERSignature(derHex);
 
-      ws.send(
+      this.sendIfOpen(
+        ws,
         JSON.stringify({
           type: "signature",
           success: true,
-          data: { r, s, recoveryId },
+          data: { r, s },
         }),
       );
     } catch (error) {
@@ -214,7 +225,8 @@ class NFCServer {
     try {
       const ndefUrl = await this.ndefOps.readNDEF();
 
-      ws.send(
+      this.sendIfOpen(
+        ws,
         JSON.stringify({
           type: "ndef-read",
           success: true,
@@ -233,7 +245,8 @@ class NFCServer {
     try {
       const urlToWrite = await this.ndefOps.writeNDEF(data.url);
 
-      ws.send(
+      this.sendIfOpen(
+        ws,
         JSON.stringify({
           type: "ndef-written",
           success: true,
@@ -258,21 +271,26 @@ class NFCServer {
     };
   }
 
+  sendIfOpen(ws, payload) {
+    if (ws.readyState === 1) {
+      ws.send(payload);
+    }
+  }
+
   sendStatus(ws) {
-    ws.send(JSON.stringify(this._buildStatusObject()));
+    this.sendIfOpen(ws, JSON.stringify(this._buildStatusObject()));
   }
 
   broadcastStatus() {
     const status = JSON.stringify(this._buildStatusObject());
     this.clients.forEach((client) => {
-      if (client.readyState === 1) {
-        client.send(status);
-      }
+      this.sendIfOpen(client, status);
     });
   }
 
   sendError(ws, message) {
-    ws.send(
+    this.sendIfOpen(
+      ws,
       JSON.stringify({
         type: "error",
         error: message,
@@ -329,4 +347,4 @@ process.on("unhandledRejection", (reason) => {
 
 server.start();
 
-console.log("NFC Server ready. Place chip on reader 2 to detect");
+console.log("NFC Server ready. Place chip on the Identiv reader to detect");

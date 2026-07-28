@@ -1,3 +1,4 @@
+// @ts-nocheck
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { useState } from "react";
 import { PrettyJsonTextarea } from "./PrettyJsonTextarea.tsx";

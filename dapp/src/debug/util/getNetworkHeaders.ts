@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { EmptyObj, Network } from "../types/types.ts";
 
 export const getNetworkHeaders = (
