@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { activeChain, type PaymentResult } from "../chain/index.ts";
+import type { Asset } from "../chain/assets.ts";
+import type { PaymentChain, PaymentResult } from "../chain/types.ts";
 import { approvedBeep, cardBeep, declinedBeep } from "../lib/beep.ts";
 import { addPayments, recordFor } from "../lib/history.ts";
 import type { NfcClient } from "../nfc/client.ts";
@@ -39,6 +40,8 @@ if (import.meta.env.DEV) {
 export function usePayment(
   nfc: NfcClient,
   chipPresent: boolean,
+  chain: PaymentChain,
+  asset: Asset,
   destination: string,
 ) {
   const [amount, setAmount] = useState("0");
@@ -53,7 +56,7 @@ export function usePayment(
   const tapDeadline = useRef(0);
 
   const ready =
-    phase === "idle" && Number(amount) > 0 && destination.startsWith("r");
+    phase === "idle" && Number(amount) > 0 && chain.isAddress(destination);
 
   const arm = useCallback(() => {
     busy.current = false;
@@ -63,8 +66,8 @@ export function usePayment(
     setResult(null);
     setStep("tap");
     setPhase("waiting");
-    activeChain.warmUp?.();
-  }, []);
+    chain.warmUp?.();
+  }, [chain]);
 
   const start = useCallback(() => {
     if (ready) arm();
@@ -93,8 +96,8 @@ export function usePayment(
     cardBeep();
     let signed = false;
     try {
-      const res = await activeChain.pay(
-        { amount, destination },
+      const res = await chain.pay(
+        { amount, asset, destination },
         {
           readPublicKey: () => nfc.readPublicKey(),
           signDigest: async (d) => {
@@ -106,7 +109,7 @@ export function usePayment(
         },
       );
       setResult(res);
-      addPayments([recordFor(activeChain, res, destination)]);
+      addPayments([recordFor(chain, asset, res, destination)]);
       approvedBeep();
       setPhase("done");
     } catch (e) {
@@ -124,7 +127,7 @@ export function usePayment(
     } finally {
       busy.current = false;
     }
-  }, [amount, destination, nfc]);
+  }, [amount, asset, chain, destination, nfc]);
 
   // Chip landing on the reader is what triggers the payment.
   useEffect(() => {
@@ -168,6 +171,5 @@ export function usePayment(
     start,
     retry,
     reset,
-    symbol: activeChain.symbol,
   };
 }

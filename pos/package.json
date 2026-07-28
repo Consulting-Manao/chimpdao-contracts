@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@noble/hashes": "^1.8.0",
+    "@stellar/stellar-sdk": "^16.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "xrpl": "^4.6.0"

@@ -1,3 +1,4 @@
+import type { Asset } from "../chain/assets.ts";
 import type {
   PaymentChain,
   PaymentRecord,
@@ -58,17 +59,20 @@ export function clearPayments(): void {
 
 export function recordFor(
   chain: PaymentChain,
+  asset: Asset,
   res: PaymentResult,
   to: string,
 ): PaymentRecord {
   return {
     id: `${chain.id}:${res.hash}`,
     chain: chain.id,
+    network: chain.network,
     hash: res.hash,
     from: res.from,
     to,
     amount: res.amount,
     symbol: res.symbol,
+    asset: asset.issuer,
     at: Date.now(),
     explorerUrl: res.explorerUrl,
   };
@@ -77,7 +81,7 @@ export function recordFor(
 // ponytail: assert the merge dedupes by id and keeps newest first
 if (import.meta.env.DEV) {
   const at = (id: string, t: number) =>
-    ({ id, at: t, chain: "x", amount: "1", symbol: "X" }) as PaymentRecord;
+    ({ id, at: t, chain: "xrpl", amount: "1", symbol: "X" }) as PaymentRecord;
   const merged = mergeRecords([at("a", 1)], [at("a", 9), at("b", 5)]);
   if (merged.length !== 2 || merged[0]?.id !== "a" || merged[0]?.at !== 9) {
     console.warn("history self-check failed", merged);

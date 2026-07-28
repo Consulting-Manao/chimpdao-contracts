@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { activeChain } from "../chain/index.ts";
-import { addressFromSec1Hex, getXrpBalance } from "../chain/xrpl.ts";
-import {
-  createAndFundMerchant,
-  fundAddress,
-} from "../chain/xrpl-faucet.ts";
+import type { Asset, ChainId, NetworkId } from "../chain/assets.ts";
+import { CHAIN_NAMES } from "../chain/assets.ts";
+import { CHAINS, chainFor } from "../chain/index.ts";
+import type { PaymentChain } from "../chain/types.ts";
 import { clearPayments, listPayments } from "../lib/history.ts";
 import type { NfcClient, NfcStatus } from "../nfc/client.ts";
+
+const NETWORKS: NetworkId[] = ["testnet", "mainnet"];
+
+/** One action at a time, so every button can share a single busy key. */
+type Run = (key: string, fn: () => Promise<string>) => Promise<void>;
 
 function shortAddr(a: string) {
   if (a.length < 12) return a;
@@ -30,54 +33,36 @@ function readerLabel(connected: boolean, status: NfcStatus) {
 }
 
 export function Settings({
-  destination,
-  setDestination,
+  network,
+  setNetwork,
+  networkLocked,
+  merchants,
+  setMerchant,
   nfc,
   status,
   connected,
   nfcError,
   onRetry,
 }: {
-  destination: string;
-  setDestination: (a: string) => void;
+  network: NetworkId;
+  setNetwork: (n: NetworkId) => void;
+  networkLocked: boolean;
+  merchants: Record<ChainId, string>;
+  setMerchant: (chain: ChainId, address: string) => void;
   nfc: NfcClient;
   status: NfcStatus;
   connected: boolean;
   nfcError: string | null;
   onRetry: () => void;
 }) {
-  const [paste, setPaste] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [chipAddr, setChipAddr] = useState<string | null>(null);
-  const [chipBal, setChipBal] = useState<string | null>(null);
   // Settings remounts every time it opens, so a read at mount is always fresh.
   const [history, setHistory] = useState(listPayments);
 
-  const refreshChip = useCallback(async () => {
-    if (!status.chipPresent || !nfc.isConnected()) {
-      setChipAddr(null);
-      setChipBal(null);
-      return;
-    }
-    try {
-      const { address } = addressFromSec1Hex(await nfc.readPublicKey());
-      setChipAddr(address);
-      setChipBal(await getXrpBalance(address));
-    } catch {
-      setChipAddr(null);
-      setChipBal(null);
-    }
-  }, [nfc, status.chipPresent]);
+  const chains = CHAINS.map((id) => chainFor(id, network));
 
-  useEffect(() => {
-    void refreshChip();
-  }, [refreshChip]);
-
-  const run = async (
-    key: string,
-    fn: () => Promise<string>,
-  ) => {
+  const run: Run = async (key, fn) => {
     setBusy(key);
     setMsg(null);
     try {
@@ -89,29 +74,25 @@ export function Settings({
     }
   };
 
-  const createMerchant = () =>
-    run("merchant", async () => {
-      const { address } = await createAndFundMerchant();
-      setDestination(address);
-      return `Merchant funded · ${shortAddr(address)}`;
-    });
-
-  const fundChip = () =>
-    run("chip", async () => {
-      if (!status.chipPresent) throw new Error("Place the chip on the reader");
-      const { address } = addressFromSec1Hex(await nfc.readPublicKey());
-      await fundAddress(address);
-      setChipAddr(address);
-      setChipBal(await getXrpBalance(address));
-      return "Chip funded";
-    });
-
   return (
     <div className="settings">
       <section className="rows">
         <div className="row">
           <span className="row-key">Network</span>
-          <span className="row-val accent">{activeChain.networkLabel}</span>
+          <div className="segmented" role="group" aria-label="Network">
+            {NETWORKS.map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={n === network ? "seg on" : "seg"}
+                disabled={networkLocked}
+                title={networkLocked ? "Finish the sale first" : undefined}
+                onClick={() => setNetwork(n)}
+              >
+                {n === "testnet" ? "Testnet" : "Mainnet"}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="row">
           <span className="row-key">Reader</span>
@@ -166,7 +147,8 @@ export function Settings({
                   {p.amount} <span className="hist-symbol">{p.symbol}</span>
                 </span>
                 <span className="hist-meta">
-                  {when(p.at)} · {shortAddr(p.from)}
+                  {when(p.at)} · {CHAIN_NAMES[p.chain] ?? p.chain} ·{" "}
+                  {shortAddr(p.from)}
                 </span>
                 <a
                   className="hist-link"
@@ -184,97 +166,289 @@ export function Settings({
 
       <section className="block">
         <h2>Merchant</h2>
-        <p className={`mono-box ${destination ? "" : "empty"}`}>
-          {destination || "No destination set"}
-        </p>
-        <div className="actions">
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={!!busy}
-            onClick={() => void createMerchant()}
-          >
-            {busy === "merchant" ? "Creating…" : "Create & fund"}
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            disabled={!destination}
-            onClick={() => void navigator.clipboard.writeText(destination)}
-          >
-            Copy
-          </button>
-        </div>
-        <div className="paste-row">
-          <input
-            placeholder="Or paste r-address…"
-            value={paste}
-            onChange={(e) => setPaste(e.target.value)}
-            spellCheck={false}
+        {chains.map((chain) => (
+          <MerchantBlock
+            key={chain.id}
+            chain={chain}
+            address={merchants[chain.id]}
+            setAddress={(a) => setMerchant(chain.id, a)}
+            busy={busy}
+            run={run}
+            onError={(text) => setMsg({ ok: false, text })}
           />
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => {
-              const next = paste.trim();
-              if (!next.startsWith("r")) {
-                setMsg({ ok: false, text: "Need a valid r-address" });
-                return;
-              }
-              setDestination(next);
-              setPaste("");
-              setMsg({ ok: true, text: "Destination updated" });
-            }}
-          >
-            Use
-          </button>
-        </div>
+        ))}
       </section>
 
-      <section className="block">
-        <h2>Chip wallet</h2>
-        <p className={`mono-box ${chipAddr ? "" : "empty"}`}>
-          {chipAddr ||
-            (status.chipPresent ? "Reading…" : "Place chip on the reader")}
-        </p>
-        {chipAddr ? (
-          <p className="block-meta">
-            {chipBal != null ? `${chipBal} XRP` : "Unfunded"}
-          </p>
-        ) : null}
-        <div className="actions">
-          <button
-            type="button"
-            className="btn-primary"
-            disabled={!!busy || !status.chipPresent}
-            onClick={() => void fundChip()}
-          >
-            {busy === "chip" ? "Funding…" : "Fund chip"}
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            disabled={!chipAddr}
-            onClick={() =>
-              chipAddr && void navigator.clipboard.writeText(chipAddr)
-            }
-          >
-            Copy
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            disabled={!status.chipPresent || !!busy}
-            onClick={() => void refreshChip()}
-          >
-            Refresh
-          </button>
-        </div>
-      </section>
+      {chains
+        .filter((chain) => chain.chipAddress)
+        .map((chain) => (
+          <ChipWallet
+            key={chain.id}
+            chain={chain}
+            nfc={nfc}
+            chipPresent={status.chipPresent}
+            busy={busy}
+            run={run}
+          />
+        ))}
 
       {msg ? (
         <p className={`settings-msg ${msg.ok ? "ok" : "err"}`}>{msg.text}</p>
       ) : null}
     </div>
+  );
+}
+
+function MerchantBlock({
+  chain,
+  address,
+  setAddress,
+  busy,
+  run,
+  onError,
+}: {
+  chain: PaymentChain;
+  address: string;
+  setAddress: (a: string) => void;
+  busy: string | null;
+  run: Run;
+  onError: (text: string) => void;
+}) {
+  const [paste, setPaste] = useState("");
+  const [missing, setMissing] = useState<string[]>([]);
+
+  // A merchant with no trust line silently cannot be paid, so say so up front.
+  useEffect(() => {
+    const issued = chain.assets.filter((a) => a.issuer);
+    if (!address || !chain.isAddress(address) || !issued.length) {
+      setMissing([]);
+      return;
+    }
+    let live = true;
+    void Promise.all(
+      issued.map(async (a) => ((await chain.balance(address, a)) == null ? a.code : null)),
+    ).then((codes) => {
+      if (live) setMissing(codes.filter((c): c is string => c !== null));
+    });
+    return () => {
+      live = false;
+    };
+  }, [chain, address]);
+
+  const key = `merchant:${chain.id}`;
+
+  return (
+    <div className="chain-block">
+      <h3>{chain.name}</h3>
+      <p className={`mono-box ${address ? "" : "empty"}`}>
+        {address || "No destination set"}
+      </p>
+      {missing.length ? (
+        <p className="block-meta warn">Cannot receive {missing.join(", ")}</p>
+      ) : null}
+      <div className="actions">
+        {chain.newMerchant ? (
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={!!busy}
+            onClick={() =>
+              void run(key, async () => {
+                const { address: created } = await chain.newMerchant!();
+                setAddress(created);
+                return `${chain.name} merchant funded · ${shortAddr(created)}`;
+              })
+            }
+          >
+            {busy === key ? "Creating…" : "Create & fund"}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="btn-ghost"
+          disabled={!address}
+          onClick={() => void navigator.clipboard.writeText(address)}
+        >
+          Copy
+        </button>
+      </div>
+      <div className="paste-row">
+        <input
+          placeholder={`Or paste ${chain.addressHint}…`}
+          value={paste}
+          onChange={(e) => setPaste(e.target.value)}
+          spellCheck={false}
+        />
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={() => {
+            const next = paste.trim();
+            if (!chain.isAddress(next)) {
+              onError(`Need a valid ${chain.addressHint}`);
+              return;
+            }
+            setAddress(next);
+            setPaste("");
+          }}
+        >
+          Use
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChipWallet({
+  chain,
+  nfc,
+  chipPresent,
+  busy,
+  run,
+}: {
+  chain: PaymentChain;
+  nfc: NfcClient;
+  chipPresent: boolean;
+  busy: string | null;
+  run: Run;
+}) {
+  const [address, setAddress] = useState<string | null>(null);
+  const [balances, setBalances] = useState<Record<string, string | null>>({});
+
+  const refresh = useCallback(async () => {
+    if (!chipPresent || !nfc.isConnected() || !chain.chipAddress) {
+      setAddress(null);
+      setBalances({});
+      return;
+    }
+    try {
+      const addr = chain.chipAddress(await nfc.readPublicKey());
+      setAddress(addr);
+      const pairs = await Promise.all(
+        chain.assets.map(
+          async (a) => [a.id, await chain.balance(addr, a)] as const,
+        ),
+      );
+      setBalances(Object.fromEntries(pairs));
+    } catch {
+      setAddress(null);
+      setBalances({});
+    }
+  }, [chain, nfc, chipPresent]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const fundKey = `fund:${chain.id}`;
+
+  return (
+    <section className="block">
+      <h2>Chip wallet</h2>
+      <p className={`mono-box ${address ? "" : "empty"}`}>
+        {address || (chipPresent ? "Reading…" : "Place chip on the reader")}
+      </p>
+      {address ? (
+        <ul className="asset-rows">
+          {chain.assets.map((asset) => (
+            <ChipAssetRow
+              key={asset.id}
+              chain={chain}
+              asset={asset}
+              balance={balances[asset.id] ?? null}
+              busy={busy}
+              run={run}
+              onEnabled={refresh}
+              nfc={nfc}
+            />
+          ))}
+        </ul>
+      ) : null}
+      <div className="actions">
+        {chain.fund ? (
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={!!busy || !chipPresent}
+            onClick={() =>
+              void run(fundKey, async () => {
+                if (!address) throw new Error("Place the chip on the reader");
+                await chain.fund!(address);
+                await refresh();
+                return "Chip funded";
+              })
+            }
+          >
+            {busy === fundKey ? "Funding…" : "Fund chip"}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="btn-ghost"
+          disabled={!address}
+          onClick={() => address && void navigator.clipboard.writeText(address)}
+        >
+          Copy
+        </button>
+        <button
+          type="button"
+          className="btn-ghost"
+          disabled={!chipPresent || !!busy}
+          onClick={() => void refresh()}
+        >
+          Refresh
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ChipAssetRow({
+  chain,
+  asset,
+  balance,
+  busy,
+  run,
+  onEnabled,
+  nfc,
+}: {
+  chain: PaymentChain;
+  asset: Asset;
+  balance: string | null;
+  busy: string | null;
+  run: Run;
+  onEnabled: () => Promise<void>;
+  nfc: NfcClient;
+}) {
+  const key = `enable:${asset.id}`;
+  const enableable = balance == null && asset.issuer && chain.enableAsset;
+
+  return (
+    <li className="asset-row">
+      <span className="asset-code">{asset.code}</span>
+      <span className={`asset-bal ${balance == null ? "empty" : ""}`}>
+        {balance ?? (asset.issuer ? "Not enabled" : "Unfunded")}
+      </span>
+      {enableable ? (
+        <button
+          type="button"
+          className="btn-ghost"
+          disabled={!!busy}
+          onClick={() =>
+            void run(key, async () => {
+              await chain.enableAsset!(asset, nfc);
+              await onEnabled();
+              return `${asset.code} enabled`;
+            })
+          }
+        >
+          {busy === key ? "Enabling…" : "Enable"}
+        </button>
+      ) : asset.faucet ? (
+        <a className="btn-ghost" href={asset.faucet} target="_blank" rel="noreferrer">
+          Top up
+        </a>
+      ) : null}
+    </li>
   );
 }

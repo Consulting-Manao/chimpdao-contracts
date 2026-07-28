@@ -1,16 +1,23 @@
 import { useState } from "react";
+import { assetsFor } from "./chain/assets.ts";
 import { AmountEntry } from "./components/AmountEntry.tsx";
 import { PayStage } from "./components/PayStage.tsx";
 import { Settings } from "./components/Settings.tsx";
 import { useNfc } from "./hooks/useNfc.ts";
-import { useMerchant } from "./hooks/useMerchant.ts";
 import { usePayment } from "./hooks/usePayment.ts";
+import { useTerminal } from "./hooks/useTerminal.ts";
 
 export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const nfc = useNfc();
-  const { destination, setDestination } = useMerchant();
-  const pay = usePayment(nfc.client, nfc.status.chipPresent, destination);
+  const terminal = useTerminal();
+  const pay = usePayment(
+    nfc.client,
+    nfc.status.chipPresent,
+    terminal.chain,
+    terminal.asset,
+    terminal.destination,
+  );
 
   return (
     <div className="app">
@@ -31,8 +38,11 @@ export default function App() {
 
       {showSettings ? (
         <Settings
-          destination={destination}
-          setDestination={setDestination}
+          network={terminal.network}
+          setNetwork={terminal.setNetwork}
+          networkLocked={pay.phase !== "idle"}
+          merchants={terminal.merchants}
+          setMerchant={terminal.setMerchant}
           nfc={nfc.client}
           status={nfc.status}
           connected={nfc.connected}
@@ -42,18 +52,24 @@ export default function App() {
       ) : pay.phase === "idle" ? (
         <AmountEntry
           amount={pay.amount}
-          symbol={pay.symbol}
+          asset={terminal.asset}
+          assets={assetsFor(terminal.network)}
           onChange={pay.setAmount}
+          onSelectAsset={(a) => terminal.setAsset(a.id)}
           onPay={pay.start}
           canPay={pay.ready}
-          note={destination ? undefined : "Set a merchant in Settings"}
+          note={
+            terminal.destination
+              ? undefined
+              : `Set a ${terminal.chain.name} merchant in Settings`
+          }
         />
       ) : (
         <PayStage
           phase={pay.phase}
           step={pay.step}
           amount={pay.amount}
-          symbol={pay.symbol}
+          symbol={terminal.asset.code}
           chipPresent={nfc.status.chipPresent}
           result={pay.result}
           error={pay.error}

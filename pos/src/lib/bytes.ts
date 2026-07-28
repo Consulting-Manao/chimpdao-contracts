@@ -15,7 +15,7 @@ export function hexToBytes(hex: string): Uint8Array {
 }
 
 /** raw 32-byte integer → DER INTEGER (0x02 len bytes) */
-export function derInt(b: Uint8Array): Uint8Array {
+function derInt(b: Uint8Array): Uint8Array {
   let v = b;
   while (v.length > 1 && v[0] === 0) v = v.subarray(1);
   const needsPad = (v[0] ?? 0) >= 0x80;

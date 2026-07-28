@@ -1,5 +1,5 @@
 import type { PaymentResult } from "../chain/types.ts";
-import type { PayPhase, PayStep } from "../hooks/usePayment.ts";
+import { SUCCESS_HOLD_MS, type PayPhase, type PayStep } from "../hooks/usePayment.ts";
 
 /** Customers see plain language; the raw cause stays on the title attribute. */
 function friendly(raw: string | null): string {
@@ -10,9 +10,12 @@ function friendly(raw: string | null): string {
   }
   if (/timeout|timed out/i.test(raw)) return "Card timed out";
   if (/unfunded|insufficient/i.test(raw)) return "Insufficient balance on card";
+  if (/reserve/i.test(raw)) return "Card needs more XRP to pay";
   if (/NFC server|connection closed|Not connected/i.test(raw)) {
     return "Reader unavailable";
   }
+  if (/cannot receive/i.test(raw)) return "Merchant cannot accept this token";
+  if (/Nido|not an XRPL asset/i.test(raw)) return "This token is not available yet";
   if (/merchant|destination/i.test(raw)) return "No merchant set";
   return "Payment failed";
 }
@@ -95,6 +98,22 @@ export function PayStage({
             <circle cx="50" cy="50" r="48" />
           </svg>
         ) : null}
+        {ok ? (
+          <svg
+            className="ok-progress"
+            viewBox="0 0 100 100"
+            aria-hidden="true"
+          >
+            <circle className="ok-progress-track" cx="50" cy="50" r="48" />
+            <circle
+              className="ok-progress-bar"
+              cx="50"
+              cy="50"
+              r="48"
+              style={{ animationDuration: `${SUCCESS_HOLD_MS}ms` }}
+            />
+          </svg>
+        ) : null}
         <span className="target-glyph">
           {done ? ok ? <Tick /> : <Cross /> : step === "submit" ? (
             <PendingTick />
@@ -122,7 +141,6 @@ export function PayStage({
           ) : null
         ) : ok ? (
           <>
-            <span className="countdown" />
             <button type="button" className="cta" onClick={onReset}>
               New payment
             </button>

@@ -38,7 +38,6 @@ export class NfcClient {
     string,
     { resolve: (v: WsMsg) => void; reject: (e: Error) => void }
   >();
-  private intentionalClose = false;
 
   constructor(private url = DEFAULT_URL) {}
 
@@ -60,8 +59,8 @@ export class NfcClient {
     if (this.isConnected()) return;
     if (this.connecting) return this.connecting;
 
-    this.intentionalClose = false;
     this.connecting = new Promise<void>((resolve, reject) => {
+      const offline = () => new Error(`NFC server not running (${this.url})`);
       const ws = new WebSocket(this.url);
       this.ws = ws;
       let opened = false;
@@ -73,9 +72,7 @@ export class NfcClient {
       };
 
       ws.onerror = () => {
-        if (!opened) {
-          reject(new Error("NFC server not running (ws://127.0.0.1:8080)"));
-        }
+        if (!opened) reject(offline());
       };
 
       ws.onclose = () => {
@@ -90,9 +87,7 @@ export class NfcClient {
           p.reject(new Error("NFC connection closed"));
         }
         this.pending.clear();
-        if (!opened && !this.intentionalClose) {
-          reject(new Error("NFC server not running (ws://127.0.0.1:8080)"));
-        }
+        if (!opened) reject(offline());
       };
 
       ws.onmessage = (ev) => this.onMessage(String(ev.data));
@@ -101,12 +96,6 @@ export class NfcClient {
     });
 
     return this.connecting;
-  }
-
-  disconnect(): void {
-    this.intentionalClose = true;
-    this.ws?.close();
-    this.ws = null;
   }
 
   requestStatus(): void {

@@ -1,15 +1,24 @@
-import { xrplChain } from "./xrpl.ts";
+import type { ChainId, NetworkId } from "./assets.ts";
+import { stellarChain } from "./stellar.ts";
 import type { PaymentChain } from "./types.ts";
+import { xrplChain } from "./xrpl.ts";
 
-const chainId = import.meta.env.VITE_CHAIN || "xrpl";
+export const CHAINS: ChainId[] = ["xrpl", "stellar"];
 
-if (chainId !== "xrpl") throw new Error(`Unsupported chain: ${chainId}`);
+const BUILDERS: Record<ChainId, (network: NetworkId) => PaymentChain> = {
+  xrpl: xrplChain,
+  stellar: stellarChain,
+};
 
-export const activeChain: PaymentChain = xrplChain;
+// Memoized so a chain keeps its warmed-up connection across renders.
+const bound = new Map<string, PaymentChain>();
 
-export type {
-  PaymentChain,
-  PaymentRequest,
-  PaymentResult,
-  NfcSigner,
-} from "./types.ts";
+export function chainFor(chain: ChainId, network: NetworkId): PaymentChain {
+  const key = `${chain}:${network}`;
+  let instance = bound.get(key);
+  if (!instance) {
+    instance = BUILDERS[chain](network);
+    bound.set(key, instance);
+  }
+  return instance;
+}

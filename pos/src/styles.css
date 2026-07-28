@@ -17,6 +17,11 @@
   margin: 0;
 }
 
+ul {
+  list-style: none;
+  padding: 0;
+}
+
 html,
 body,
 #root {
@@ -198,6 +203,37 @@ input {
   padding-top: 0.35em;
 }
 
+/* the single control for chain and token */
+.asset-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  align-self: flex-start;
+  margin-top: 0.35em;
+  margin-left: 0.4rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--primary);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.asset-pill svg {
+  width: 0.7em;
+  height: 0.7em;
+  opacity: 0.7;
+}
+
+.asset-pill:hover {
+  border-color: var(--primary);
+  background: rgba(255, 212, 0, 0.06);
+}
+
 /* ---------- keypad ---------- */
 
 .keypad {
@@ -333,7 +369,7 @@ input {
 
 .target.ok {
   color: var(--ok);
-  border-color: var(--ok);
+  border-color: transparent;
 }
 
 .target.err {
@@ -408,6 +444,36 @@ input {
   stroke-dasharray: 46 256;
 }
 
+/* one track + one depleting arc for the auto-return hold */
+.ok-progress {
+  position: absolute;
+  inset: -1px;
+}
+
+.ok-progress-track {
+  fill: none;
+  stroke: rgba(52, 211, 153, 0.18);
+  stroke-width: 2;
+}
+
+.ok-progress-bar {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 302;
+  stroke-dashoffset: 0;
+  transform-origin: 50% 50%;
+  transform: rotate(-90deg);
+  animation: ok-progress-countdown linear forwards;
+}
+
+@keyframes ok-progress-countdown {
+  to {
+    stroke-dashoffset: 302;
+  }
+}
+
 @keyframes spin {
   to {
     transform: rotate(1turn);
@@ -470,23 +536,92 @@ input {
   color: var(--accent);
 }
 
-/* depletes over SUCCESS_HOLD_MS, then usePayment returns to the keypad */
-.countdown {
-  height: 1px;
-  background: var(--line);
-  transform-origin: left;
-  animation: deplete 8s linear forwards;
+/* ---------- asset sheet ---------- */
+
+.sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  animation: fade-in 0.16s ease both;
 }
 
-@keyframes deplete {
+.sheet {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 1.75rem;
+  border-top: 1px solid var(--line);
+  border-radius: 1.25rem 1.25rem 0 0;
+  background: var(--bg);
+  animation: sheet-up 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.sheet-title {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.sheet-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.95rem 0.25rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.sheet-row:hover:not(:disabled) {
+  color: var(--primary);
+}
+
+.sheet-row:disabled {
+  opacity: 0.4;
+}
+
+.sheet-code {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sheet-meta {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.sheet-tick {
+  font-size: 0.9rem;
+  color: var(--primary);
+}
+
+@keyframes fade-in {
   from {
-    transform: scaleX(1);
-  }
-  to {
-    transform: scaleX(0);
+    opacity: 0;
   }
 }
 
+@keyframes sheet-up {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+}
 
 /* ---------- settings ---------- */
 
@@ -532,8 +667,31 @@ input {
   font-weight: 500;
 }
 
-.row-val.accent {
-  color: var(--accent);
+.segmented {
+  display: flex;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.seg {
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.seg.on {
+  background: var(--primary);
+  color: #0a0a0a;
+}
+
+.seg:disabled {
+  opacity: 0.45;
 }
 
 .dot {
@@ -644,6 +802,63 @@ input {
   font-weight: 600;
   color: var(--primary);
   font-variant-numeric: tabular-nums;
+}
+
+.block-meta.warn {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--err);
+}
+
+.chain-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-top: 0.25rem;
+}
+
+.chain-block h3 {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.asset-rows {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+
+.asset-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.asset-code {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.asset-bal {
+  margin-left: auto;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.asset-bal.empty {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.asset-row .btn-ghost {
+  padding: 0.3rem 0.75rem;
+  font-size: 0.72rem;
+  text-decoration: none;
 }
 
 .actions {
