@@ -68,53 +68,22 @@ export class NFCManager {
           }
         } catch (error) {
           console.error("Error handling card detection:", error);
-          this.currentCard = null;
-          this.chipPresent = false;
+          this.clearCardState();
         }
       });
 
       reader.on("card.off", (card) => {
         if (this.currentReader !== reader) return;
         console.log("Card removed", card ? `(UID: ${card.uid || "N/A"})` : "");
-        this.currentCard = null;
-        this.chipPresent = false;
-
-        if (this.cardReadyPromise) {
-          const { reject, timeout } = this.cardReadyPromise;
-          clearTimeout(timeout);
-          reject(new Error("Card was removed"));
-          this.cardReadyPromise = null;
-          this.cardReadyResolve = null;
-        }
-
-        if (this.onStatusChange) {
-          this.onStatusChange();
-        }
+        this.clearCardState("Card was removed");
       });
 
       reader.on("error", (err) => {
-        if (err.message && err.message.includes("AID was not set")) {
+        // nfc-pcsc still fires this with autoProcessing=false; swallow only.
+        if (err.message?.includes("AID was not set")) {
           console.log(
             "NFC: Ignoring AID error (nfc-pcsc library issue with existing cards)",
           );
-          if (!this.chipPresent) {
-            console.log(
-              "NFC: Manually triggering card detection due to AID error",
-            );
-            this.currentReader = reader;
-            this.currentCard = {
-              type: "TAG_ISO_14443_4",
-              uid: null,
-              atr: null,
-            };
-            this.chipPresent = true;
-            if (this.cardReadyResolve) {
-              this.cardReadyResolve();
-            }
-            if (this.onStatusChange) {
-              this.onStatusChange();
-            }
-          }
           return;
         }
 
@@ -125,12 +94,16 @@ export class NFCManager {
             err.message.includes("connection"))
         ) {
           console.warn("Reader connection error detected, clearing card state");
-          this.currentCard = null;
-          this.chipPresent = false;
-          if (this.onStatusChange) {
-            this.onStatusChange();
-          }
+          this.clearCardState();
         }
+      });
+
+      // Unplug must not leave a stale Ready in the POS.
+      reader.on("end", () => {
+        console.log(`NFC Reader ended: ${reader.reader.name}`);
+        if (this.currentReader !== reader) return;
+        this.clearCardState();
+        this.currentReader = null;
       });
     });
 
@@ -208,7 +181,7 @@ export class NFCManager {
             "Timeout waiting for card. Please place the chip on the reader.",
           ),
         );
-      }, 10000);
+      }, 60_000);
 
       this.cardReadyPromise = { resolve, reject, timeout };
       this.cardReadyResolve = () => {
@@ -226,9 +199,10 @@ export class NFCManager {
   }
 
   /**
-   * Clear card state (used for error recovery)
+   * Clear card state (error recovery, card off, reader end).
+   * @param {string} [reason]
    */
-  clearCardState() {
+  clearCardState(reason = "Card state cleared due to error") {
     this.currentCard = null;
     this.chipPresent = false;
     if (this.cardReadyPromise) {
@@ -236,7 +210,7 @@ export class NFCManager {
       clearTimeout(timeout);
       this.cardReadyPromise = null;
       this.cardReadyResolve = null;
-      reject(new Error("Card state cleared due to error"));
+      reject(new Error(reason));
     }
     // Clients must not keep believing a chip is on the reader after we gave up.
     if (this.onStatusChange) this.onStatusChange();

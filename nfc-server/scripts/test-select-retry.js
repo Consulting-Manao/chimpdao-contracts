@@ -53,4 +53,19 @@ await assert.rejects(() => dead.ops.selectApplication(), /transmit SELECT/);
 assert.equal(dead.state.cleared, 1, "giving up must force a re-tap");
 assert.ok(dead.state.transmits > 1 && dead.state.transmits <= 4);
 
+// ponytail: same pattern as NFCServer.runApdu — second op waits for the first
+let order = "";
+let apdu = Promise.resolve();
+const run = (fn) => (apdu = apdu.then(fn, fn));
+await Promise.all([
+  run(async () => {
+    await new Promise((r) => setTimeout(r, 20));
+    order += "a";
+  }),
+  run(async () => {
+    order += "b";
+  }),
+]);
+assert.equal(order, "ab", "APDU ops must not interleave");
+
 console.log("select retry ok");

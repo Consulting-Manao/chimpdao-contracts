@@ -19,9 +19,16 @@ class NFCServer {
     this.nfcManager = new NFCManager();
     this.blockchainOps = new BlockchainOperations(this.nfcManager);
     this.ndefOps = new NDEFOperations(this.nfcManager);
+    // ponytail: one in-flight APDU; status stays free. Ceiling: shared socket across tabs.
+    this._apdu = Promise.resolve();
 
     // Initialize NFC manager; broadcast status on detect/remove
     this.nfcManager.init(() => this.broadcastStatus());
+  }
+
+  /** Serialize card ops so transmits never interleave. */
+  runApdu(fn) {
+    return (this._apdu = this._apdu.then(fn, fn));
   }
 
   start() {
@@ -75,19 +82,21 @@ class NFCServer {
         break;
 
       case "read-pubkey":
-        await this.readPublicKey(ws, data?.keyId);
+        await this.runApdu(() => this.readPublicKey(ws, data?.keyId));
         break;
 
       case "sign":
-        if (!data?.messageDigest || data.messageDigest.length !== 64) {
+        if (!data?.messageDigest || !/^[0-9a-fA-F]{64}$/.test(data.messageDigest)) {
           this.sendError(ws, "Invalid message digest (must be 64 hex chars)");
           break;
         }
-        await this.signMessage(ws, data.messageDigest, data?.keyId);
+        await this.runApdu(() =>
+          this.signMessage(ws, data.messageDigest, data?.keyId),
+        );
         break;
 
       case "read-ndef":
-        await this.readNDEF(ws);
+        await this.runApdu(() => this.readNDEF(ws));
         break;
 
       case "write-ndef":
@@ -95,11 +104,11 @@ class NFCServer {
           this.sendError(ws, "Missing url in write-ndef request");
           break;
         }
-        await this.writeNDEF(ws, data);
+        await this.runApdu(() => this.writeNDEF(ws, data));
         break;
 
       case "generate-key":
-        await this.handleGenerateKey(ws);
+        await this.runApdu(() => this.handleGenerateKey(ws));
         break;
 
       case "fetch-key":
@@ -107,7 +116,7 @@ class NFCServer {
           this.sendError(ws, "Missing keyId in fetch-key request");
           break;
         }
-        await this.handleFetchKey(ws, data.keyId);
+        await this.runApdu(() => this.handleFetchKey(ws, data.keyId));
         break;
 
       default:
@@ -189,7 +198,7 @@ class NFCServer {
 
   async signMessage(ws, messageDigestHex, keyId = 1) {
     try {
-      if (!messageDigestHex || messageDigestHex.length !== 64) {
+      if (!messageDigestHex || !/^[0-9a-fA-F]{64}$/.test(messageDigestHex)) {
         throw new Error(
           "Invalid message digest (must be 32 bytes / 64 hex chars)",
         );
@@ -330,16 +339,6 @@ process.on("unhandledRejection", (reason) => {
     console.log(
       "NFC: Ignoring AID rejection (nfc-pcsc library issue with existing cards)",
     );
-    if (!server.nfcManager.isChipPresent()) {
-      console.log("NFC: Manually triggering card detection due to AID error");
-      server.nfcManager.currentCard = {
-        type: "TAG_ISO_14443_4",
-        uid: null,
-        atr: null,
-      };
-      server.nfcManager.chipPresent = true;
-      server.broadcastStatus();
-    }
     return;
   }
   console.error("Unhandled Rejection:", reason);
