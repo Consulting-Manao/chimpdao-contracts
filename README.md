@@ -27,8 +27,14 @@ under a chip's public key and pays them out only to the current NFT owner.
 | [`contracts/collection/`](contracts/collection) | Factory that deploys NFC-NFT contracts and indexes ownership across them.           |
 | [`contracts/prize/`](contracts/prize)           | Reference downstream application: per-chip token vault redeemable by the NFT owner. |
 | [`dapp/`](dapp)                                 | TypeScript desktop administration interface (Vite + React + Stellar SDK).           |
-| [`nfc-server/`](nfc-server)                     | Node.js PC/SC bridge between the dApp and a USB NFC reader.                         |
 | [`Makefile`](Makefile)                          | Build, test, deploy targets.                                                        |
+
+The NFC hardware bridge lives in **[chimpdao-nfc-bridge](https://radicle.network/nodes/radicle.consulting-manao.com/rad%3Az2CDTfvUguLG3UboK46HyYxoxg1og)**; the merchant POS in **[chimpdao-terminal](https://radicle.network/nodes/radicle.consulting-manao.com/rad%3Az4Y793TkQB4X4Uz4CRdEMUHxakZKt)** (Radicle repos under consulting-manao).
+
+```bash
+git clone https://radicle.consulting-manao.com/z2CDTfvUguLG3UboK46HyYxoxg1og.git chimpdao-nfc-bridge
+git clone https://radicle.consulting-manao.com/z4Y793TkQB4X4Uz4CRdEMUHxakZKt.git chimpdao-terminal
+```
 
 The full chip-integration guide is in [`README_NFC.md`](README_NFC.md). The
 mobile tap-to-claim flow lives in a companion iOS application.

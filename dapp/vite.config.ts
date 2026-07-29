@@ -19,10 +19,12 @@ export default defineConfig(() => {
     ],
     resolve: {
       alias: {
-        // During dev we import the generated client sources directly.
-        // The workspace package exports `dist/`, but `dist/` may not exist until a build runs.
         nfc_nft: path.resolve(__dirname, "./packages/nfc_nft/src/index.ts"),
         collection: path.resolve(__dirname, "./packages/collection/src/index.ts"),
+        "@chimpdao/nfc-client": path.resolve(
+          __dirname,
+          "node_modules/chimpdao-nfc-bridge/packages/client/dist/index.js",
+        ),
       },
     },
     build: {
