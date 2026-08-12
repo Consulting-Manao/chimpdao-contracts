@@ -7,7 +7,6 @@ pub use chimpdao_chip_auth::{ChipAuth, Curve, Secp256k1Auth, Secp256r1Auth};
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
-    Admin,
     CollectionContract,
     Chip,
     Curve,

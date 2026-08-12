@@ -21,34 +21,28 @@ fn k1_auth(e: &Env) -> types::ChipAuth {
     })
 }
 
-fn setup(e: &Env) -> (SmartAccountClient<'_>, Address, Address) {
+fn setup(e: &Env) -> (SmartAccountClient<'_>, Address) {
     e.mock_all_auths();
-    let admin = Address::generate(e);
     let collection = Address::generate(e);
     let id = e.register(
         SmartAccount,
-        (
-            &admin,
-            &collection,
-            chip_pk(e),
-            types::Curve::Secp256k1,
-        ),
+        (collection, chip_pk(e), types::Curve::Secp256k1),
     );
     let client = SmartAccountClient::new(e, &id);
-    (client, admin, id)
+    (client, id)
 }
 
 #[test]
 fn get_nonce_defaults_to_zero() {
     let e = Env::default();
-    let (client, _, _) = setup(&e);
+    let (client, _) = setup(&e);
     assert_eq!(client.get_nonce(), 0);
 }
 
 #[test]
 fn get_earn_defaults_to_none() {
     let e = Env::default();
-    let (client, _, _) = setup(&e);
+    let (client, _) = setup(&e);
     assert!(client.get_earn().is_none());
 }
 
@@ -56,16 +50,10 @@ fn get_earn_defaults_to_none() {
 fn collection_is_stored() {
     let e = Env::default();
     e.mock_all_auths();
-    let admin = Address::generate(&e);
     let collection = Address::generate(&e);
     let id = e.register(
         SmartAccount,
-        (
-            &admin,
-            &collection,
-            chip_pk(&e),
-            types::Curve::Secp256k1,
-        ),
+        (collection.clone(), chip_pk(&e), types::Curve::Secp256k1),
     );
     let client = SmartAccountClient::new(&e, &id);
     assert_eq!(client.collection(), collection);
@@ -75,7 +63,7 @@ fn collection_is_stored() {
 #[should_panic(expected = "Error(Contract, #202)")]
 fn transfer_rejects_non_positive_amount() {
     let e = Env::default();
-    let (client, _, contract) = setup(&e);
+    let (client, contract) = setup(&e);
     let issuer = Address::generate(&e);
     let sac = e.register_stellar_asset_contract_v2(issuer);
     let token = sac.address();
@@ -88,7 +76,7 @@ fn transfer_rejects_non_positive_amount() {
 #[should_panic(expected = "Error(Contract, #200)")]
 fn transfer_rejects_wrong_from() {
     let e = Env::default();
-    let (client, _, _) = setup(&e);
+    let (client, _) = setup(&e);
     let issuer = Address::generate(&e);
     let sac = e.register_stellar_asset_contract_v2(issuer);
     let token = sac.address();
@@ -102,7 +90,7 @@ fn transfer_rejects_wrong_from() {
 #[should_panic(expected = "Error(Contract, #201)")]
 fn transfer_rejects_bad_signature() {
     let e = Env::default();
-    let (client, _, contract) = setup(&e);
+    let (client, contract) = setup(&e);
     let issuer = Address::generate(&e);
     let sac = e.register_stellar_asset_contract_v2(issuer);
     let token = sac.address();
@@ -117,12 +105,11 @@ fn transfer_rejects_bad_signature() {
 fn transfer_rejects_auth_curve_mismatch() {
     let e = Env::default();
     e.mock_all_auths();
-    let admin = Address::generate(&e);
     let collection = Address::generate(&e);
     let pk = chip_pk(&e);
     let contract = e.register(
         SmartAccount,
-        (&admin, &collection, pk, types::Curve::Secp256k1),
+        (collection, pk, types::Curve::Secp256k1),
     );
     let client = SmartAccountClient::new(&e, &contract);
     let issuer = Address::generate(&e);
@@ -140,7 +127,7 @@ fn transfer_rejects_auth_curve_mismatch() {
 #[test]
 fn get_positions_defaults_empty() {
     let e = Env::default();
-    let (client, _, _) = setup(&e);
+    let (client, _) = setup(&e);
     assert_eq!(client.get_positions().len(), 0);
 }
 
@@ -148,7 +135,7 @@ fn get_positions_defaults_empty() {
 #[should_panic(expected = "Error(Contract, #201)")]
 fn upsert_position_rejects_bad_signature() {
     let e = Env::default();
-    let (client, _, _) = setup(&e);
+    let (client, _) = setup(&e);
     let mut meta = soroban_sdk::Map::new(&e);
     meta.set(
         soroban_sdk::Symbol::new(&e, "pool"),
@@ -168,7 +155,7 @@ fn upsert_position_rejects_bad_signature() {
 #[should_panic(expected = "Error(Contract, #201)")]
 fn clear_position_rejects_bad_signature() {
     let e = Env::default();
-    let (client, _, _) = setup(&e);
+    let (client, _) = setup(&e);
     let msg = Bytes::from_slice(&e, b"clear_position");
     client.clear_position(
         &soroban_sdk::Symbol::new(&e, "blend"),
@@ -182,7 +169,7 @@ fn clear_position_rejects_bad_signature() {
 #[should_panic(expected = "Error(Contract, #201)")]
 fn set_earn_rejects_bad_signature() {
     let e = Env::default();
-    let (client, _, _) = setup(&e);
+    let (client, _) = setup(&e);
     let link = types::EarnLink {
         account: Address::generate(&e),
         context_rule_id: 1,
@@ -196,25 +183,37 @@ fn set_earn_rejects_bad_signature() {
 #[should_panic(expected = "Error(Contract, #201)")]
 fn clear_earn_rejects_bad_signature() {
     let e = Env::default();
-    let (client, _, _) = setup(&e);
+    let (client, _) = setup(&e);
     let msg = Bytes::from_slice(&e, b"clear_earn");
     client.clear_earn(&msg, &k1_auth(&e), &1);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #201)")]
+fn upgrade_rejects_bad_signature() {
+    let e = Env::default();
+    let (client, _) = setup(&e);
+    let msg = Bytes::from_slice(&e, b"upgrade");
+    client.upgrade(&BytesN::from_array(&e, &[9u8; 32]), &msg, &k1_auth(&e), &1);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #201)")]
+fn set_collection_rejects_bad_signature() {
+    let e = Env::default();
+    let (client, _) = setup(&e);
+    let msg = Bytes::from_slice(&e, b"set_collection");
+    client.set_collection(&Address::generate(&e), &msg, &k1_auth(&e), &1);
 }
 
 #[test]
 fn balance_reads_sac_holdings() {
     let e = Env::default();
     e.mock_all_auths();
-    let admin = Address::generate(&e);
     let collection = Address::generate(&e);
     let contract_id = e.register(
         SmartAccount,
-        (
-            &admin,
-            &collection,
-            chip_pk(&e),
-            types::Curve::Secp256k1,
-        ),
+        (collection, chip_pk(&e), types::Curve::Secp256k1),
     );
     let client = SmartAccountClient::new(&e, &contract_id);
     let issuer = Address::generate(&e);

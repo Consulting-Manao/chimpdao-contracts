@@ -10,4 +10,7 @@ pub enum SmartAccountError {
 
     /// Non-positive transfer amount.
     InvalidAmount = 202,
+
+    /// Instance Curve missing (must be set at construct).
+    MissingCurve = 203,
 }

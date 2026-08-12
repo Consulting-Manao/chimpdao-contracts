@@ -19,4 +19,6 @@ pub enum NonFungibleTokenError {
     TokenAlreadyClaimed = 211,
     /// Indicates the token exists but has not been claimed yet
     TokenNotClaimed = 212,
+    /// Curve was not stored for this chip (must be set at mint).
+    MissingCurve = 213,
 }

@@ -1,6 +1,7 @@
 //! ChimpDAO Pocket smart account
 //!
 //! Per-chip ChipAuth account: spend, Earn link, positions, collection pointer.
+//! Self-custodial — privileged ops are ChipAuth-gated (no admin).
 #![no_std]
 
 use soroban_sdk::{contract, contractmeta, Address, Bytes, BytesN, Env, Symbol, Vec};
@@ -22,13 +23,19 @@ pub trait SmartAccountTrait {
     /// * `chip` - Bound SEC1 pubkey (Instance storage; not a call arg on gated fns).
     fn __constructor(
         e: &Env,
-        admin: Address,
         collection_contract: Address,
         chip: BytesN<65>,
         curve: types::Curve,
     );
 
-    fn upgrade(e: &Env, wasm_hash: BytesN<32>);
+    /// Replace WASM. ChipAuth required (self-custody).
+    fn upgrade(
+        e: &Env,
+        wasm_hash: BytesN<32>,
+        message: Bytes,
+        auth: types::ChipAuth,
+        nonce: u32,
+    );
 
     fn balance(e: &Env, token: Address) -> i128;
 
@@ -51,8 +58,14 @@ pub trait SmartAccountTrait {
     /// NFT collection contract stored at deploy (Card identity).
     fn collection(e: &Env) -> Address;
 
-    /// Admin sets/updates collection pointer (migrate upgraded Pocket accounts).
-    fn set_collection(e: &Env, collection_contract: Address);
+    /// Chip sets/updates collection pointer.
+    fn set_collection(
+        e: &Env,
+        collection_contract: Address,
+        message: Bytes,
+        auth: types::ChipAuth,
+        nonce: u32,
+    );
 
     /// Collectibles for `from` via the linked collection index.
     fn collectibles(e: &Env, from: Address) -> Vec<(Address, u32)>;

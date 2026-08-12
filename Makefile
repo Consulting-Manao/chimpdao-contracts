@@ -152,9 +152,9 @@ contract_create_collection:  ## Deploy Soroban contract NFT via collection
   		> .config/stellar/nfc_nft_$(symbol)_$(network)_id && \
   	cat .config/stellar/nfc_nft_$(symbol)_$(network)_id
 
-## Prize
+## Prize (example)
 
-contract_deploy_prize: contract_build  ## Deploy Soroban contract prize
+contract_deploy_prize: contract_build  ## Deploy example prize contract
 	stellar contract deploy \
   		--wasm $(prize_wasm) \
   		--source-account $(admin) \

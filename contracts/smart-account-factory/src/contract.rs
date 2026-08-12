@@ -74,7 +74,7 @@ impl SmartAccountFactoryTrait for SmartAccountFactory {
         let salt: BytesN<32> = e.crypto().sha256(&pk_bytes).into();
         let contract_address = e.deployer().with_current_contract(salt).deploy_v2(
             wasm_hash,
-            (admin, collection, public_key.clone(), curve),
+            (collection, public_key.clone(), curve),
         );
 
         e.storage()

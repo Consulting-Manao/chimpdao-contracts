@@ -317,9 +317,10 @@ impl NFCtoNFTTrait for NFCtoNFT {
         let curve: Curve = e
             .storage()
             .persistent()
-            // ponytail: same Curve default as Pocket — old tokens may lack curve map.
             .get(&NFTStorageKey::ChipCurveByPublicKey(public_key.clone()))
-            .unwrap_or(Curve::Secp256k1);
+            .unwrap_or_else(|| {
+                panic_with_error!(&e, &errors::NonFungibleTokenError::MissingCurve)
+            });
         Self::verify_chip_signature_with_curve(e, signer, message, auth, public_key, curve, nonce);
     }
 }

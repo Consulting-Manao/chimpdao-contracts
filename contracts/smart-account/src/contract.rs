@@ -16,12 +16,10 @@ mod collection_contract {
 impl SmartAccountTrait for SmartAccount {
     fn __constructor(
         e: &Env,
-        admin: Address,
         collection_contract: Address,
         chip: BytesN<65>,
         curve: types::Curve,
     ) {
-        e.storage().instance().set(&types::DataKey::Admin, &admin);
         e.storage()
             .instance()
             .set(&types::DataKey::CollectionContract, &collection_contract);
@@ -29,9 +27,20 @@ impl SmartAccountTrait for SmartAccount {
         e.storage().instance().set(&types::DataKey::Curve, &curve);
     }
 
-    fn upgrade(e: &Env, wasm_hash: BytesN<32>) {
-        let admin: Address = e.storage().instance().get(&types::DataKey::Admin).unwrap();
-        admin.require_auth();
+    fn upgrade(
+        e: &Env,
+        wasm_hash: BytesN<32>,
+        message: Bytes,
+        auth: types::ChipAuth,
+        nonce: u32,
+    ) {
+        Self::verify_chip_signature(
+            e,
+            e.current_contract_address().to_xdr(e),
+            message,
+            auth,
+            nonce,
+        );
         e.deployer().update_current_contract_wasm(wasm_hash);
     }
 
@@ -75,9 +84,20 @@ impl SmartAccountTrait for SmartAccount {
             .unwrap()
     }
 
-    fn set_collection(e: &Env, collection_contract: Address) {
-        let admin: Address = e.storage().instance().get(&types::DataKey::Admin).unwrap();
-        admin.require_auth();
+    fn set_collection(
+        e: &Env,
+        collection_contract: Address,
+        message: Bytes,
+        auth: types::ChipAuth,
+        nonce: u32,
+    ) {
+        Self::verify_chip_signature(
+            e,
+            e.current_contract_address().to_xdr(e),
+            message,
+            auth,
+            nonce,
+        );
         e.storage()
             .instance()
             .set(&types::DataKey::CollectionContract, &collection_contract);
@@ -242,13 +262,11 @@ impl SmartAccount {
         }
 
         let message_hash = chimpdao_chip_auth::message_digest(e, &message, &signer, nonce);
-        // ponytail: Curve missing on pre-Curve storage → default k1 (Infineon). Fail-closed
-        // broke live Pockets; write Curve on upgrade/admin if you need r1-only fail.
         let curve: types::Curve = e
             .storage()
             .instance()
             .get(&types::DataKey::Curve)
-            .unwrap_or(types::Curve::Secp256k1);
+            .unwrap_or_else(|| panic_with_error!(&e, SmartAccountError::MissingCurve));
 
         if !chimpdao_chip_auth::verify_chip_auth(e, &message_hash, &public_key, &curve, auth) {
             panic_with_error!(&e, SmartAccountError::InvalidSignature);

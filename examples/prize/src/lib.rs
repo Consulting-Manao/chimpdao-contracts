@@ -1,9 +1,7 @@
-//! # ChimpDAO Prize
+//! # ChimpDAO Prize (example)
 //!
-//! Lock XLM (or a configured token) per chip and redeem with chip signature proof.
-//! The contract resolves campaign (nfc_contract + token_id) to a globally unique chip
-//! public key at lock time; redemptions are keyed by that public key. Only the current
-//! owner of the NFT for the chip in the given NFC contract can redeem.
+//! Reference app showing how to call nfc-nft ChipAuth from another contract.
+//! Not part of the core protocol — see `examples/prize/README.md`.
 
 #![no_std]
 
@@ -12,7 +10,7 @@ use soroban_sdk::{Address, Bytes, BytesN, Env, contract, contractmeta};
 contractmeta!(key = "Description", val = "ChimpDAO Prize");
 
 mod nfc_contract {
-    soroban_sdk::contractimport!(file = "../nfc_nft.wasm");
+    soroban_sdk::contractimport!(file = "../../contracts/nfc_nft.wasm");
 }
 
 pub use nfc_contract::{ChipAuth, Secp256k1Auth};
