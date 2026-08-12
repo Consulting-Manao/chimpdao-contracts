@@ -1,4 +1,4 @@
-.PHONY: help install contract_build contract_test contract_bindings contract_deploy_collection contract_upload_nft contract_create_collection contract_deploy_nft contract_help
+.PHONY: help install contract_build contract_test contract_bindings contract_deploy_collection contract_upload_nft contract_create_collection contract_deploy_nft contract_deploy_chip_verifier contract_deploy_factory contract_help
 .DEFAULT_GOAL := help
 SHELL:=/bin/bash
 
@@ -36,6 +36,20 @@ endif
 override prize_contract_id = $(shell cat .config/stellar/prize_$(network)_id)
 override native_contract_id = $(shell stellar contract id asset --asset native --network $(network))
 
+ifndef smart_account_wasm
+override smart_account_wasm = target/wasm32v1-none/release/chimpdao_smart_account.wasm
+endif
+ifndef factory_wasm
+override factory_wasm = target/wasm32v1-none/release/chimpdao_smart_account_factory.wasm
+endif
+ifndef chip_verifier_wasm
+override chip_verifier_wasm = target/wasm32v1-none/release/chimpdao_chip_verifier.wasm
+endif
+
+override factory_contract_id = $(shell cat .config/stellar/smart_account_factory_$(network)_id 2>/dev/null)
+override chip_verifier_contract_id = $(shell cat .config/stellar/chip_verifier_$(network)_id 2>/dev/null)
+override smart_account_wasm_hash = $(shell openssl sha256 $(smart_account_wasm) 2>/dev/null | cut -d " " -f2)
+
 override symbol = chi1
 override name = "Palta Chimpy"
 override max_tokens = 100
@@ -65,7 +79,7 @@ contract_build:
 	stellar contract build --optimize
 	@ls -l target/wasm32v1-none/release/*.wasm
 
-contract_test:
+contract_test: contract_build  ## Build wasm then cargo test (factory imports Pocket wasm)
 	cargo test
 
 contract_bindings: contract_build  ## Create bindings
@@ -151,6 +165,32 @@ contract_deploy_prize: contract_build  ## Deploy Soroban contract prize
   		--token $(native_contract_id) \
   		> .config/stellar/prize_$(network)_id && \
   	cat .config/stellar/prize_$(network)_id
+
+## Pocket / Earn (smart-account + factory + chip-verifier)
+
+contract_deploy_chip_verifier: contract_build  ## Deploy shared chip Verifier for Earn (Nido External)
+	mkdir -p .config/stellar
+	stellar contract deploy \
+		--wasm $(chip_verifier_wasm) \
+		--source-account $(admin) \
+		--network $(network) \
+		--salt $(shell printf chimp_chip_verifier | openssl sha256 | cut -d " " -f2) \
+		> .config/stellar/chip_verifier_$(network)_id && \
+	cat .config/stellar/chip_verifier_$(network)_id
+
+contract_deploy_factory: contract_build  ## Deploy Pocket factory (admin-only ctor; set_collection after)
+	mkdir -p .config/stellar
+	stellar contract deploy \
+		--wasm $(factory_wasm) \
+		--source-account $(admin) \
+		--network $(network) \
+		--salt $(shell printf chimp_pocket_factory | openssl sha256 | cut -d " " -f2) \
+		-- \
+		--admin $(admin) \
+		> .config/stellar/smart_account_factory_$(network)_id && \
+	echo $(smart_account_wasm_hash) > .config/stellar/smart_account_wasm_hash_$(network) && \
+	cat .config/stellar/smart_account_factory_$(network)_id && \
+	echo wasm_hash=$$(cat .config/stellar/smart_account_wasm_hash_$(network))
 
 ## Usage
 

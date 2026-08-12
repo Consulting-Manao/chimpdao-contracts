@@ -28,6 +28,7 @@ use alloc::vec::Vec;
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{Address, Bytes, BytesN, Env, String, crypto::Hash, testutils::Address as _};
 
+use chimpdao_chip_auth::{ChipAuth, Curve, Secp256k1Auth};
 use crate::{NFCtoNFT, NFCtoNFTClient};
 
 struct TestSignature {
@@ -189,6 +190,14 @@ fn normalize_s(s: &[u8; 32]) -> [u8; 32] {
 }
 
 // Helper to create test signature with proper normalization and find recovery ID
+
+fn k1_auth(_e: &Env, signature: BytesN<64>, recovery_id: u32) -> ChipAuth {
+    ChipAuth::Secp256k1(Secp256k1Auth {
+        signature,
+        recovery_id,
+    })
+}
+
 fn create_test_signature_and_recovery_id(
     e: &Env,
     message_hash: &Hash<32>,
@@ -228,14 +237,7 @@ fn create_test_signature_and_recovery_id(
 
 // Helper function to calculate message hash exactly as contract does (message || signer || nonce)
 fn calculate_message_hash(e: &Env, message: &[u8], signer: &Address, nonce: u32) -> Hash<32> {
-    let message_bytes = Bytes::from_slice(e, message);
-    let signer_xdr = signer.to_xdr(e);
-    let nonce_xdr = nonce.to_xdr(e);
-    let mut builder = Bytes::new(e);
-    builder.append(&message_bytes);
-    builder.append(&signer_xdr);
-    builder.append(&nonce_xdr);
-    e.crypto().sha256(&builder)
+    chimpdao_chip_auth::message_digest(e, &Bytes::from_slice(e, message), &signer.to_xdr(e), nonce)
 }
 
 // Helper function to print message hash for manual signing (new formula: message || signer || nonce)
@@ -508,9 +510,9 @@ fn test_claim() {
 
     let token_id = client.mint(
         &message,
-        &mint_signature,
-        &mint_recovery_id,
+        &k1_auth(&e, mint_signature.clone(), mint_recovery_id),
         &public_key,
+        &Curve::Secp256k1,
         &mint_sig.nonce,
     );
     assert_eq!(token_id, 0u32);
@@ -535,8 +537,7 @@ fn test_claim() {
     let claimed_token_id = client.claim(
         &claimant,
         &message,
-        &claim_signature,
-        &claim_recovery_id,
+        &k1_auth(&e, claim_signature.clone(), claim_recovery_id),
         &public_key,
         &claim_sig.nonce,
     );
@@ -590,10 +591,10 @@ fn test_nonce_reuse_prevention() {
     let public_key = BytesN::from_array(&e, &sig.public_key);
 
     // First mint should succeed
-    let _token_id = client.mint(&message, &signature, &recovery_id, &public_key, &sig.nonce);
+    let _token_id = client.mint(&message, &k1_auth(&e, signature.clone(), recovery_id), &public_key, &Curve::Secp256k1, &sig.nonce);
 
     // Second mint with same nonce should panic (nonce reuse prevention)
-    client.mint(&message, &signature, &recovery_id, &public_key, &sig.nonce);
+    client.mint(&message, &k1_auth(&e, signature.clone(), recovery_id), &public_key, &Curve::Secp256k1, &sig.nonce);
 }
 
 #[test]
@@ -642,9 +643,9 @@ fn test_transfer() {
     let public_key = BytesN::from_array(&e, &mint_sig.public_key);
     let token_id = client.mint(
         &message,
-        &mint_signature,
-        &mint_recovery_id,
+        &k1_auth(&e, mint_signature.clone(), mint_recovery_id),
         &public_key,
+        &Curve::Secp256k1,
         &mint_sig.nonce,
     );
     assert_eq!(token_id, 0u32);
@@ -659,8 +660,7 @@ fn test_transfer() {
     let claimed_token_id = client.claim(
         &claimant,
         &message,
-        &claim_signature,
-        &claim_recovery_id,
+        &k1_auth(&e, claim_signature.clone(), claim_recovery_id),
         &public_key,
         &claim_sig.nonce,
     );
@@ -686,8 +686,7 @@ fn test_transfer() {
         &recipient,
         &token_id,
         &message,
-        &transfer_signature,
-        &transfer_recovery_id,
+        &k1_auth(&e, transfer_signature.clone(), transfer_recovery_id),
         &public_key,
         &transfer_sig.nonce,
     );
@@ -731,9 +730,9 @@ fn test_multiple_chips_and_nfts() {
     let public_key_1 = BytesN::from_array(&e, &mint1_sig.public_key);
     let token_id_1 = client.mint(
         &message,
-        &mint1_signature,
-        &mint1_recovery_id,
+        &k1_auth(&e, mint1_signature.clone(), mint1_recovery_id),
         &public_key_1,
+        &Curve::Secp256k1,
         &mint1_sig.nonce,
     );
     assert_eq!(token_id_1, 0u32);
@@ -747,8 +746,7 @@ fn test_multiple_chips_and_nfts() {
     let claimed_token_id_1 = client.claim(
         &claimant1,
         &message,
-        &claim1_signature,
-        &claim1_recovery_id,
+        &k1_auth(&e, claim1_signature.clone(), claim1_recovery_id),
         &public_key_1,
         &claim1_sig.nonce,
     );
@@ -763,9 +761,9 @@ fn test_multiple_chips_and_nfts() {
     let public_key_2 = BytesN::from_array(&e, &mint2_sig.public_key);
     let token_id_2 = client.mint(
         &message,
-        &mint2_signature,
-        &mint2_recovery_id,
+        &k1_auth(&e, mint2_signature.clone(), mint2_recovery_id),
         &public_key_2,
+        &Curve::Secp256k1,
         &mint2_sig.nonce,
     );
     assert_eq!(token_id_2, 1u32, "Second token should have ID 1");
@@ -779,8 +777,7 @@ fn test_multiple_chips_and_nfts() {
     let claimed_token_id_2 = client.claim(
         &claimant2,
         &message,
-        &claim2_signature,
-        &claim2_recovery_id,
+        &k1_auth(&e, claim2_signature.clone(), claim2_recovery_id),
         &public_key_2,
         &claim2_sig.nonce,
     );

@@ -1,8 +1,7 @@
 [package]
-name = "nfc-nft"
+name = "chimpdao-smart-account"
 edition.workspace = true
 license.workspace = true
-repository.workspace = true
 publish = false
 version = "1.0.0"
 

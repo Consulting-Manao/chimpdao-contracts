@@ -7,7 +7,7 @@ use soroban_sdk::{
     Address, Bytes, BytesN, Env, contract, contractimpl, contracttype, testutils::Address as _,
 };
 
-use crate::{Prize, PrizeClient};
+use crate::{ChipAuth, Prize, PrizeClient, Secp256k1Auth};
 
 // Fixed chip public key returned by MockNfc for token_id 0 (65 bytes, uncompressed SEC1)
 const MOCK_CHIP_PUBLIC_KEY: [u8; 65] = [
@@ -42,8 +42,7 @@ impl MockNfc {
         _e: &Env,
         _signer: Bytes,
         _message: Bytes,
-        _signature: BytesN<64>,
-        _recovery_id: u32,
+        _auth: ChipAuth,
         _public_key: BytesN<65>,
         _nonce: u32,
     ) {
@@ -107,7 +106,10 @@ fn test_deposit_redeem() {
 
     let chip_pk = BytesN::from_array(&e, &MOCK_CHIP_PUBLIC_KEY);
     let dummy_message = Bytes::from_slice(&e, b"dummy");
-    let dummy_sig = BytesN::from_array(&e, &[0u8; 64]);
+    let dummy_auth = ChipAuth::Secp256k1(Secp256k1Auth {
+        signature: BytesN::from_array(&e, &[0u8; 64]),
+        recovery_id: 0,
+    });
 
     assert_eq!(token_client.balance(&redeemer), 0);
 
@@ -115,8 +117,7 @@ fn test_deposit_redeem() {
         &redeemer,
         &mock_nfc,
         &dummy_message,
-        &dummy_sig,
-        &0u32,
+        &dummy_auth,
         &chip_pk,
         &1u32,
     );

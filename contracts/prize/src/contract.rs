@@ -61,8 +61,7 @@ impl PrizeTrait for Prize {
         redeemer: Address,
         nfc_contract: Address,
         message: Bytes,
-        signature: BytesN<64>,
-        recovery_id: u32,
+        auth: nfc_contract::ChipAuth,
         public_key: BytesN<65>,
         nonce: u32,
     ) {
@@ -74,8 +73,7 @@ impl PrizeTrait for Prize {
         nfc_client.verify_chip_signature(
             &signer,
             &message,
-            &signature,
-            &recovery_id,
+            &auth,
             &public_key,
             &nonce,
         );

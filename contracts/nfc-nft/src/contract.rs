@@ -3,6 +3,7 @@
 use crate::{
     NFCtoNFT, NFCtoNFTArgs, NFCtoNFTClient, NFCtoNFTTrait, collection_contract, errors, events,
 };
+use chimpdao_chip_auth::{ChipAuth, Curve};
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
     Address, Bytes, BytesN, Env, String, contractimpl, contracttype, panic_with_error,
@@ -22,6 +23,7 @@ pub enum DataKey {
 #[contracttype]
 pub enum NFTStorageKey {
     ChipNonceByPublicKey(BytesN<65>),
+    ChipCurveByPublicKey(BytesN<65>),
     Owner(u32),
     PublicKey(u32),
     TokenIdByPublicKey(BytesN<65>),
@@ -63,21 +65,21 @@ impl NFCtoNFTTrait for NFCtoNFT {
     fn mint(
         e: &Env,
         message: Bytes,
-        signature: BytesN<64>,
-        recovery_id: u32,
+        auth: ChipAuth,
         public_key: BytesN<65>,
+        curve: Curve,
         nonce: u32,
     ) -> u32 {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
 
-        Self::verify_chip_signature(
+        Self::verify_chip_signature_with_curve(
             e,
             admin.to_xdr(e),
             message,
-            signature,
-            recovery_id,
+            auth,
             public_key.clone(),
+            curve.clone(),
             nonce,
         );
 
@@ -100,6 +102,10 @@ impl NFCtoNFTTrait for NFCtoNFT {
         e.storage()
             .persistent()
             .set(&NFTStorageKey::PublicKey(token_id), &public_key);
+        e.storage().persistent().set(
+            &NFTStorageKey::ChipCurveByPublicKey(public_key.clone()),
+            &curve,
+        );
 
         let contract_address = e.current_contract_address();
         events::Mint {
@@ -115,8 +121,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
         e: &Env,
         claimant: Address,
         message: Bytes,
-        signature: BytesN<64>,
-        recovery_id: u32,
+        auth: ChipAuth,
         public_key: BytesN<65>,
         nonce: u32,
     ) -> u32 {
@@ -126,8 +131,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
             e,
             claimant.clone().to_xdr(e),
             message,
-            signature,
-            recovery_id,
+            auth,
             public_key.clone(),
             nonce,
         );
@@ -165,8 +169,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
         to: Address,
         token_id: u32,
         message: Bytes,
-        signature: BytesN<64>,
-        recovery_id: u32,
+        auth: ChipAuth,
         public_key: BytesN<65>,
         nonce: u32,
     ) {
@@ -176,8 +179,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
             e,
             from.clone().to_xdr(e),
             message,
-            signature,
-            recovery_id,
+            auth,
             public_key.clone(),
             nonce,
         );
@@ -308,35 +310,42 @@ impl NFCtoNFTTrait for NFCtoNFT {
         e: &Env,
         signer: Bytes,
         message: Bytes,
-        signature: BytesN<64>,
-        recovery_id: u32,
+        auth: ChipAuth,
         public_key: BytesN<65>,
+        nonce: u32,
+    ) {
+        let curve: Curve = e
+            .storage()
+            .persistent()
+            // ponytail: same Curve default as Pocket — old tokens may lack curve map.
+            .get(&NFTStorageKey::ChipCurveByPublicKey(public_key.clone()))
+            .unwrap_or(Curve::Secp256k1);
+        Self::verify_chip_signature_with_curve(e, signer, message, auth, public_key, curve, nonce);
+    }
+}
+
+impl NFCtoNFT {
+    fn verify_chip_signature_with_curve(
+        e: &Env,
+        signer: Bytes,
+        message: Bytes,
+        auth: ChipAuth,
+        public_key: BytesN<65>,
+        curve: Curve,
         nonce: u32,
     ) {
         let nonce_key = NFTStorageKey::ChipNonceByPublicKey(public_key.clone());
         let stored_nonce: u32 = e.storage().persistent().get(&nonce_key).unwrap_or(0u32);
 
-        // Verify nonce is monotonic increasing
         if nonce <= stored_nonce {
             panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
         }
 
-        // Build message hash with signer and nonce
-        let mut builder: Bytes = Bytes::new(e);
-        builder.append(&message.clone());
-        builder.append(&signer.clone());
-        builder.append(&nonce.to_xdr(e));
-        let message_hash = e.crypto().sha256(&builder);
-
-        // Verify signature recovers to the public_key
-        let recovered = e
-            .crypto()
-            .secp256k1_recover(&message_hash, &signature, recovery_id);
-        if recovered != public_key {
+        let message_hash = chimpdao_chip_auth::message_digest(e, &message, &signer, nonce);
+        if !chimpdao_chip_auth::verify_chip_auth(e, &message_hash, &public_key, &curve, auth) {
             panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
         }
 
-        // Update stored nonce for this public_key
         e.storage().persistent().set(&nonce_key, &nonce);
     }
 }

@@ -15,6 +15,8 @@ mod nfc_contract {
     soroban_sdk::contractimport!(file = "../nfc_nft.wasm");
 }
 
+pub use nfc_contract::{ChipAuth, Secp256k1Auth};
+
 mod contract;
 mod errors;
 mod events;
@@ -73,9 +75,8 @@ pub trait PrizeTrait {
     /// * `e` - The environment object.
     /// * `redeemer` - Address redeeming (must authorize; must be NFT owner for the chip).
     /// * `nfc_contract` - NFC-NFT contract used for signature verification and owner check.
-    /// * `message` - Message that was signed (without signer and nonce).
-    /// * `signature` - 64-byte ECDSA signature from the chip.
-    /// * `recovery_id` - Recovery ID (0–3) for signature recovery.
+    /// * `message` - Opaque message that was signed (contract rebuilds digest with signer+nonce).
+    /// * `auth` - `ChipAuth` (k1 recover or r1 IntAuth) — same type as nfc-nft / Pocket.
     /// * `public_key` - Chip public key (uncompressed SEC1, 65 bytes).
     /// * `nonce` - Nonce used in the signed payload.
     ///
@@ -96,8 +97,7 @@ pub trait PrizeTrait {
         redeemer: Address,
         nfc_contract: Address,
         message: Bytes,
-        signature: BytesN<64>,
-        recovery_id: u32,
+        auth: nfc_contract::ChipAuth,
         public_key: BytesN<65>,
         nonce: u32,
     );
