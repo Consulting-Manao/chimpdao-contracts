@@ -24,35 +24,47 @@ an example app that locks tokens under a chip public key.
 |-----|---------|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Crate map, deploy/lifecycle diagrams, storage |
 | [`docs/AUTH.md`](docs/AUTH.md) | ChipAuth digest, replay, Pocket vs Earn |
-| [`docs/REVIEW.md`](docs/REVIEW.md) | Review notes / leftovers |
 
 ## Repository layout
 
 | Path                                            | Purpose                                                                             |
 |-------------------------------------------------|-------------------------------------------------------------------------------------|
-| [`contracts/nfc-nft/`](contracts/nfc-nft)       | SEP-50 NFT contract; every mutator routes through `verify_chip_signature`.          |
+| [`contracts/nfc-nft/`](contracts/nfc-nft)       | SEP-50 NFT contract; every mutator requires a chip attestation for that exact call. |
 | [`contracts/collection/`](contracts/collection) | Factory that deploys NFC-NFT contracts and indexes ownership across them.           |
-| [`contracts/smart-account/`](contracts/smart-account) | **Pocket** — per-chip ChipAuth account (spend, Earn link, positions). |
+| [`contracts/smart-account/`](contracts/smart-account) | **Pocket** — per-card purse; a Soroban custom account keyed by the chip. |
 | [`contracts/smart-account-factory/`](contracts/smart-account-factory) | Deploys Pocket accounts (`salt = sha256(pubkey)`). |
 | [`contracts/chip-verifier/`](contracts/chip-verifier) | OZ Verifier for Earn (Nido External); Infineon k1 + DUOX r1 IntAuth. |
 | [`examples/prize/`](examples/prize)             | Example app: per-chip token vault (not core protocol).                              |
-| [`dapp/`](dapp)                                 | TypeScript desktop administration interface (Vite + React + Stellar SDK).           |
-| [`Makefile`](Makefile)                          | Build, test, deploy targets.                                                        |
+| [`Makefile`](Makefile)                          | Build, test, deploy and admin targets.                                              |
 
-### Pocket / Earn (terminal)
+Administration lives in **chimpdao-terminal** (card setup, mint, claim) and in the
+Makefile (deploy, `contract_clawback`). The repo previously carried a second React admin
+`dapp/`; it was superseded by the terminal and is removed.
 
-Merchant POS is **chimpdao-terminal**. Naming: **Pocket** = ChipAuth smart-account; **Earn** = Nido C with `External(chip-verifier, pubkey)`.
+### Accounts, purses and cards
+
+The durable account is a **Nido** (OpenZeppelin smart account). Cards are `External`
+signers on it, which is what makes a card replaceable: losing one is `remove_signer` +
+`add_signer`, not losing the balance.
+
+**Pocket** is a small per-card purse for fast taps, deliberately loss-tolerant. It stores
+the owning Nido account so that account can `sweep` a lost card's float. **Earn** is the
+Nido account itself, reached through `External(chip-verifier, pubkey)`.
 
 ```bash
-make contract_build
+make contract_build            # builds in dependency order
 make contract_test
 make contract_deploy_chip_verifier
 make contract_deploy_factory   # requires collection_$(network)_id
 ```
 
-Factory constructor: `--admin` + `--collection_contract`. Pocket wasm hash is written next to the factory id.
+The factory needs both a collection pointer and an approved Pocket wasm hash before it
+can deploy accounts; it no longer accepts a wasm hash per call.
 
-Auth: Pocket keeps local `message‖signer‖nonce` + monotonic nonce. `chip-verifier` is intentionally **stateless** (OZ crypto oracle); Earn replay is Soroban auth + OZ rule-id digest.
+Auth: Pocket implements `CustomAccountInterface`, so the **host** binds each signature to
+the exact call — there is no Pocket `transfer` entry point and no app-level nonce.
+`chip-verifier` is intentionally **stateless** (an OZ crypto oracle); Earn replay is
+Soroban auth plus the OZ rule-id digest. Details in [`docs/AUTH.md`](docs/AUTH.md).
 
 The NFC hardware bridge lives in **[chimpdao-nfc-bridge](https://radicle.network/nodes/radicle.consulting-manao.com/rad%3Az2CDTfvUguLG3UboK46HyYxoxg1og)**; the merchant POS in **[chimpdao-terminal](https://radicle.network/nodes/radicle.consulting-manao.com/rad%3Az4Y793TkQB4X4Uz4CRdEMUHxakZKt)** (Radicle repos under consulting-manao).
 

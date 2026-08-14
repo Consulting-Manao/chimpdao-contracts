@@ -36,3 +36,9 @@ dapp/.env
 .idea
 .cursor
 .build
+# Build output. contractimport reads target/wasm32v1-none/release/; committing copies
+# here let dependents compile against a stale ABI.
+contracts/*.wasm
+
+# Generated for inspection only (make contract_bindings)
+bindings/

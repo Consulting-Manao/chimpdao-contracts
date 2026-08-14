@@ -1,6 +1,6 @@
 # NFC Chip Integration Guide
 
-Complete guide for using Infineon SECORA Blockchain NFC chips with the Stellar dapp. Mint, claim, and transfer NFTs with hardware-secured signatures.
+Using Infineon SECORA and NXP MIFARE DUOX chips with the Stellar contracts: mint, claim and transfer NFTs with hardware-backed signatures.
 
 ## Related repositories
 
@@ -8,7 +8,7 @@ Complete guide for using Infineon SECORA Blockchain NFC chips with the Stellar d
 |------|---------|---------|
 | **chimpdao-nfc-bridge** | [z2CDTfv…](https://radicle.network/nodes/radicle.consulting-manao.com/rad%3Az2CDTfvUguLG3UboK46HyYxoxg1og) | Node.js PC/SC WebSocket bridge + `@chimpdao/nfc-client` |
 | **chimpdao-terminal** | [z4Y793T…](https://radicle.network/nodes/radicle.consulting-manao.com/rad%3Az4Y793TkQB4X4Uz4CRdEMUHxakZKt) | Merchant tap-to-pay (XRPL + Stellar UI) |
-| **chimpdao-contracts** | this repo | Soroban contracts + admin dapp |
+| **chimpdao-contracts** | this repo | Soroban contracts |
 
 ```bash
 git clone https://radicle.consulting-manao.com/z2CDTfvUguLG3UboK46HyYxoxg1og.git chimpdao-nfc-bridge
@@ -17,7 +17,7 @@ git clone https://radicle.consulting-manao.com/z2CDTfvUguLG3UboK46HyYxoxg1og.git
 ## Prerequisites
 
 - **Hardware**: Infineon SECORA chip + Identiv/uTrust USB reader
-- **Software**: Node.js ≥ 22 for the bridge; Bun for the dapp
+- **Software**: Node.js ≥ 22 for the bridge; Bun for the terminal
 - **Wallet**: Freighter or compatible Stellar wallet
 
 ## Running
@@ -27,13 +27,12 @@ git clone https://radicle.consulting-manao.com/z2CDTfvUguLG3UboK46HyYxoxg1og.git
 cd chimpdao-nfc-bridge
 npm install && npm start
 
-# Terminal 2: Stellar dapp
-cd dapp
+# Terminal 2: the POS
+cd ../chimpdao-terminal
 bun install && bun run dev
-
-# Or from dapp (bridge must be cloned as sibling):
-bun run dev:with-nfc
 ```
+
+Card setup — purse, mint, assign, tag link — is **Set up a card** in the terminal.
 
 If the chip was already on the reader when the bridge started, **lift and retap**.
 
@@ -49,13 +48,26 @@ Full spec: [chimpdao-nfc-bridge/docs/PROTOCOL.md](https://radicle.consulting-man
 
 ### Stellar flow
 
-1. Read chip public key (65-byte SEC1)
-2. Fetch nonce for SEP-53
-3. Build SEP-53 auth message
-4. Hash with SHA-256
-5. Chip signs the 32-byte digest
-6. Client recovers recovery ID (`@noble/secp256k1`)
-7. Submit to Soroban contract with `r||s` + recovery ID
+The client no longer builds its own message — the digest the chip signs is derived from
+the call itself, so a signature cannot be moved to a different one.
+
+**Pocket (the chip is the account):**
+
+1. Read the chip public key (65-byte SEC1)
+2. Build the operation (e.g. a SAC `transfer`) and simulate it
+3. Take the host's authorization payload from the prepared auth entry
+4. Chip signs that 32-byte payload
+5. Recover the recovery id (`@noble/secp256k1`), inject `ChipAuth` as the credential
+6. Re-simulate in `enforce` mode so the footprint covers `__check_auth`, then submit
+
+**nfc-nft (the chip is a presence proof beside a wallet):**
+
+1. Read the chip public key and the chip's nonce on the contract
+2. Build `call_digest(domain, contract, fn, args, nonce)` — see `src/chain/chip-auth.ts`
+3. Chip signs it; submit alongside the wallet's own authorization
+
+A cross-client test pins the TypeScript `callDigest` against the Rust implementation; if
+they ever diverge every attestation is rejected on-chain with an opaque contract error.
 
 ### Merchant terminal (XRPL)
 
@@ -67,8 +79,8 @@ git clone https://radicle.consulting-manao.com/z4Y793TkQB4X4Uz4CRdEMUHxakZKt.git
 
 - **From chip**: DER-encoded ECDSA
 - **From bridge**: `r` + `s` as 32-byte hex (low-S)
-- **Stellar dapp**: `formatSignatureForSoroban()` in `dapp/src/util/crypto.ts`
+- **Terminal**: `chipAuthForDigest()` in `src/chain/chip-auth.ts`
 
-## Regenerating NFC test signatures
-
-See [dapp/scripts/REGENERATE_NFC_TEST_SIGS.md](dapp/scripts/REGENERATE_NFC_TEST_SIGS.md).
+Contract tests cover digest construction and rejection paths only; a valid signature is
+proven on live hardware, not simulated. `cargo test -p chimpdao-chip-auth` pins the
+digest the terminal must reproduce.

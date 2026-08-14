@@ -79,6 +79,10 @@ pub trait CollectionTrait {
     /// # Returns
     ///
     /// A vector of collectibles as tuples (addresses of the collection, token ID).
+    ///
+    /// ponytail: ceiling = one owner's list is a single ledger entry (~64 KiB), rewritten
+    /// on every claim and transfer. `clawback` concentrates seized tokens on the admin,
+    /// so that address hits it first; paginate when it becomes real.
     fn collectibles(e: &Env, from: Address) -> Vec<(Address, u32)>;
 
     /// Get all collection addresses.

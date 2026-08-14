@@ -7,8 +7,8 @@
 //! Crypto body lives in `chimpdao-chip-auth` (shared with Pocket / nfc-nft).
 
 use chimpdao_chip_auth::{ChipAuth, Secp256k1Auth, Secp256r1Auth};
-use soroban_sdk::{contract, contractimpl, xdr::FromXdr, Bytes, BytesN, Env, Vec};
-use stellar_accounts::verifiers::{utils::extract_from_bytes, Verifier};
+use soroban_sdk::{Bytes, BytesN, Env, Vec, contract, contractimpl, xdr::FromXdr};
+use stellar_accounts::verifiers::{Verifier, utils::extract_from_bytes};
 
 /// Soft cap — Nido batch canonicalize should stay small.
 const MAX_BATCH_KEYS: u32 = 32;

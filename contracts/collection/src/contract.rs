@@ -96,14 +96,15 @@ impl CollectionTrait for Collection {
                 .persistent()
                 .get(&CollectionKey::OwnerCollectibles(owner_address.clone()))
                 .unwrap_or(Vec::new(e));
-            let idx_collectible = owner_collectibles
-                .first_index_of(collectible.clone())
-                .unwrap();
-            owner_collectibles.remove(idx_collectible);
-            e.storage().persistent().set(
-                &CollectionKey::OwnerCollectibles(owner_address.clone()),
-                &owner_collectibles,
-            );
+            // Owner list and ownership record are separate ledger entries, so they can
+            // disagree. Re-point ownership anyway rather than trapping on a stale list.
+            if let Some(idx) = owner_collectibles.first_index_of(collectible.clone()) {
+                owner_collectibles.remove(idx);
+                e.storage().persistent().set(
+                    &CollectionKey::OwnerCollectibles(owner_address.clone()),
+                    &owner_collectibles,
+                );
+            }
         }
 
         let mut owner_collectibles: Vec<(Address, u32)> = e

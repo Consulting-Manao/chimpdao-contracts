@@ -1,0 +1,37 @@
+# Supply-chain gates for the contract workspace (CI: .github/workflows/contract.yml).
+
+[graph]
+targets = [
+    { triple = "wasm32v1-none" },
+    { triple = "x86_64-unknown-linux-gnu" }, # host, for tests
+]
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# OpenZeppelin stellar-contracts is consumed by git rev (pinned in Cargo.toml).
+allow-git = ["https://github.com/OpenZeppelin/stellar-contracts.git"]

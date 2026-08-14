@@ -1,15 +1,21 @@
-use soroban_sdk::{contractimpl, contracttype, contracterror, panic_with_error, Address, Bytes, BytesN, Env};
+use soroban_sdk::{
+    Address, Bytes, BytesN, Env, contracterror, contractimpl, contracttype, panic_with_error,
+};
 
 use crate::events;
 use crate::{
     Curve, SmartAccountFactory, SmartAccountFactoryArgs, SmartAccountFactoryClient,
-    SmartAccountFactoryTrait,
+    SmartAccountFactoryTrait, UpgradePolicy,
 };
 
 #[contracttype]
 pub enum DataKey {
     Admin,
     CollectionContract,
+    /// The one Pocket wasm this factory may deploy. Pinned in state rather than passed
+    /// per call, so the code behind every chip address is a single auditable value —
+    /// and the natural home for a CAP-85 executable tag once Protocol 28 lands.
+    PocketWasmHash,
 }
 
 #[contracttype]
@@ -23,6 +29,13 @@ pub enum AccountKey {
 #[repr(u32)]
 pub enum FactoryError {
     MissingCollection = 1,
+    MissingWasmHash = 2,
+}
+
+fn require_admin(e: &Env) -> Address {
+    let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    admin.require_auth();
+    admin
 }
 
 #[contractimpl]
@@ -32,14 +45,12 @@ impl SmartAccountFactoryTrait for SmartAccountFactory {
     }
 
     fn upgrade(e: &Env, wasm_hash: BytesN<32>) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        admin.require_auth();
+        require_admin(e);
         e.deployer().update_current_contract_wasm(wasm_hash);
     }
 
     fn set_collection(e: &Env, collection_contract: Address) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        admin.require_auth();
+        require_admin(e);
         e.storage()
             .instance()
             .set(&DataKey::CollectionContract, &collection_contract);
@@ -49,14 +60,26 @@ impl SmartAccountFactoryTrait for SmartAccountFactory {
         e.storage().instance().get(&DataKey::CollectionContract)
     }
 
+    fn set_pocket_wasm_hash(e: &Env, wasm_hash: BytesN<32>) {
+        require_admin(e);
+        e.storage()
+            .instance()
+            .set(&DataKey::PocketWasmHash, &wasm_hash);
+        events::PocketWasmHashSet { wasm_hash }.publish(e);
+    }
+
+    fn pocket_wasm_hash(e: &Env) -> Option<BytesN<32>> {
+        e.storage().instance().get(&DataKey::PocketWasmHash)
+    }
+
     fn create_account(
         e: &Env,
-        wasm_hash: BytesN<32>,
         public_key: BytesN<65>,
         curve: Curve,
+        owner: Address,
+        upgrade_policy: UpgradePolicy,
     ) -> Address {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        admin.require_auth();
+        require_admin(e);
 
         if let Some(existing) = Self::get_account(e, public_key.clone()) {
             return existing;
@@ -69,12 +92,19 @@ impl SmartAccountFactoryTrait for SmartAccountFactory {
         else {
             panic_with_error!(e, FactoryError::MissingCollection);
         };
+        let Some(wasm_hash) = e
+            .storage()
+            .instance()
+            .get::<_, BytesN<32>>(&DataKey::PocketWasmHash)
+        else {
+            panic_with_error!(e, FactoryError::MissingWasmHash);
+        };
 
         let pk_bytes: Bytes = public_key.clone().into();
         let salt: BytesN<32> = e.crypto().sha256(&pk_bytes).into();
         let contract_address = e.deployer().with_current_contract(salt).deploy_v2(
             wasm_hash,
-            (collection, public_key.clone(), curve),
+            (collection, public_key.clone(), curve, owner, upgrade_policy),
         );
 
         e.storage()

@@ -1,19 +1,28 @@
 //! # ChimpDAO Prize (example)
 //!
-//! Reference app showing how to call nfc-nft ChipAuth from another contract.
+//! Reference app: how to require a chip presence attestation in your own contract.
+//!
+//! 1. Bind the `nfc-nft` contract at construction, never as a call argument.
+//! 2. Read the chip's `public_key` / `curve` from it.
+//! 3. Digest *your* call under your own domain — [`chimpdao_chip_auth::call_digest`].
+//! 4. [`chimpdao_chip_auth::verify_chip_auth`], then bump your own nonce.
+//!
+//! Step 3 is the point: a signature over an opaque blob proves the card met a reader at
+//! some time, not that the holder agreed to this call.
+//!
 //! Not part of the core protocol — see `examples/prize/README.md`.
 
 #![no_std]
 
-use soroban_sdk::{Address, Bytes, BytesN, Env, contract, contractmeta};
+use soroban_sdk::{Address, BytesN, Env, contract, contractmeta};
 
 contractmeta!(key = "Description", val = "ChimpDAO Prize");
 
 mod nfc_contract {
-    soroban_sdk::contractimport!(file = "../../contracts/nfc_nft.wasm");
+    soroban_sdk::contractimport!(file = "../../target/wasm32v1-none/release/nfc_nft.wasm");
 }
 
-pub use nfc_contract::{ChipAuth, Secp256k1Auth};
+pub use chimpdao_chip_auth::{ChipAuth, Curve, Secp256k1Auth, Secp256r1Auth};
 
 mod contract;
 mod errors;
@@ -25,90 +34,43 @@ mod test;
 pub struct Prize;
 
 pub trait PrizeTrait {
-    /// Initialize the prize contract.
-    ///
-    /// # Arguments
-    ///
-    /// * `e` - The environment object.
     /// * `admin` - Address allowed to upgrade the contract.
-    /// * `token` - Token contract address (e.g. XLM Stellar Asset Contract).
-    fn __constructor(e: &Env, admin: Address, token: Address);
+    /// * `token` - Token contract address (e.g. the XLM Stellar Asset Contract).
+    /// * `nfc_contract` - The one NFC-NFT contract this prize trusts. Bound here, not
+    ///   passed per call: a caller-supplied address would let anyone substitute a
+    ///   contract that reports them as the owner of any chip and drain every vault.
+    fn __constructor(e: &Env, admin: Address, token: Address, nfc_contract: Address);
 
     /// Upgrade the contract to a new WASM build. Admin only.
     fn upgrade(e: &Env, wasm_hash: BytesN<32>);
 
-    /// Deposit tokens for a specific prize campaign.
-    ///
-    /// Resolves `(nfc_contract, token_id)` to the chip public key via a cross-call to
-    /// the NFC contract's `public_key(token_id)`. The locked amount is stored under
-    /// that chip public key; additional locks for the same chip add to the balance.
-    ///
-    /// # Arguments
-    ///
-    /// * `e` - The environment object.
-    /// * `from` - Address locking the funds (must authorize the transfer).
-    /// * `amount` - Amount to lock.
-    /// * `nfc_contract` - NFC-NFT contract address for the campaign.
-    /// * `token_id` - Token ID in that contract (maps to a chip public key).
-    ///
-    /// # Panics
-    ///
-    /// * If `from` does not authorize the transfer.
-    /// * If `token_id` does not exist in `nfc_contract`.
+    /// The NFC-NFT contract bound at construction.
+    fn nfc_contract(e: &Env) -> Address;
+
+    /// Lock `amount` for the chip behind `token_id`.
     ///
     /// # Events
     ///
-    /// * topics - `["Lock", nfc_contract: Address]`
-    /// * data - `Lock { token_id, amount, from }`
-    fn deposit(e: &Env, from: Address, amount: i128, nfc_contract: Address, token_id: u32);
+    /// * topics - `["Deposit", token_id]`
+    fn deposit(e: &Env, from: Address, amount: i128, token_id: u32);
 
-    /// Redeem locked token for a chip.
+    /// Redeem the locked amount for a chip.
     ///
-    /// Verifies the chip signature via the given NFC contract, ensures the redeemer
-    /// is the current owner of the NFT for that chip, then transfers the locked amount
-    /// to the redeemer and sets the lock balance to zero.
-    ///
-    /// # Arguments
-    ///
-    /// * `e` - The environment object.
-    /// * `redeemer` - Address redeeming (must authorize; must be NFT owner for the chip).
-    /// * `nfc_contract` - NFC-NFT contract used for signature verification and owner check.
-    /// * `message` - Opaque message that was signed (contract rebuilds digest with signer+nonce).
-    /// * `auth` - `ChipAuth` (k1 recover or r1 IntAuth) — same type as nfc-nft / Pocket.
-    /// * `public_key` - Chip public key (uncompressed SEC1, 65 bytes).
-    /// * `nonce` - Nonce used in the signed payload.
+    /// The chip attests to `("redeem", [redeemer], nonce)` under this contract's own
+    /// domain, so the attestation cannot be replayed against `nfc-nft` or any other
+    /// integrator, nor redirected to a different redeemer.
     ///
     /// # Panics
     ///
-    /// * If the redeemer does not authorize.
-    /// * If the chip signature is invalid (via NFC contract).
-    /// * If the redeemer is not the owner of the NFT for this chip ([`errors::PrizeError::NotChipOwner`]).
-    /// * If there is no locked amount for this chip ([`errors::PrizeError::NoLockForChip`]).
-    ///
-    /// # Events
-    ///
-    /// * topics - `["Redeem", nfc_contract: Address]`
-    /// * data - `Redeem { token_id, amount, redeemer }`
-    #[allow(clippy::too_many_arguments)]
-    fn redeem(
-        e: &Env,
-        redeemer: Address,
-        nfc_contract: Address,
-        message: Bytes,
-        auth: nfc_contract::ChipAuth,
-        public_key: BytesN<65>,
-        nonce: u32,
-    );
+    /// * If `redeemer` does not authorize.
+    /// * If the chip attestation is invalid or the nonce was already used.
+    /// * If `redeemer` is not the current owner of the NFT for this chip.
+    /// * If there is nothing locked for this chip.
+    fn redeem(e: &Env, redeemer: Address, auth: ChipAuth, public_key: BytesN<65>, nonce: u32);
 
-    /// Return the locked amount for the given chip public key.
-    ///
-    /// # Arguments
-    ///
-    /// * `e` - The environment object.
-    /// * `chip_public_key` - Chip public key (uncompressed SEC1, 65 bytes).
-    ///
-    /// # Returns
-    ///
-    /// The locked amount, or 0 if none.
+    /// Locked amount for a chip public key, or 0.
     fn get_redeemable(e: &Env, chip_public_key: BytesN<65>) -> i128;
+
+    /// Last consumed attestation nonce for a chip.
+    fn get_nonce(e: &Env, public_key: BytesN<65>) -> u32;
 }

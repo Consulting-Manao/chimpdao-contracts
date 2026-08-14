@@ -4,10 +4,14 @@ use crate::{
     NFCtoNFT, NFCtoNFTArgs, NFCtoNFTClient, NFCtoNFTTrait, collection_contract, errors, events,
 };
 use chimpdao_chip_auth::{ChipAuth, Curve};
-use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
-    Address, Bytes, BytesN, Env, String, contractimpl, contracttype, panic_with_error,
+    Address, Bytes, BytesN, Env, IntoVal, String, Symbol, Val, Vec, contractimpl, contracttype,
+    panic_with_error,
 };
+
+/// Domain separator for every chip attestation this contract accepts. Bump the suffix if
+/// the digest construction changes.
+const DOMAIN: &[u8] = b"chimpdao.nfc-nft.v2";
 
 #[contracttype]
 pub enum DataKey {
@@ -62,21 +66,18 @@ impl NFCtoNFTTrait for NFCtoNFT {
         e.deployer().update_current_contract_wasm(wasm_hash.clone());
     }
 
-    fn mint(
-        e: &Env,
-        message: Bytes,
-        auth: ChipAuth,
-        public_key: BytesN<65>,
-        curve: Curve,
-        nonce: u32,
-    ) -> u32 {
+    fn mint(e: &Env, auth: ChipAuth, public_key: BytesN<65>, curve: Curve, nonce: u32) -> u32 {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
 
-        Self::verify_chip_signature_with_curve(
+        // Curve is not in storage yet — this call is what records it.
+        Self::verify_chip(
             e,
-            admin.to_xdr(e),
-            message,
+            &Symbol::new(e, "mint"),
+            Vec::from_array(
+                e,
+                [public_key.clone().into_val(e), curve.clone().into_val(e)],
+            ),
             auth,
             public_key.clone(),
             curve.clone(),
@@ -120,17 +121,16 @@ impl NFCtoNFTTrait for NFCtoNFT {
     fn claim(
         e: &Env,
         claimant: Address,
-        message: Bytes,
         auth: ChipAuth,
         public_key: BytesN<65>,
         nonce: u32,
     ) -> u32 {
         claimant.require_auth();
 
-        Self::verify_chip_signature(
+        Self::verify_chip_stored_curve(
             e,
-            claimant.clone().to_xdr(e),
-            message,
+            &Symbol::new(e, "claim"),
+            Vec::from_array(e, [claimant.clone().into_val(e)]),
             auth,
             public_key.clone(),
             nonce,
@@ -162,23 +162,28 @@ impl NFCtoNFTTrait for NFCtoNFT {
         token_id
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn transfer(
         e: &Env,
         from: Address,
         to: Address,
         token_id: u32,
-        message: Bytes,
         auth: ChipAuth,
         public_key: BytesN<65>,
         nonce: u32,
     ) {
         from.require_auth();
 
-        Self::verify_chip_signature(
+        Self::verify_chip_stored_curve(
             e,
-            from.clone().to_xdr(e),
-            message,
+            &Symbol::new(e, "transfer"),
+            Vec::from_array(
+                e,
+                [
+                    from.clone().into_val(e),
+                    to.clone().into_val(e),
+                    token_id.into_val(e),
+                ],
+            ),
             auth,
             public_key.clone(),
             nonce,
@@ -306,30 +311,34 @@ impl NFCtoNFTTrait for NFCtoNFT {
             })
     }
 
-    fn verify_chip_signature(
-        e: &Env,
-        signer: Bytes,
-        message: Bytes,
-        auth: ChipAuth,
-        public_key: BytesN<65>,
-        nonce: u32,
-    ) {
-        let curve: Curve = e
-            .storage()
+    fn curve(e: &Env, public_key: BytesN<65>) -> Curve {
+        e.storage()
             .persistent()
-            .get(&NFTStorageKey::ChipCurveByPublicKey(public_key.clone()))
-            .unwrap_or_else(|| {
-                panic_with_error!(&e, &errors::NonFungibleTokenError::MissingCurve)
-            });
-        Self::verify_chip_signature_with_curve(e, signer, message, auth, public_key, curve, nonce);
+            .get(&NFTStorageKey::ChipCurveByPublicKey(public_key))
+            .unwrap_or_else(|| panic_with_error!(&e, &errors::NonFungibleTokenError::MissingCurve))
     }
 }
 
 impl NFCtoNFT {
-    fn verify_chip_signature_with_curve(
+    /// Verify a chip attestation using the curve recorded at mint.
+    fn verify_chip_stored_curve(
         e: &Env,
-        signer: Bytes,
-        message: Bytes,
+        fn_name: &Symbol,
+        args: Vec<Val>,
+        auth: ChipAuth,
+        public_key: BytesN<65>,
+        nonce: u32,
+    ) {
+        let curve = Self::curve(e, public_key.clone());
+        Self::verify_chip(e, fn_name, args, auth, public_key, curve, nonce);
+    }
+
+    /// The chip attests to *this* call: contract, function, arguments and nonce are all
+    /// in the digest, so a signature cannot be moved to another function or arguments.
+    fn verify_chip(
+        e: &Env,
+        fn_name: &Symbol,
+        args: Vec<Val>,
         auth: ChipAuth,
         public_key: BytesN<65>,
         curve: Curve,
@@ -342,8 +351,15 @@ impl NFCtoNFT {
             panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
         }
 
-        let message_hash = chimpdao_chip_auth::message_digest(e, &message, &signer, nonce);
-        if !chimpdao_chip_auth::verify_chip_auth(e, &message_hash, &public_key, &curve, auth) {
+        let digest = chimpdao_chip_auth::call_digest(
+            e,
+            DOMAIN,
+            &e.current_contract_address(),
+            fn_name,
+            &args,
+            nonce,
+        );
+        if !chimpdao_chip_auth::verify_chip_auth(e, &digest, &public_key, &curve, auth) {
             panic_with_error!(&e, &errors::NonFungibleTokenError::InvalidSignature);
         }
 

@@ -1026,6 +1026,7 @@ dependencies = [
 name = "prize"
 version = "1.0.0"
 dependencies = [
+ "chimpdao-chip-auth",
  "soroban-sdk",
 ]
 

@@ -3,7 +3,7 @@ use soroban_sdk::{Address, Env, String, Vec, testutils::Address as _, vec};
 use crate::{Collection, CollectionClient, errors};
 
 mod nfc_nft_contract {
-    soroban_sdk::contractimport!(file = "../nfc_nft.wasm");
+    soroban_sdk::contractimport!(file = "../../target/wasm32v1-none/release/nfc_nft.wasm");
 }
 
 fn create_client<'a>(e: &Env, admin: &Address) -> CollectionClient<'a> {

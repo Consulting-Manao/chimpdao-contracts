@@ -55,6 +55,23 @@ override name = "Palta Chimpy"
 override max_tokens = 100
 
 
+# Save a contract id only if it looks like one; `stellar ... > file` otherwise writes
+# error text that later targets read back as an id.
+define save_id
+	@out=$$(mktemp); \
+	if $(1) > $$out 2>/dev/null; then \
+		id=$$(tr -d '"[:space:]' < $$out); \
+		case "$$id" in \
+			C[A-Z2-7]*) mkdir -p $$(dirname $(2)); printf '%s' "$$id" > $(2); \
+				echo "$(2) = $$id" ;; \
+			*) echo "refusing to save non-contract-id output: $$id" >&2; rm -f $$out; exit 1 ;; \
+		esac; \
+	else \
+		echo "deploy failed; $(2) left unchanged" >&2; cat $$out >&2; rm -f $$out; exit 1; \
+	fi; \
+	rm -f $$out
+endef
+
 # Add help text after each target name starting with '\#\#'
 help:   ## show this help
 	@echo -e "Help for this makefile\n"
@@ -75,44 +92,48 @@ funds:
 
 # --------- CONTRACT BUILD/TEST/DEPLOY --------- #
 
-contract_build:
+# `contractimport!` reads target/wasm32v1-none/release/, so producers build first.
+contract_build:  ## Build all wasm, in dependency order
+	stellar contract build --optimize --package collection
+	stellar contract build --optimize --package nfc-nft
+	stellar contract build --optimize --package chimpdao-smart-account
 	stellar contract build --optimize
 	@ls -l target/wasm32v1-none/release/*.wasm
 
-contract_test: contract_build  ## Build wasm then cargo test (factory imports Pocket wasm)
-	cargo test
+contract_test: contract_build  ## Build wasm then cargo test (contracts import each other's wasm)
+	cargo test --workspace
 
-contract_bindings: contract_build  ## Create bindings
+contract_lint: ## Clippy + rustfmt, same gates as CI
+	cargo clippy --workspace --all-targets -- -D warnings
+	cargo fmt --all --check
+
+# The terminal hand-writes its calls in src/chain/, so this is for inspecting an
+# interface only. Output is gitignored.
+contract_bindings: contract_build  ## Generate TypeScript bindings for inspection
 	stellar contract bindings typescript \
 		--network $(network) \
 		--wasm $(nfc_nft_wasm) \
-		--output-dir dapp/packages/nfc_nft \
-		--overwrite && \
-	cd dapp/packages/nfc_nft && \
-	bun install --latest && \
-	bun run build && \
-	cd ../../.. && \
+		--output-dir bindings/nfc_nft \
+		--overwrite
 	stellar contract bindings typescript \
 		--network $(network) \
 		--wasm $(collection_wasm) \
-		--output-dir dapp/packages/collection \
-		--overwrite && \
-	cd dapp/packages/collection && \
-	bun install --latest && \
-	bun run build && \
-	cd ../.. && \
-	bun format
+		--output-dir bindings/collection \
+		--overwrite
+	stellar contract bindings typescript \
+		--network $(network) \
+		--wasm $(smart_account_wasm) \
+		--output-dir bindings/smart_account \
+		--overwrite
 
 contract_deploy_collection: contract_build  ## Deploy Soroban contract collection
-	stellar contract deploy \
+	$(call save_id,stellar contract deploy \
   		--wasm $(collection_wasm) \
   		--source-account $(admin) \
   		--network $(network) \
-  		--salt $(shell printf chi_collection | openssl sha256 | cut -d " " -f2) \
+  		--salt $(shell printf chi_collection_v2 | openssl sha256 | cut -d " " -f2) \
   		-- \
-  		--admin $(admin) \
-  		> .config/stellar/collection_$(network)_id && \
-  	cat .config/stellar/collection_$(network)_id
+  		--admin $(admin),.config/stellar/collection_$(network)_id)
 
 contract_upload_nft: contract_build  ## Upload Soroban contract NFT
 	stellar contract upload \
@@ -138,8 +159,8 @@ contract_deploy_nft:  ## Deploy Soroban contract NFT directly
   		> .config/stellar/nfc_nft_$(network)_id && \
   	cat .config/stellar/nfc_nft_$(network)_id
 
-contract_create_collection:  ## Deploy Soroban contract NFT via collection
-	stellar contract invoke \
+contract_create_collection: contract_upload_nft  ## Deploy Soroban contract NFT via collection
+	$(call save_id,stellar contract invoke \
 		--resource-fee 10000000 \
 		--source-account $(admin) \
 		--network $(network) \
@@ -148,9 +169,7 @@ contract_create_collection:  ## Deploy Soroban contract NFT via collection
 		create_collection \
 		--wasm_hash $(nfc_nft_wasm_hash) \
 		--name $(name) --symbol $(symbol) --max_tokens $(max_tokens) \
-  		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna \
-  		> .config/stellar/nfc_nft_$(symbol)_$(network)_id && \
-  	cat .config/stellar/nfc_nft_$(symbol)_$(network)_id
+  		--uri https://ipfs.io/ipfs/bafybeihfqx4pstq4au6ueuzj4ns2ovmw237zfh2z2qvz6rxssdjzlnpcna,.config/stellar/nfc_nft_$(symbol)_$(network)_id)
 
 ## Prize (example)
 
@@ -163,34 +182,64 @@ contract_deploy_prize: contract_build  ## Deploy example prize contract
   		-- \
   		--admin $(admin) \
   		--token $(native_contract_id) \
+  		--nfc_contract $(nfc_nft_symbol_contract_id) \
   		> .config/stellar/prize_$(network)_id && \
   	cat .config/stellar/prize_$(network)_id
 
 ## Pocket / Earn (smart-account + factory + chip-verifier)
 
 contract_deploy_chip_verifier: contract_build  ## Deploy shared chip Verifier for Earn (Nido External)
-	mkdir -p .config/stellar
-	stellar contract deploy \
+	$(call save_id,stellar contract deploy \
 		--wasm $(chip_verifier_wasm) \
 		--source-account $(admin) \
 		--network $(network) \
-		--salt $(shell printf chimp_chip_verifier | openssl sha256 | cut -d " " -f2) \
-		> .config/stellar/chip_verifier_$(network)_id && \
-	cat .config/stellar/chip_verifier_$(network)_id
+		--salt $(shell printf chimp_chip_verifier_v2 | openssl sha256 | cut -d " " -f2),.config/stellar/chip_verifier_$(network)_id)
 
-contract_deploy_factory: contract_build  ## Deploy Pocket factory (admin-only ctor; set_collection after)
-	mkdir -p .config/stellar
-	stellar contract deploy \
+contract_deploy_factory: contract_build  ## Deploy the Pocket factory (run contract_configure_factory next)
+	$(call save_id,stellar contract deploy \
 		--wasm $(factory_wasm) \
 		--source-account $(admin) \
 		--network $(network) \
-		--salt $(shell printf chimp_pocket_factory | openssl sha256 | cut -d " " -f2) \
+		--salt $(shell printf chimp_pocket_factory_v2 | openssl sha256 | cut -d " " -f2) \
 		-- \
-		--admin $(admin) \
-		> .config/stellar/smart_account_factory_$(network)_id && \
-	echo $(smart_account_wasm_hash) > .config/stellar/smart_account_wasm_hash_$(network) && \
-	cat .config/stellar/smart_account_factory_$(network)_id && \
-	echo wasm_hash=$$(cat .config/stellar/smart_account_wasm_hash_$(network))
+		--admin $(admin),.config/stellar/smart_account_factory_$(network)_id)
+
+# The factory will not deploy until it has both a collection pointer and a pinned wasm.
+contract_upload_pocket: contract_build  ## Upload the Pocket wasm and record its hash
+	stellar contract upload \
+		--resource-fee 150000000 \
+		--wasm $(smart_account_wasm) \
+		--source-account $(admin) \
+		--network $(network)
+	@mkdir -p .config/stellar
+	@printf '%s' "$(smart_account_wasm_hash)" > .config/stellar/smart_account_wasm_hash_$(network)
+	@echo "pocket wasm hash = $(smart_account_wasm_hash)"
+
+contract_configure_factory: contract_upload_pocket  ## Point the factory at the collection + Pocket wasm
+	stellar contract invoke \
+		--source-account $(admin) \
+		--network $(network) \
+		--id $(factory_contract_id) \
+		-- \
+		set_collection \
+		--collection_contract $(collection_contract_id)
+	stellar contract invoke \
+		--source-account $(admin) \
+		--network $(network) \
+		--id $(factory_contract_id) \
+		-- \
+		set_pocket_wasm_hash \
+		--wasm_hash $(smart_account_wasm_hash)
+	@echo "factory $(factory_contract_id) is ready to deploy accounts"
+
+# Whole bring-up in dependency order; a failed step leaves the previous ids intact.
+contract_deploy_all: contract_deploy_collection contract_create_collection contract_deploy_chip_verifier contract_deploy_factory contract_configure_factory  ## Full bring-up
+	@echo ""
+	@echo "collection    $$(cat .config/stellar/collection_$(network)_id)"
+	@echo "nfc-nft       $$(cat .config/stellar/nfc_nft_$(symbol)_$(network)_id)"
+	@echo "chip-verifier $$(cat .config/stellar/chip_verifier_$(network)_id)"
+	@echo "factory       $$(cat .config/stellar/smart_account_factory_$(network)_id)"
+	@echo "pocket wasm   $$(cat .config/stellar/smart_account_wasm_hash_$(network))"
 
 ## Usage
 
@@ -203,6 +252,16 @@ contract_uri:
 		token_uri \
 		--token_id 0
 
+# The one nfc-nft admin op with no home in the terminal: no chip needs to be present.
+contract_clawback:  ## Claw a token back to the admin (symbol=… token_id=…)
+	stellar contract invoke \
+		--source-account $(admin) \
+		--network $(network) \
+		--id $(nfc_nft_symbol_contract_id) \
+		-- \
+		clawback \
+		--token_id $(token_id)
+
 contract_prize_deposit:
 	stellar contract invoke \
 		--source-account $(admin) \
@@ -212,10 +271,10 @@ contract_prize_deposit:
 		deposit \
 		--from $(admin) \
 		--amount 1000000000 \
-		--nfc_contract $(nfc_nft_symbol_contract_id) \
 		--token_id 0
 
-# use dapp to make new signatures
+# Needs a chip attestation over ("redeem", [redeemer], nonce) under the prize domain.
+# No CLI path for that — use the terminal's src/chain/chip-auth.ts.
 contract_prize_redeem:
 	stellar contract invoke \
 		--source-account $(admin) \

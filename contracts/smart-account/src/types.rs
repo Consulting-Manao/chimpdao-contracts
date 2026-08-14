@@ -1,8 +1,8 @@
-use soroban_sdk::{contracttype, Address, Bytes, Map, Symbol};
+use soroban_sdk::{Address, Bytes, Map, Symbol, contracttype};
 
-// Re-export shared auth types for callers / tests (may be unused inside this crate).
+// Re-export shared types for callers / tests (may be unused inside this crate).
 #[allow(unused_imports)]
-pub use chimpdao_chip_auth::{ChipAuth, Curve, Secp256k1Auth, Secp256r1Auth};
+pub use chimpdao_chip_auth::{ChipAuth, Curve, Secp256k1Auth, Secp256r1Auth, UpgradePolicy};
 
 #[derive(Clone)]
 #[contracttype]
@@ -10,7 +10,10 @@ pub enum DataKey {
     CollectionContract,
     Chip,
     Curve,
-    Nonce,
+    /// Durable Nido account behind this purse (lost-card recovery).
+    Owner,
+    /// Whether the holder pre-consented to security upgrades.
+    UpgradePolicy,
     /// Pointer to linked Earn (Nido) account.
     Earn,
     /// Strategy inventory row keyed by strategy_id.
