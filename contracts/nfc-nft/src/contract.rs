@@ -1,13 +1,52 @@
 //! NFC - NFT binding
 
-use crate::{
-    NFCtoNFT, NFCtoNFTArgs, NFCtoNFTClient, NFCtoNFTTrait, collection_contract, errors, events,
-};
+use crate::{NFCtoNFT, NFCtoNFTArgs, NFCtoNFTClient, NFCtoNFTTrait, errors, events};
 use chimpdao_chip_auth::{ChipAuth, Curve};
 use soroban_sdk::{
-    Address, Bytes, BytesN, Env, IntoVal, String, Symbol, Val, Vec, contractimpl, contracttype,
-    panic_with_error,
+    Address, Bytes, BytesN, Env, IntoVal, String, Symbol, Val, Vec, contractclient, contractimpl,
+    contracttype, panic_with_error,
 };
+/// The Chimp account's signer set. A card's 65-byte key is its whole identity here —
+/// there is no rule id to name and no verifier address to agree on.
+#[contractclient(name = "AccountClient")]
+#[allow(dead_code)]
+trait AccountCards {
+    fn has_card(e: Env, key: BytesN<65>) -> bool;
+    fn cards(e: Env) -> Vec<CardSigner>;
+    fn add_card(e: Env, card: CardSigner);
+    fn remove_card(e: Env, key: BytesN<65>);
+    fn abandon(e: Env);
+}
+
+/// Mirrors `chimpdao-account`'s signer record. Declared rather than imported so this
+/// contract does not depend on the account crate.
+#[contracttype]
+#[derive(Clone)]
+pub struct CardSigner {
+    pub key: BytesN<65>,
+    pub curve: Curve,
+}
+
+/// The purse follows the card.
+#[contractclient(name = "PocketClient")]
+#[allow(dead_code)]
+trait PocketOwner {
+    fn set_owner(e: Env, new_owner: Address);
+}
+
+/// Pocket lookup by chip key.
+#[contractclient(name = "FactoryClient")]
+#[allow(dead_code)]
+trait PocketFactory {
+    fn get_account(e: Env, public_key: BytesN<65>) -> Option<Address>;
+}
+
+/// The collection registry's owner index, updated whenever a token changes hands.
+#[contractclient(name = "CollectionClient")]
+#[allow(dead_code)]
+trait CollectionIndex {
+    fn assign_collectible(e: Env, collection: Address, to: Address, token_id: u32);
+}
 
 /// Domain separator for every chip attestation this contract accepts. Bump the suffix if
 /// the digest construction changes.
@@ -22,6 +61,10 @@ pub enum DataKey {
     Name,
     Symbol,
     Uri,
+    /// ERC-7496 trait schema location.
+    TraitUri,
+    /// Pocket factory — resolves a card's purse for the atomic handover.
+    Factory,
 }
 
 #[contracttype]
@@ -32,10 +75,13 @@ pub enum NFTStorageKey {
     PublicKey(u32),
     TokenIdByPublicKey(BytesN<65>),
     Balance(Address),
+    /// ERC-7496 stored trait: the card's tier, which drives its art.
+    Tier(u32),
 }
 
 #[contractimpl]
 impl NFCtoNFTTrait for NFCtoNFT {
+    #[allow(clippy::too_many_arguments)]
     fn __constructor(
         e: &Env,
         admin: Address,
@@ -64,6 +110,34 @@ impl NFCtoNFTTrait for NFCtoNFT {
         admin.require_auth();
 
         e.deployer().update_current_contract_wasm(wasm_hash.clone());
+    }
+
+    fn set_factory(e: &Env, factory: Address) {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        e.storage().instance().set(&DataKey::Factory, &factory);
+    }
+
+    /// Stateless chip-signature oracle over the registry's stored curve. Replay is the
+    /// caller's digest contract: callers must put their own nonce/expiry inside
+    /// `digest` (the Pocket passes the host authorization payload; attestation
+    /// integrators bring a domain + nonce). Unknown cards verify false.
+    fn verify_for_card(e: &Env, public_key: BytesN<65>, digest: Bytes, auth: ChipAuth) -> bool {
+        let Some(curve): Option<Curve> = e
+            .storage()
+            .persistent()
+            .get(&NFTStorageKey::ChipCurveByPublicKey(public_key.clone()))
+        else {
+            return false;
+        };
+        let variant_matches = matches!(
+            (&curve, &auth),
+            (Curve::Secp256k1, ChipAuth::Secp256k1(_)) | (Curve::Secp256r1, ChipAuth::Secp256r1(_))
+        );
+        if !variant_matches {
+            return false;
+        }
+        chimpdao_chip_auth::verify_digest_bytes(e, &digest, &public_key, auth)
     }
 
     fn mint(e: &Env, auth: ChipAuth, public_key: BytesN<65>, curve: Curve, nonce: u32) -> u32 {
@@ -126,6 +200,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
         nonce: u32,
     ) -> u32 {
         claimant.require_auth();
+        Self::require_member(e, &claimant, &public_key);
 
         Self::verify_chip_stored_curve(
             e,
@@ -162,6 +237,7 @@ impl NFCtoNFTTrait for NFCtoNFT {
         token_id
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn transfer(
         e: &Env,
         from: Address,
@@ -215,6 +291,45 @@ impl NFCtoNFTTrait for NFCtoNFT {
             .set(&NFTStorageKey::Balance(to.clone()), &(to_balance + 1));
 
         assign_collectible(e, &to, &token_id);
+
+        // --- the card moves as one object: membership + purse follow the token ---
+        let card = CardSigner {
+            key: public_key.clone(),
+            curve: Self::curve(e, public_key.clone()),
+        };
+
+        // Join the destination first (skipped when it already lists the card, e.g. a
+        // fresh account founded by it). Requires `to`'s own authorization.
+        let to_client = AccountClient::new(e, &to);
+        if !to_client.has_card(&public_key) {
+            to_client.add_card(&card);
+        }
+
+        // Purse follows — owner-gated, covered by `from`'s auth tree. Its DeFi positions
+        // travel with it, which is the point: gifting a loaded card needs no unwind.
+        if let Some(pocket) = e
+            .storage()
+            .instance()
+            .get::<_, Address>(&DataKey::Factory)
+            .and_then(|factory| FactoryClient::new(e, &factory).get_account(&public_key))
+        {
+            PocketClient::new(e, &pocket).set_owner(&to);
+        }
+
+        // Leave the source last. `remove_card` refuses to strip an account's only signer,
+        // so a sole card is handed over with `abandon` — the holder is giving up that
+        // account deliberately, and its balances moved with the purse.
+        let from_client = AccountClient::new(e, &from);
+        if !from_client.has_card(&public_key) {
+            panic_with_error!(e, &errors::NonFungibleTokenError::NotCardHolder);
+        }
+        if from_client.cards().len() <= 1 {
+            from_client.abandon();
+        } else {
+            from_client.remove_card(&public_key);
+        }
+        // Identity is the key itself, so leaving is exact — there is no second rule the
+        // card could still be listed in.
 
         events::Transfer { from, to, token_id }.publish(e);
     }
@@ -320,6 +435,20 @@ impl NFCtoNFTTrait for NFCtoNFT {
 }
 
 impl NFCtoNFT {
+    /// Soulbound: the destination must be an account that lists this card. Identity is
+    /// the key itself, so the check is exact — there is no rule or registry entry that
+    /// could linger after the card left. Any non-account destination (a G address, a
+    /// foreign contract) fails the call and is rejected the same way.
+    fn require_member(e: &Env, account: &Address, public_key: &BytesN<65>) {
+        let listed = AccountClient::new(e, account)
+            .try_has_card(public_key)
+            .unwrap_or(Ok(false))
+            .unwrap_or(false);
+        if !listed {
+            panic_with_error!(e, errors::NonFungibleTokenError::NotCardHolder);
+        }
+    }
+
     /// Verify a chip attestation using the curve recorded at mint.
     fn verify_chip_stored_curve(
         e: &Env,
@@ -403,6 +532,6 @@ fn assign_collectible(e: &Env, to: &Address, token_id: &u32) {
         .instance()
         .get(&DataKey::CollectionContract)
         .unwrap();
-    let client = collection_contract::Client::new(e, &collection_contract_address);
+    let client = CollectionClient::new(e, &collection_contract_address);
     client.assign_collectible(&e.current_contract_address(), to, token_id);
 }

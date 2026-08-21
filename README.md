@@ -31,9 +31,10 @@ an example app that locks tokens under a chip public key.
 |-------------------------------------------------|-------------------------------------------------------------------------------------|
 | [`contracts/nfc-nft/`](contracts/nfc-nft)       | SEP-50 NFT contract; every mutator requires a chip attestation for that exact call. |
 | [`contracts/collection/`](contracts/collection) | Factory that deploys NFC-NFT contracts and indexes ownership across them.           |
-| [`contracts/smart-account/`](contracts/smart-account) | **Pocket** — per-card purse; a Soroban custom account keyed by the chip. |
-| [`contracts/smart-account-factory/`](contracts/smart-account-factory) | Deploys Pocket accounts (`salt = sha256(pubkey)`). |
-| [`contracts/chip-verifier/`](contracts/chip-verifier) | OZ Verifier for Earn (Nido External); Infineon k1 + DUOX r1 IntAuth. |
+| [`contracts/account/`](contracts/account) | **Chimp account** — the durable root; a flat set of cards, any one of which signs. |
+| [`contracts/pocket/`](contracts/pocket) | **Pocket** — per-card purse; a Soroban custom account keyed by the chip. |
+| [`contracts/pocket-factory/`](contracts/pocket-factory) | Deploys Pocket accounts (`salt = sha256(pubkey)`). |
+| [`contracts/chip-auth/`](contracts/chip-auth) | Shared k1 + r1 IntAuth verification (rlib, linked not deployed). |
 | [`examples/prize/`](examples/prize)             | Example app: per-chip token vault (not core protocol).                              |
 | [`Makefile`](Makefile)                          | Build, test, deploy and admin targets.                                              |
 
@@ -43,28 +44,31 @@ Makefile (deploy, `contract_clawback`). The repo previously carried a second Rea
 
 ### Accounts, purses and cards
 
-The durable account is a **Nido** (OpenZeppelin smart account). Cards are `External`
-signers on it, which is what makes a card replaceable: losing one is `remove_signer` +
-`add_signer`, not losing the balance.
+The durable account is the **Chimp account**: a flat set of cards where any one of them
+can sign (1-of-n), and a card's 65-byte public key *is* its identity. That is what makes
+a card replaceable — losing one is `remove_card` + `add_card`, not losing the balance.
+There is no rule, policy or signer-id layer, and no OpenZeppelin.
 
-**Pocket** is a small per-card purse for fast taps, deliberately loss-tolerant. It stores
-the owning Nido account so that account can `sweep` a lost card's float. **Earn** is the
-Nido account itself, reached through `External(chip-verifier, pubkey)`.
+**Pocket** is the per-card purse: the float for fast taps *and* the card's DeFi
+positions, so giving a loaded card away needs no unwind — the purse travels with it. It
+stores the owning Chimp account so that account can `sweep` a lost card.
 
 ```bash
-make contract_build            # builds in dependency order
+make contract_build
 make contract_test
-make contract_deploy_chip_verifier
-make contract_deploy_factory   # requires collection_$(network)_id
+make contract_deploy_all       # fresh network only — never mainnet
 ```
 
-The factory needs both a collection pointer and an approved Pocket wasm hash before it
-can deploy accounts; it no longer accepts a wasm hash per call.
+`contract_deploy_all` runs the pieces in dependency order. Two wiring steps are easy to
+miss when running targets by hand: `contract_configure_factory` pins the Pocket wasm hash
+the factory may deploy, and `contract_set_factory` points nfc-nft back at the factory —
+without which a card handover silently leaves the purse behind.
 
-Auth: Pocket implements `CustomAccountInterface`, so the **host** binds each signature to
-the exact call — there is no Pocket `transfer` entry point and no app-level nonce.
-`chip-verifier` is intentionally **stateless** (an OZ crypto oracle); Earn replay is
-Soroban auth plus the OZ rule-id digest. Details in [`docs/AUTH.md`](docs/AUTH.md).
+Auth: Pocket and the Chimp account both implement `CustomAccountInterface` and both sign
+the **same** host-computed payload, so the host binds each signature to the exact call.
+There is no Pocket `transfer` entry point and no app-level nonce. Only the envelope
+differs — a purse has one card, an account has a set and the signature names which one.
+Details in [`docs/AUTH.md`](docs/AUTH.md).
 
 The NFC hardware bridge lives in **[chimpdao-nfc-bridge](https://radicle.network/nodes/radicle.consulting-manao.com/rad%3Az2CDTfvUguLG3UboK46HyYxoxg1og)**; the merchant POS in **[chimpdao-terminal](https://radicle.network/nodes/radicle.consulting-manao.com/rad%3Az4Y793TkQB4X4Uz4CRdEMUHxakZKt)** (Radicle repos under consulting-manao).
 

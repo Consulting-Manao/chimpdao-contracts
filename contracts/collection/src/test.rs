@@ -2,6 +2,7 @@ use soroban_sdk::{Address, Env, String, Vec, testutils::Address as _, vec};
 
 use crate::{Collection, CollectionClient, errors};
 
+#[allow(clippy::too_many_arguments)]
 mod nfc_nft_contract {
     soroban_sdk::contractimport!(file = "../../target/wasm32v1-none/release/nfc_nft.wasm");
 }

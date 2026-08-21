@@ -1,5 +1,5 @@
 [package]
-name = "chimpdao-chip-verifier"
+name = "chimpdao-pocket-factory"
 edition.workspace = true
 license.workspace = true
 publish = false
@@ -11,7 +11,6 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-stellar-accounts = { workspace = true }
 chimpdao-chip-auth = { workspace = true }
 
 [dev-dependencies]

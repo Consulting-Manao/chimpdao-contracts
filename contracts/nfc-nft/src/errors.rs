@@ -21,4 +21,10 @@ pub enum NonFungibleTokenError {
     TokenNotClaimed = 212,
     /// Curve was not stored for this chip (must be set at mint).
     MissingCurve = 213,
+    /// Destination account does not list this card as a signer (soulbound).
+    NotCardHolder = 214,
+    /// Unknown ERC-7496 trait key.
+    TraitDoesNotExist = 216,
+    /// `trait_values` was handed more keys than one call may batch.
+    TooManyTraitKeys = 218,
 }

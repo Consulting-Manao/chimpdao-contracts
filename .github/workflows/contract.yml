@@ -35,8 +35,9 @@ jobs:
 
       - uses: stellar/stellar-cli@main
 
-      # Must precede cargo test — contractimport! reads the built wasm.
-      - name: Build wasm (dependency order)
+      # Must precede cargo test: collection's and the factory's deploy tests import a
+      # sibling's built wasm to exercise a real `deploy_v2`.
+      - name: Build wasm
         run: make contract_build
 
       - run: cargo clippy --workspace --all-targets -- -D warnings

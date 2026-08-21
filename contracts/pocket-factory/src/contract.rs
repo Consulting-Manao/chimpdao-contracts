@@ -4,14 +4,12 @@ use soroban_sdk::{
 
 use crate::events;
 use crate::{
-    Curve, SmartAccountFactory, SmartAccountFactoryArgs, SmartAccountFactoryClient,
-    SmartAccountFactoryTrait, UpgradePolicy,
+    Curve, PocketFactory, PocketFactoryArgs, PocketFactoryClient, PocketFactoryTrait, UpgradePolicy,
 };
 
 #[contracttype]
 pub enum DataKey {
     Admin,
-    CollectionContract,
     /// The one Pocket wasm this factory may deploy. Pinned in state rather than passed
     /// per call, so the code behind every chip address is a single auditable value —
     /// and the natural home for a CAP-85 executable tag once Protocol 28 lands.
@@ -28,7 +26,6 @@ pub enum AccountKey {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum FactoryError {
-    MissingCollection = 1,
     MissingWasmHash = 2,
 }
 
@@ -39,7 +36,7 @@ fn require_admin(e: &Env) -> Address {
 }
 
 #[contractimpl]
-impl SmartAccountFactoryTrait for SmartAccountFactory {
+impl PocketFactoryTrait for PocketFactory {
     fn __constructor(e: &Env, admin: Address) {
         e.storage().instance().set(&DataKey::Admin, &admin);
     }
@@ -47,17 +44,6 @@ impl SmartAccountFactoryTrait for SmartAccountFactory {
     fn upgrade(e: &Env, wasm_hash: BytesN<32>) {
         require_admin(e);
         e.deployer().update_current_contract_wasm(wasm_hash);
-    }
-
-    fn set_collection(e: &Env, collection_contract: Address) {
-        require_admin(e);
-        e.storage()
-            .instance()
-            .set(&DataKey::CollectionContract, &collection_contract);
-    }
-
-    fn collection(e: &Env) -> Option<Address> {
-        e.storage().instance().get(&DataKey::CollectionContract)
     }
 
     fn set_pocket_wasm_hash(e: &Env, wasm_hash: BytesN<32>) {
@@ -85,13 +71,6 @@ impl SmartAccountFactoryTrait for SmartAccountFactory {
             return existing;
         }
 
-        let Some(collection) = e
-            .storage()
-            .instance()
-            .get::<_, Address>(&DataKey::CollectionContract)
-        else {
-            panic_with_error!(e, FactoryError::MissingCollection);
-        };
         let Some(wasm_hash) = e
             .storage()
             .instance()
@@ -104,7 +83,7 @@ impl SmartAccountFactoryTrait for SmartAccountFactory {
         let salt: BytesN<32> = e.crypto().sha256(&pk_bytes).into();
         let contract_address = e.deployer().with_current_contract(salt).deploy_v2(
             wasm_hash,
-            (collection, public_key.clone(), curve, owner, upgrade_policy),
+            (public_key.clone(), curve, owner, upgrade_policy),
         );
 
         e.storage()

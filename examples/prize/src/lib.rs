@@ -1,28 +1,39 @@
 //! # ChimpDAO Prize (example)
 //!
-//! Reference app: how to require a chip presence attestation in your own contract.
+//! Reference app: how to lean on the NFT registry as the auth layer.
 //!
+//! Presence pattern (used here):
 //! 1. Bind the `nfc-nft` contract at construction, never as a call argument.
-//! 2. Read the chip's `public_key` / `curve` from it.
-//! 3. Digest *your* call under your own domain — [`chimpdao_chip_auth::call_digest`].
-//! 4. [`chimpdao_chip_auth::verify_chip_auth`], then bump your own nonce.
+//! 2. Digest *your* call under your own domain — [`chimpdao_chip_auth::call_digest`] —
+//!    and keep your own nonce.
+//! 3. Cross-call `nfc.verify_for_card(public_key, digest, auth)` — no crypto, no curve
+//!    mapping in your contract.
 //!
-//! Step 3 is the point: a signature over an opaque blob proves the card met a reader at
-//! some time, not that the holder agreed to this call.
+//! Authority pattern (when account control is enough): the NFT is soulbound to the
+//! card, so `nfc.owner_of(token_id) == redeemer` + `redeemer.require_auth()` proves
+//! card authority in two lines — no attestation at all.
 //!
 //! Not part of the core protocol — see `examples/prize/README.md`.
 
 #![no_std]
 
-use soroban_sdk::{Address, BytesN, Env, contract, contractmeta};
+use soroban_sdk::{Address, Bytes, BytesN, Env, contract, contractclient, contractmeta};
 
 contractmeta!(key = "Description", val = "ChimpDAO Prize");
 
-mod nfc_contract {
-    soroban_sdk::contractimport!(file = "../../target/wasm32v1-none/release/nfc_nft.wasm");
-}
+// The registry speaks these types directly — no need to generate a client from its wasm.
+pub use chimpdao_chip_auth::{ChipAuth, Secp256k1Auth};
 
-pub use chimpdao_chip_auth::{ChipAuth, Curve, Secp256k1Auth, Secp256r1Auth};
+/// The slice of `nfc-nft` an integrator needs: verify a chip, then resolve its token.
+/// Declared rather than imported from built wasm, so this example compiles on its own.
+#[contractclient(name = "NfcClient")]
+#[allow(dead_code)]
+trait NfcRegistry {
+    fn verify_for_card(e: Env, public_key: BytesN<65>, digest: Bytes, auth: ChipAuth) -> bool;
+    fn public_key(e: Env, token_id: u32) -> BytesN<65>;
+    fn token_id(e: Env, public_key: BytesN<65>) -> u32;
+    fn owner_of(e: Env, token_id: u32) -> Address;
+}
 
 mod contract;
 mod errors;

@@ -270,6 +270,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "chimpdao-account"
+version = "1.0.0"
+dependencies = [
+ "chimpdao-chip-auth",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "chimpdao-chip-auth"
 version = "1.0.0"
 dependencies = [
@@ -277,16 +285,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "chimpdao-chip-verifier"
-version = "1.0.0"
-dependencies = [
- "chimpdao-chip-auth",
- "soroban-sdk",
- "stellar-accounts",
-]
-
-[[package]]
-name = "chimpdao-smart-account"
+name = "chimpdao-pocket"
 version = "1.0.0"
 dependencies = [
  "chimpdao-chip-auth",
@@ -294,7 +293,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "chimpdao-smart-account-factory"
+name = "chimpdao-pocket-factory"
 version = "1.0.0"
 dependencies = [
  "chimpdao-chip-auth",
@@ -1150,16 +1149,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde-json-core"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b81787e655bd59cecadc91f7b6b8651330b2be6c33246039a65e5cd6f4e0828"
-dependencies = [
- "ryu",
- "serde",
-]
-
-[[package]]
 name = "serde_core"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1485,16 +1474,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "stellar-accounts"
-version = "0.7.1"
-source = "git+https://github.com/OpenZeppelin/stellar-contracts.git?rev=637c53a8c4928fd0c71d330bd866f482c3454578#637c53a8c4928fd0c71d330bd866f482c3454578"
-dependencies = [
- "serde",
- "serde-json-core",
- "soroban-sdk",
-]
 
 [[package]]
 name = "stellar-strkey"

@@ -1,30 +1,13 @@
-use soroban_sdk::{Address, Symbol, contractevent};
+use soroban_sdk::{Address, contractevent};
 
+/// Card handover: the purse re-pointed to a new account.
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PositionUpserted {
+pub struct OwnerChanged {
     #[topic]
-    pub strategy_id: Symbol,
-    pub underlying: Address,
+    pub old: Address,
+    pub new: Address,
 }
-
-#[contractevent]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PositionCleared {
-    #[topic]
-    pub strategy_id: Symbol,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EarnLinked {
-    #[topic]
-    pub account: Address,
-}
-
-#[contractevent]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EarnUnlinked {}
 
 /// Lost-card recovery: the owner drained the purse float.
 #[contractevent]

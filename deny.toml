@@ -33,5 +33,6 @@ wildcards = "deny"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-# OpenZeppelin stellar-contracts is consumed by git rev (pinned in Cargo.toml).
-allow-git = ["https://github.com/OpenZeppelin/stellar-contracts.git"]
+# No git dependencies. Every crate here comes from crates.io or this workspace; keeping
+# the allow-list empty means adding one is a deliberate, reviewable change.
+allow-git = []

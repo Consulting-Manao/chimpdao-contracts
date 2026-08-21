@@ -3,7 +3,7 @@
 //! Lock a token per chip public key; redeeming requires a chip attestation for *this*
 //! call plus ownership of the matching NFT.
 
-use crate::{ChipAuth, Prize, PrizeArgs, PrizeClient, PrizeTrait, errors, events, nfc_contract};
+use crate::{ChipAuth, NfcClient, Prize, PrizeArgs, PrizeClient, PrizeTrait, errors, events};
 use soroban_sdk::{
     Address, BytesN, Env, IntoVal, Symbol, Val, Vec, contractimpl, contracttype, panic_with_error,
     token::TokenClient,
@@ -11,15 +11,6 @@ use soroban_sdk::{
 
 /// Distinct from `nfc-nft`'s, so attestations cannot cross between them.
 const DOMAIN: &[u8] = b"chimpdao.prize.v1";
-
-/// `contractimport!` generates its own `Curve` from the imported spec: XDR-identical to
-/// `chimpdao_chip_auth::Curve` but a distinct Rust type. Every integrator hits this.
-fn shared_curve(curve: nfc_contract::Curve) -> chimpdao_chip_auth::Curve {
-    match curve {
-        nfc_contract::Curve::Secp256k1 => chimpdao_chip_auth::Curve::Secp256k1,
-        nfc_contract::Curve::Secp256r1 => chimpdao_chip_auth::Curve::Secp256r1,
-    }
-}
 
 #[contracttype]
 pub enum DataKey {
@@ -66,7 +57,7 @@ impl PrizeTrait for Prize {
         TokenClient::new(e, &token).transfer(&from, &contract, &amount);
 
         let nfc = Self::nfc_contract(e);
-        let chip_public_key = nfc_contract::Client::new(e, &nfc).public_key(&token_id);
+        let chip_public_key = NfcClient::new(e, &nfc).public_key(&token_id);
         let key = StorageKey::Vault(chip_public_key);
         let current: i128 = e.storage().persistent().get(&key).unwrap_or(0i128);
         e.storage().persistent().set(&key, &(current + amount));
@@ -83,9 +74,10 @@ impl PrizeTrait for Prize {
         redeemer.require_auth();
 
         let nfc = Self::nfc_contract(e);
-        let nfc_client = nfc_contract::Client::new(e, &nfc);
+        let nfc_client = NfcClient::new(e, &nfc);
 
-        // Chip attestation, bound to this call.
+        // Chip attestation, bound to this call. The NFT registry does the crypto —
+        // the integrator only brings a domain, a digest, and its own nonce.
         let stored_nonce: u32 = e
             .storage()
             .persistent()
@@ -104,8 +96,8 @@ impl PrizeTrait for Prize {
             &args,
             nonce,
         );
-        let curve = shared_curve(nfc_client.curve(&public_key));
-        if !chimpdao_chip_auth::verify_chip_auth(e, &digest, &public_key, &curve, auth) {
+        let digest_bytes: soroban_sdk::Bytes = digest.to_bytes().into();
+        if !nfc_client.verify_for_card(&public_key, &digest_bytes, &auth) {
             panic_with_error!(e, &errors::PrizeError::InvalidSignature);
         }
         e.storage()

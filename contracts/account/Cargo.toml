@@ -1,5 +1,5 @@
 [package]
-name = "chimpdao-smart-account"
+name = "chimpdao-account"
 edition.workspace = true
 license.workspace = true
 publish = false

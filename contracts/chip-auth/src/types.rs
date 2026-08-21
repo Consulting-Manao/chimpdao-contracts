@@ -7,7 +7,7 @@ pub enum Curve {
     Secp256r1,
 }
 
-/// What a Pocket holder agreed to at onboarding. Here rather than in `smart-account`
+/// What a Pocket holder agreed to at onboarding. Here rather than in `pocket`
 /// because the factory passes it to the Pocket constructor and a `cdylib` cannot be a
 /// library dependency.
 ///

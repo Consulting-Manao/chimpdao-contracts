@@ -7,15 +7,16 @@
 //! being a `CustomAccountInterface` like Pocket. See [`chimpdao_chip_auth::call_digest`].
 
 use chimpdao_chip_auth::{ChipAuth, Curve};
-use soroban_sdk::{Address, BytesN, Env, String, contract, contractmeta};
+use soroban_sdk::{Address, Bytes, BytesN, Env, String, contract, contractmeta};
 
 contractmeta!(key = "Description", val = "ChimpDAO NFC-NFT");
 
-mod collection_contract {
-    soroban_sdk::contractimport!(file = "../../target/wasm32v1-none/release/collection.wasm");
-}
-
 mod contract;
+mod traits;
+
+/// One-time mainnet migration entry points. Absent from every default build.
+#[cfg(feature = "migration")]
+mod migration;
 
 mod errors;
 mod events;
@@ -26,6 +27,7 @@ mod test;
 pub struct NFCtoNFT;
 
 pub trait NFCtoNFTTrait {
+    #[allow(clippy::too_many_arguments)]
     fn __constructor(
         e: &Env,
         admin: Address,
@@ -50,10 +52,12 @@ pub trait NFCtoNFTTrait {
     fn claim(e: &Env, claimant: Address, auth: ChipAuth, public_key: BytesN<65>, nonce: u32)
     -> u32;
 
-    /// Transfer a claimed NFT. The card must be present — that is the point of a
-    /// physical-backed token.
-    ///
-    /// Chip signs `call_digest(DOMAIN, this, "transfer", [from, to, token_id], nonce)`.
+    /// The atomic card handover: moves the token, joins the destination account,
+    /// re-points the purse **with whatever DeFi positions it holds**, and drops the card
+    /// from the source — one tx or nothing. `from`'s signature covers its subtree; `to`
+    /// authorizes the join unless it already lists the card. Chip presence is attested
+    /// over `call_digest(DOMAIN, this, "transfer", [from, to, token_id], nonce)`.
+    #[allow(clippy::too_many_arguments)]
     fn transfer(
         e: &Env,
         from: Address,
@@ -83,6 +87,13 @@ pub trait NFCtoNFTTrait {
     fn next_token_id(e: &Env) -> u32;
 
     fn public_key(e: &Env, token_id: u32) -> BytesN<65>;
+
+    /// Pocket factory used to re-point the purse during a handover. Admin-set.
+    fn set_factory(e: &Env, factory: Address);
+
+    /// Stateless chip-signature oracle over the stored key + curve — the verify
+    /// layer Pockets and integrators lean on. Replay lives in the caller's digest.
+    fn verify_for_card(e: &Env, public_key: BytesN<65>, digest: Bytes, auth: ChipAuth) -> bool;
 
     /// Curve recorded for a chip at mint. Integrators verifying chip signatures in
     /// their own contracts need this alongside [`NFCtoNFTTrait::public_key`].

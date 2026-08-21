@@ -10,6 +10,12 @@ version = "1.0.0"
 crate-type = ["cdylib"]
 doctest = false
 
+[features]
+# One-time mainnet migration entry points. NEVER enable for a shipped build — the
+# default build cannot contain them, which is the point of the gate. See
+# docs/MAINNET-MIGRATION.md.
+migration = []
+
 [dependencies]
 soroban-sdk = { workspace = true }
 chimpdao-chip-auth = { workspace = true }

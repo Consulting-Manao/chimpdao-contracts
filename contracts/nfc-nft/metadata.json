@@ -1,0 +1,17 @@
+{
+  "traits": {
+    "tier": {
+      "displayName": "Tier",
+      "dataType": {
+        "type": "string"
+      },
+      "valueMappings": {
+        "0": "Chimp",
+        "1": "Bronze",
+        "2": "Silver",
+        "3": "Gold"
+      },
+      "tokenOwnerCanUpdateValue": false
+    }
+  }
+}
