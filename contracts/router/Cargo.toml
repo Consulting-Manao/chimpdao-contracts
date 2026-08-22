@@ -1,0 +1,16 @@
+[package]
+name = "chimpdao-router"
+edition.workspace = true
+license.workspace = true
+publish = false
+version = "1.0.0"
+
+[lib]
+crate-type = ["cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

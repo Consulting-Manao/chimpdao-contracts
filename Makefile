@@ -42,6 +42,9 @@ endif
 ifndef factory_wasm
 override factory_wasm = target/wasm32v1-none/release/chimpdao_pocket_factory.wasm
 endif
+ifndef router_wasm
+override router_wasm = target/wasm32v1-none/release/chimpdao_router.wasm
+endif
 
 override factory_contract_id = $(shell cat .config/stellar/pocket_factory_$(network)_id 2>/dev/null)
 override pocket_wasm_hash = $(shell openssl sha256 $(pocket_wasm) 2>/dev/null | cut -d " " -f2)
@@ -229,6 +232,15 @@ contract_set_factory:  ## Point nfc-nft at the Pocket factory (required for card
 		--factory $(factory_contract_id)
 
 # Whole bring-up in dependency order; a failed step leaves the previous ids intact.
+# Atomic multi-call. Stateless, adminless pass-through: nothing to configure after
+# deploying, and no upgrade path by design.
+contract_deploy_router: contract_build  ## Deploy the atomic multi-call router
+	$(call save_id,stellar contract deploy \
+		--wasm $(router_wasm) \
+		--source-account $(admin) \
+		--network $(network) \
+		--salt $(shell printf chimp_router_v2 | openssl sha256 | cut -d " " -f2),.config/stellar/router_$(network)_id)
+
 contract_deploy_all: contract_deploy_collection contract_create_collection contract_upload_account contract_deploy_factory contract_configure_factory contract_set_factory  ## Full bring-up (fresh network only — never mainnet)
 	@echo ""
 	@echo "collection    $$(cat .config/stellar/collection_$(network)_id)"
