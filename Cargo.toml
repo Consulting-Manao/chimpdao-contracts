@@ -9,7 +9,7 @@ license = "BSD-3-Clause"
 repository = "https://radicle.consulting-manao.com/z2BaY97Uo8HiE2MbcibmgpWpfas2D"
 
 [workspace.dependencies.soroban-sdk]
-version = "26.1.0"
+version = "27.0.6"
 
 [workspace.dependencies.chimpdao-chip-auth]
 path = "contracts/chip-auth"
